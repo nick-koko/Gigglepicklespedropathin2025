@@ -42,7 +42,9 @@ public class IntakeTest extends LinearOpMode {
         m1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         m2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         m3.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        m1.setDirection(DcMotorSimple.Direction.FORWARD);
         m2.setDirection(DcMotorSimple.Direction.REVERSE);
+        m2.setDirection(DcMotorSimple.Direction.FORWARD);
 
         telemetry.addLine("Intake Test ready. LB=forward, RB=reverse");
         telemetry.addData("m1 target RPM", M1_TARGET_RPM);
