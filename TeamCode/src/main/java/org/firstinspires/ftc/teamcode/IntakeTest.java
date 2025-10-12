@@ -19,9 +19,9 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 @TeleOp(name = "Intake Test", group = "Test")
 public class IntakeTest extends LinearOpMode {
 
-    public static double M1_TARGET_RPM = 435.0; // top front
+    public static double M1_TARGET_RPM = 800.0; // top front
     public static double M2_TARGET_RPM = 350.0; // bottom
-    public static double M3_TARGET_RPM = 300.0; // top back
+    public static double M3_TARGET_RPM = 400.0; // top back
 
     // goBILDA Yellow Jacket integrated encoder has 28 ticks per motor revolution
     private static final double ENCODER_TICKS_PER_MOTOR_REV = 28.0;

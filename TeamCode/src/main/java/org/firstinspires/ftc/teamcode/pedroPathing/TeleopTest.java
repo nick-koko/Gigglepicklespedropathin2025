@@ -21,8 +21,17 @@ public class TeleopTest extends OpMode {
     private boolean automatedDrive;
     private Supplier<PathChain> pathChain;
     private TelemetryManager telemetryM;
-    private boolean slowMode = false;
-    private double slowModeMultiplier = 0.5;
+    boolean goToTargetAngle;
+    double targetAngleDeg = -135.0;
+    double targetAngleRad;
+    double propAngleGain = -0.5;
+    double minAnglePower = 0.075;
+    double maxRotate = 0.8;
+    double angleAllianceOffset = 0.0;
+    double drivePower;
+    public static double normDrivePower = 1;
+    public static double slowedDrivePower = 0.5;
+
 
     @Override
     public void init() {
@@ -51,23 +60,71 @@ public class TeleopTest extends OpMode {
         follower.update();
         telemetryM.update();
 
+        if (gamepad1.right_bumper) {
+            drivePower = slowedDrivePower;
+        } else {
+            drivePower = normDrivePower;
+        }
+
+        double driving = (-gamepad1.right_stick_y) * drivePower;
+        double strafe = (-gamepad1.right_stick_x) * drivePower;
+        double rotate = (-gamepad1.left_stick_x) * 0.5;
+
+        double botHeadingRad = follower.getPose().getHeading();
+        double botxvalue = follower.getPose().getX(); //gettingxvalue :D
+        double botyvalue = follower.getPose().getY(); //gettingyvalue :D
+        double angletangent = (144-botyvalue)/botxvalue;
+
+        double shootingangle = Math.toDegrees(Math.atan(angletangent));
+        //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue));
+        shootingangle = 180-shootingangle;
+        if (gamepad1.left_bumper) {
+            targetAngleDeg = shootingangle + angleAllianceOffset;
+            goToTargetAngle = true;
+        } else if (gamepad1.dpad_down) {
+            targetAngleDeg = 180.0 + angleAllianceOffset;
+            goToTargetAngle = true;
+        } else if (gamepad1.dpad_right) {
+            targetAngleDeg = -90.0 + angleAllianceOffset;
+            goToTargetAngle = true;
+        } else if (gamepad1.dpad_left) {
+            targetAngleDeg = 90.0 + angleAllianceOffset;
+            goToTargetAngle = true;
+        } else if (gamepad1.dpad_up) {
+            targetAngleDeg = 0.0 + angleAllianceOffset;
+            goToTargetAngle = true;
+        } else {
+            goToTargetAngle = false;
+        }
+
+        targetAngleRad = Math.toRadians(targetAngleDeg);
+
+
+//mR. TODONE 😎👌👌
+        if (goToTargetAngle) {
+            double targetAngleDiff = botHeadingRad - targetAngleRad;
+            if (targetAngleDiff > Math.PI) {
+                targetAngleDiff = (targetAngleDiff - 2 * (Math.PI));
+            } else if (targetAngleDiff < -Math.PI) {
+                targetAngleDiff = (2 * (Math.PI) + targetAngleDiff);
+            }
+            rotate = targetAngleDiff * propAngleGain;
+            if (rotate > 0.0) {
+                rotate = rotate + minAnglePower;
+            } else if (rotate < 0.0) {
+                rotate = rotate - minAnglePower;
+            }
+            rotate = Math.max(Math.min(rotate, maxRotate), -maxRotate);
+        }
         if (!automatedDrive) {
             //Make the last parameter false for field-centric
-            //In case the drivers want to use a "slowMode" you can scale the vectors
 
             //This is the normal version to use in the TeleOp
-            if (!slowMode) follower.setTeleOpDrive(
-                    -gamepad1.right_stick_y,
-                    -gamepad1.right_stick_x,
-                    -gamepad1.left_stick_x,
-                    false // field Centric
-            );
 
-                //This is how it looks with slowMode on
-            else follower.setTeleOpDrive(
-                    -gamepad1.right_stick_y * slowModeMultiplier,
-                    -gamepad1.right_stick_x * slowModeMultiplier,
-                    -gamepad1.left_stick_x * slowModeMultiplier,
+            follower.setTeleOpDrive(
+                    driving,
+                    strafe,
+                    rotate,
                     false // field Centric
             );
         }
@@ -78,27 +135,19 @@ public class TeleopTest extends OpMode {
             automatedDrive = true;
         }
 
+
         //Stop automated following if the follower is done
         if (automatedDrive && (gamepad1.bWasPressed() || !follower.isBusy())) {
             follower.startTeleopDrive();
             automatedDrive = false;
         }
 
-        //Slow Mode
-        if (gamepad1.rightBumperWasPressed()) {
-            slowMode = !slowMode;
-        }
-
-        //Optional way to change slow mode strength
-        if (gamepad1.xWasPressed()) {
-            slowModeMultiplier += 0.25;
-        }
-
-        //Optional way to change slow mode strength
-        if (gamepad2.yWasPressed()) {
-            slowModeMultiplier -= 0.25;
-        }
-
+        telemetryM.debug("Triangle Side 1", botxvalue);
+        telemetryM.debug("Triangle Side 1", 144-botyvalue);
+        telemetryM.debug("Shootin Gangle", shootingangle);
+        telemetryM.debug("Target Angle", targetAngleDeg);
+        telemetryM.debug("Use Special Angle?", goToTargetAngle);
+        telemetryM.debug("Final Rotate Power", rotate);
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);

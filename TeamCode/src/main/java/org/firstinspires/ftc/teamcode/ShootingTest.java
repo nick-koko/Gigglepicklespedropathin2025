@@ -12,7 +12,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 public class ShootingTest extends LinearOpMode {
 
 	// Live-tunable with Panels
-	public static double HIGH_TARGET_RPM = 2000.0; // X button
+	public static double HIGH_TARGET_RPM = 5000.0; // X button
 	public static double LOW_TARGET_RPM = 1300.0;  // B button
 	public static double CR_HIGH_TARGET_RPM = 900.0; // Y button (counter roller)
 	public static double CR_LOW_TARGET_RPM = 500.0;  // A button (counter roller)
@@ -36,7 +36,7 @@ public class ShootingTest extends LinearOpMode {
 		cr.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
 		s1.setDirection(DcMotorSimple.Direction.REVERSE);
-		s2.setDirection(DcMotorSimple.Direction.REVERSE);
+		s2.setDirection(DcMotorSimple.Direction.FORWARD);
 		cr.setDirection(DcMotorSimple.Direction.FORWARD);
 
 		telemetry.addLine("Shooting Test ready. X/B=shooters high/low, Y/A=CR high/low, LT=toggle ON/OFF");
