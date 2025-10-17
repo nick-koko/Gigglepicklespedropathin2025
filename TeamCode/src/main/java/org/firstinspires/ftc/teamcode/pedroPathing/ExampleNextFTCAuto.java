@@ -13,7 +13,7 @@ import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 
-@Autonomous(name = "Example Auto", group = "Examples")
+@Autonomous(name = "Example FTC Auto", group = "Examples")
 public class ExampleNextFTCAuto extends NextFTCOpMode {
     public ExampleNextFTCAuto() {
         addComponents(
