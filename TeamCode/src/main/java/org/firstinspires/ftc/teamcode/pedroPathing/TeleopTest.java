@@ -28,7 +28,7 @@ public class TeleopTest extends OpMode {
     double minAnglePower = 0.075;
     double maxRotate = 0.8;
     double angleAllianceOffset = 0.0;
-    double drivePower;
+    double drivePower = 1.0;
     public static double normDrivePower = 1;
     public static double slowedDrivePower = 0.5;
 
@@ -60,25 +60,28 @@ public class TeleopTest extends OpMode {
         follower.update();
         telemetryM.update();
 
-        if (gamepad1.right_bumper) {
-            drivePower = slowedDrivePower;
-        } else {
-            drivePower = normDrivePower;
-        }
 
-        double driving = (-gamepad1.right_stick_y) * drivePower;
-        double strafe = (-gamepad1.right_stick_x) * drivePower;
-        double rotate = (-gamepad1.left_stick_x) * 0.5;
+        double driving = (-gamepad1.left_stick_y) * drivePower;
+        double strafe = (-gamepad1.left_stick_x) * drivePower;
+        double rotate = (-gamepad1.right_stick_x) * 0.5;
 
         double botHeadingRad = follower.getPose().getHeading();
         double botxvalue = follower.getPose().getX(); //gettingxvalue :D
         double botyvalue = follower.getPose().getY(); //gettingyvalue :D
-        double angletangent = (144-botyvalue)/botxvalue;
-
-        double shootingangle = Math.toDegrees(Math.atan(angletangent));
+        double angletangent=0;
+        double shootingangle=0;
         //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue));
-        shootingangle = 180-shootingangle;
-        if (gamepad1.left_bumper) {
+        if (gamepad1.right_bumper) {
+            angletangent = (144-botyvalue)/(144-botxvalue);
+            shootingangle = Math.toDegrees(Math.atan(angletangent));
+            shootingangle = shootingangle;
+            targetAngleDeg = shootingangle + angleAllianceOffset;
+            goToTargetAngle = true;
+            //drivePower = slowedDrivePower;
+        } else if (gamepad1.left_bumper) {
+            angletangent = (144-botyvalue)/botxvalue;
+            shootingangle = Math.toDegrees(Math.atan(angletangent));
+            shootingangle = 180-shootingangle;
             targetAngleDeg = shootingangle + angleAllianceOffset;
             goToTargetAngle = true;
         } else if (gamepad1.dpad_down) {
@@ -148,6 +151,7 @@ public class TeleopTest extends OpMode {
         telemetryM.debug("Target Angle", targetAngleDeg);
         telemetryM.debug("Use Special Angle?", goToTargetAngle);
         telemetryM.debug("Final Rotate Power", rotate);
+        telemetryM.debug("Final Rotate Drive", rotate);
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
