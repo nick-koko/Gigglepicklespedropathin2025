@@ -44,7 +44,7 @@ public class ShooterSubsystem implements Subsystem {
     
     private DcMotorEx shooter1;
     private DcMotorEx shooter2;
-    private DcMotorEx counterRoller;
+    //private DcMotorEx counterRoller;
     
     private double ticksPerRev;
 
@@ -62,22 +62,22 @@ public class ShooterSubsystem implements Subsystem {
     
     public void initialize(HardwareMap hardwareMap) {
         // Initialize motors
-        shooter1 = hardwareMap.get(DcMotorEx.class, "m1");
-        shooter2 = hardwareMap.get(DcMotorEx.class, "m2");
-        counterRoller = hardwareMap.get(DcMotorEx.class, "m3");
+        shooter1 = hardwareMap.get(DcMotorEx.class, "shooter1");
+        shooter2 = hardwareMap.get(DcMotorEx.class, "shooter2");
+        //counterRoller = hardwareMap.get(DcMotorEx.class, "m3");
 
         // Configure motors
         shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        counterRoller.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        //counterRoller.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooter2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        counterRoller.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        //counterRoller.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
         shooter1.setDirection(DcMotorSimple.Direction.REVERSE);
-        shooter2.setDirection(DcMotorSimple.Direction.REVERSE);
-        counterRoller.setDirection(DcMotorSimple.Direction.FORWARD);
+        shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
+        //counterRoller.setDirection(DcMotorSimple.Direction.FORWARD);
 
         // Calculate ticks per revolution
         ticksPerRev = ENCODER_TICKS_PER_MOTOR_REV * SHOOTER_GEAR_RATIO;
@@ -110,16 +110,14 @@ public class ShooterSubsystem implements Subsystem {
     /**
      * Turn on the shooter at specific RPM.
      * @param shooterRPM Target RPM for shooter motors
-     * @param counterRollerRPM Target RPM for counter roller
+     * counterRollerRPM Target RPM for counter roller
      */
-    public void spinUp(double shooterRPM, double counterRollerRPM) {
+    public void spinUp(double shooterRPM) {
         enabled = true;
         double shooterTps = rpmToTicksPerSecond(shooterRPM);
-        double crTps = rpmToTicksPerSecond(counterRollerRPM);
         
         shooter1.setVelocity(shooterTps);
         shooter2.setVelocity(shooterTps);
-        counterRoller.setVelocity(crTps);
     }
 
     /**
@@ -129,7 +127,6 @@ public class ShooterSubsystem implements Subsystem {
         enabled = false;
         shooter1.setPower(0.0);
         shooter2.setPower(0.0);
-        counterRoller.setPower(0.0);
     }
 
     /**
@@ -170,7 +167,7 @@ public class ShooterSubsystem implements Subsystem {
     
     public double getShooter1RPM() { return shooter1.getVelocity() * 60.0 / ticksPerRev; }
     public double getShooter2RPM() { return shooter2.getVelocity() * 60.0 / ticksPerRev; }
-    public double getCounterRollerRPM() { return counterRoller.getVelocity() * 60.0 / ticksPerRev; }
+    //public double getCounterRollerRPM() { return counterRoller.getVelocity() * 60.0 / ticksPerRev; }
     
     public double getTargetShooterRPM() {
         return highMode ? HIGH_TARGET_RPM : LOW_TARGET_RPM;
@@ -205,7 +202,7 @@ public class ShooterSubsystem implements Subsystem {
         
         shooter1.setVelocity(shooterTps);
         shooter2.setVelocity(shooterTps);
-        counterRoller.setVelocity(crTps);
+        //counterRoller.setVelocity(crTps);
     }
 
     private double rpmToTicksPerSecond(double rpm) {

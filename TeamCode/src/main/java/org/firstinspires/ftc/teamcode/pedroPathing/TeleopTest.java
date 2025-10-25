@@ -11,6 +11,9 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+
 import java.util.function.Supplier;
 
 @Configurable
@@ -31,10 +34,17 @@ public class TeleopTest extends OpMode {
     double drivePower = 1.0;
     public static double normDrivePower = 1;
     public static double slowedDrivePower = 0.5;
+    private IntakeSubsystem intakeSubsystem;
+
+    private ShooterSubsystem shooterSubsystem;
 
 
     @Override
     public void init() {
+        intakeSubsystem = new IntakeSubsystem();
+        intakeSubsystem.initialize(hardwareMap);
+        shooterSubsystem = new ShooterSubsystem();
+        shooterSubsystem.initialize(hardwareMap);
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
         follower.update();
@@ -155,5 +165,33 @@ public class TeleopTest extends OpMode {
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
+        telemetryM.addData("Intake Power", this.intakeSubsystem.getPower());
+
+        if(gamepad2.right_trigger > 0.1)
+        {
+            this.intakeSubsystem.intake();
+            //this.shooterSubsystem.stop();
+        }
+        else if(gamepad2.left_trigger > 0.1)
+        {
+            this.intakeSubsystem.outtake();
+            //this.shooterSubsystem.stop();
+        }
+        else{
+            this.intakeSubsystem.stop();
+        }
+
+
+        if(gamepad1.right_trigger > 0.1)
+        {
+            shooterSubsystem.spinUp(3500);
+        }
+        if(gamepad1.left_trigger > 0.1) {
+            shooterSubsystem.spinUp(5500);
+        }
+        if(gamepad1.bWasPressed()){
+            shooterSubsystem.stop();
+        }
+
     }
 }

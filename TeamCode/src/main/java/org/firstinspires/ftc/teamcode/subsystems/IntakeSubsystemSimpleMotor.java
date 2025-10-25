@@ -29,10 +29,7 @@
 
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import dev.nextftc.core.subsystems.Subsystem;
@@ -41,12 +38,9 @@ import dev.nextftc.core.subsystems.Subsystem;
  * NextFTC Subsystem for controlling the intake mechanism.
  * This subsystem manages a single motor for intake/outtake operations.
  */
-public class IntakeSubsystem implements Subsystem {
+public class IntakeSubsystemSimpleMotor implements Subsystem {
 
-    private DcMotor motor1;
-    private DcMotor motor2;
-
-    private CRServo s1, s2;
+    private DcMotor motor;
     
     // Configurable power levels
     public static double INTAKE_POWER = 0.7;
@@ -57,49 +51,29 @@ public class IntakeSubsystem implements Subsystem {
      * Call this method from your OpMode's onInit().
      */
     public void initialize(HardwareMap hardwareMap) {
-        motor1 = hardwareMap.get(DcMotor.class, "intake_motor");
-        motor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        motor1.setDirection(DcMotorSimple.Direction.REVERSE);
-
-        motor2 = hardwareMap.get(DcMotor.class, "intake_motor2");
-        motor2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        motor2.setDirection(DcMotorSimple.Direction.FORWARD);
-
-        s1 = hardwareMap.get(CRServo.class, "intake_servo1");
-        s2 = hardwareMap.get(CRServo.class, "intake_servo2");
-//
-        s2.setDirection(DcMotorSimple.Direction.REVERSE);
-        s1.setDirection(DcMotorSimple.Direction.FORWARD);
+        motor = hardwareMap.get(DcMotor.class, "intake_motor");
+        motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
 
     /**
      * Set the intake motor to intake (positive power).
      */
     public void intake() {
-        s2.setPower(INTAKE_POWER);
-        s1.setPower(INTAKE_POWER);
-        motor2.setPower(INTAKE_POWER);
-        motor1.setPower(INTAKE_POWER);
+        motor.setPower(INTAKE_POWER);
     }
 
     /**
      * Set the intake motor to outtake (negative power).
      */
     public void outtake() {
-        s2.setPower(OUTTAKE_POWER);
-        s1.setPower(OUTTAKE_POWER);
-        motor2.setPower(OUTTAKE_POWER);
-        motor1.setPower(OUTTAKE_POWER);
+        motor.setPower(OUTTAKE_POWER);
     }
 
     /**
      * Stop the intake motor.
      */
     public void stop() {
-        s2.setPower(0.0);
-        s1.setPower(0.0);
-        motor2.setPower(0.0);
-        motor1.setPower(0.0);
+        motor.setPower(0.0);
     }
 
     /**
@@ -107,7 +81,7 @@ public class IntakeSubsystem implements Subsystem {
      * @param power Power level between -1.0 and 1.0
      */
     public void setPower(double power) {
-        motor1.setPower(power);
+        motor.setPower(power);
     }
 
     /**
@@ -115,7 +89,7 @@ public class IntakeSubsystem implements Subsystem {
      * @return Current motor power
      */
     public double getPower() {
-        return motor1.getPower();
+        return motor.getPower();
     }
 
     /**

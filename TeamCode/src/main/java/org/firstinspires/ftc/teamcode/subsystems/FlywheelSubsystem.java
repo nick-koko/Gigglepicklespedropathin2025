@@ -25,7 +25,7 @@ public class FlywheelSubsystem implements Subsystem {
     private double ticksPerRev;
 
     public void initialize(HardwareMap hardwareMap) {
-        flywheelMotor = hardwareMap.get(DcMotorEx.class, "flywheel_motor");
+        flywheelMotor = hardwareMap.get(DcMotorEx.class, "flywheel_motor1");
         
         // Configure motor
         flywheelMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);

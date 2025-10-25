@@ -89,13 +89,13 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     
     public void initialize(HardwareMap hardwareMap) {
         // Initialize motors
-        m1 = hardwareMap.get(DcMotorEx.class, "m1");
-        m2 = hardwareMap.get(DcMotorEx.class, "m2");
-        m3 = hardwareMap.get(DcMotorEx.class, "m3");
+        m1 = hardwareMap.get(DcMotorEx.class, "intake_motor");
+        //m2 = hardwareMap.get(DcMotorEx.class, "m2");
+        m3 = hardwareMap.get(DcMotorEx.class, "intake_motor2");
 
         // Initialize servos
-        s2 = hardwareMap.get(CRServo.class, "s2");
-        s3 = hardwareMap.get(CRServo.class, "s3");
+        s2 = hardwareMap.get(CRServo.class, "intake_servo1");
+        s3 = hardwareMap.get(CRServo.class, "intake_servo2");
 
         // Initialize sensors
         sensor0 = hardwareMap.get(DigitalChannel.class, "sensor0");
@@ -104,15 +104,15 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
         // Configure motors
         m1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        m2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        //m2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         m3.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         m1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        m2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        //m2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         m3.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         m1.setDirection(DcMotorSimple.Direction.FORWARD);
-        m2.setDirection(DcMotorSimple.Direction.FORWARD);
+        //m2.setDirection(DcMotorSimple.Direction.FORWARD);
         m3.setDirection(DcMotorSimple.Direction.REVERSE);
 
         // Configure servos
@@ -126,7 +126,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
         // Calculate ticks per revolution
         m1TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M1_GEAR_RATIO;
-        m2TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M2_GEAR_RATIO;
+        //m2TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M2_GEAR_RATIO;
         m3TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M3_GEAR_RATIO;
     }
 
@@ -251,7 +251,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public boolean isSensor2Broken() { return !sensor2.getState(); }
     
     public double getMotor1RPM() { return m1.getVelocity() * 60.0 / m1TicksPerRev; }
-    public double getMotor2RPM() { return m2.getVelocity() * 60.0 / m2TicksPerRev; }
+    //public double getMotor2RPM() { return m2.getVelocity() * 60.0 / m2TicksPerRev; }
     public double getMotor3RPM() { return m3.getVelocity() * 60.0 / m3TicksPerRev; }
 
     // =============================================
@@ -266,17 +266,17 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         
         // Calculate velocities
         double m1Velocity = direction * rpmToTicksPerSecond(M1_TARGET_RPM, m1TicksPerRev);
-        double m2Velocity = direction * rpmToTicksPerSecond(M2_TARGET_RPM, m2TicksPerRev);
+        //double m2Velocity = direction * rpmToTicksPerSecond(M2_TARGET_RPM, m2TicksPerRev);
         double m3Velocity = direction * rpmToTicksPerSecond(M3_TARGET_RPM, m3TicksPerRev);
 
         // Set motors based on enabled state
         if (m1Enabled) m1.setVelocity(m1Velocity); else m1.setPower(0.0);
         
         if (m2Enabled) {
-            m2.setVelocity(m2Velocity);
+            //m2.setVelocity(m2Velocity);
             s2.setPower(direction * S2_INTAKE_SPEED);
         } else {
-            m2.setPower(0.0);
+            //m2.setPower(0.0);
             s2.setPower(0.0);
         }
         
