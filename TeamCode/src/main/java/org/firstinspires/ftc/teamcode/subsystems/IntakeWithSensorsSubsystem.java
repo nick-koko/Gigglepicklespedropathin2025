@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import dev.nextftc.core.subsystems.Subsystem;
 
@@ -38,20 +39,20 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     // Shoot RPM targets
     public static double M1_SHOOT_RPM = 200.0;
-    public static double M2_SHOOT_RPM = 200.0;
+    //public static double M2_SHOOT_RPM = 200.0;
     public static double M3_SHOOT_RPM = 200.0;
 
     // Continuous servo speeds
-    public static double S2_INTAKE_SPEED = 0.8;
-    public static double S3_INTAKE_SPEED = 0.8;
+    public static double S2_INTAKE_SPEED = 0.7;
+    public static double S3_INTAKE_SPEED = 0.7;
     public static double S2_SHOOT_SPEED = 0.5;
     public static double S3_SHOOT_SPEED = 0.5;
 
     // Motor constants
     private static final double ENCODER_TICKS_PER_MOTOR_REV = 28.0;
-    private static final double M1_GEAR_RATIO = 3.7;
+    private static final double M1_GEAR_RATIO = 4;
     private static final double M2_GEAR_RATIO = 13.7;
-    private static final double M3_GEAR_RATIO = 13.7;
+    private static final double M3_GEAR_RATIO = 4;
 
     // =============================================
     // HARDWARE
@@ -72,7 +73,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     
     private boolean shooting = false;
     private long shootEndTime = 0;
-    
+    private ElapsedTime shootTimer = new ElapsedTime();
+
     // Sensor state tracking for edge detection
     private boolean prevSensor0 = true;
     private boolean prevSensor1 = true;
@@ -111,13 +113,13 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         //m2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         m3.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        m1.setDirection(DcMotorSimple.Direction.FORWARD);
+        m1.setDirection(DcMotorSimple.Direction.REVERSE);
         //m2.setDirection(DcMotorSimple.Direction.FORWARD);
-        m3.setDirection(DcMotorSimple.Direction.REVERSE);
+        m3.setDirection(DcMotorSimple.Direction.FORWARD);
 
         // Configure servos
         s2.setDirection(DcMotorSimple.Direction.FORWARD);
-        s3.setDirection(DcMotorSimple.Direction.FORWARD);
+        s3.setDirection(DcMotorSimple.Direction.REVERSE);
 
         // Configure sensors
         sensor0.setMode(DigitalChannel.Mode.INPUT);
@@ -203,7 +205,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      */
     public void stop() {
         m1.setPower(0.0);
-        m2.setPower(0.0);
+        //m2.setPower(0.0);
         m3.setPower(0.0);
         s2.setPower(0.0);
         s3.setPower(0.0);
@@ -215,19 +217,21 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      */
     public void shoot() {
         shooting = true;
+        shootTimer.reset();
         shootEndTime = System.currentTimeMillis() + 2000;
         m1Enabled = true;
         m2Enabled = true;
         m3Enabled = true;
         ballCount = 0;
-        
+
         // Set shoot velocities
         m1.setVelocity(rpmToTicksPerSecond(M1_SHOOT_RPM, m1TicksPerRev));
-        m2.setVelocity(rpmToTicksPerSecond(M2_SHOOT_RPM, m2TicksPerRev));
+        //m2.setVelocity(rpmToTicksPerSecond(M2_SHOOT_RPM, m2TicksPerRev));
         m3.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
         s2.setPower(S2_SHOOT_SPEED);
         s3.setPower(S3_SHOOT_SPEED);
     }
+
 
     /**
      * Manually toggle motor enable states (for testing).
@@ -275,17 +279,17 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         if (m2Enabled) {
             //m2.setVelocity(m2Velocity);
             s2.setPower(direction * S2_INTAKE_SPEED);
+            s3.setPower(direction * S3_INTAKE_SPEED);
         } else {
             //m2.setPower(0.0);
             s2.setPower(0.0);
+            s3.setPower(0.0);
         }
         
         if (m3Enabled) {
             m3.setVelocity(m3Velocity);
-            s3.setPower(direction * S3_INTAKE_SPEED);
         } else {
             m3.setPower(0.0);
-            s3.setPower(0.0);
         }
     }
 
