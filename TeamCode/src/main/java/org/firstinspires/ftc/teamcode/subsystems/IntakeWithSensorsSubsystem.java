@@ -33,14 +33,14 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // =============================================
     
     // Intake RPM targets
-    public static double M1_TARGET_RPM = 800.0;
+    public static double M1_TARGET_RPM = 1000.0;
     public static double M2_TARGET_RPM = 350.0;
-    public static double M3_TARGET_RPM = 400.0;
+    public static double M3_TARGET_RPM = 500.0;
 
     // Shoot RPM targets
-    public static double M1_SHOOT_RPM = 200.0;
+    public static double M1_SHOOT_RPM = 500.0;
     //public static double M2_SHOOT_RPM = 200.0;
-    public static double M3_SHOOT_RPM = 200.0;
+    public static double M3_SHOOT_RPM = 1000.0;
 
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;

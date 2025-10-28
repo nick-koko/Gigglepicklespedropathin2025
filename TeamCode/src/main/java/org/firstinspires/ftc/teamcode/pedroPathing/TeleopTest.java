@@ -2,19 +2,29 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
+import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PIDFController;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.HeadingInterpolator;
 import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import org.firstinspires.ftc.teamcode.subsystems.IntakeSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 
+import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import dev.nextftc.control.feedback.PIDCoefficients;
+import dev.nextftc.control.feedback.PIDController;
 
 @Configurable
 @TeleOp
@@ -34,15 +44,26 @@ public class TeleopTest extends OpMode {
     double drivePower = 1.0;
     public static double normDrivePower = 1;
     public static double slowedDrivePower = 0.5;
-    private IntakeSubsystem intakeSubsystem;
+    private IntakeWithSensorsSubsystem intakeSubsystem;
 
     private ShooterSubsystem shooterSubsystem;
+
+    private Limelight3A limelight;
+
+    private double xOffset;
+    private double yOffset;
+    private double yDesired = 17;
+
+    private double areaOffset;
 
 
     @Override
     public void init() {
-        intakeSubsystem = new IntakeSubsystem();
+        intakeSubsystem = new IntakeWithSensorsSubsystem();
         intakeSubsystem.initialize(hardwareMap);
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        limelight.pipelineSwitch(0);
+        limelight.start();
         shooterSubsystem = new ShooterSubsystem();
         shooterSubsystem.initialize(hardwareMap);
         follower = Constants.createFollower(hardwareMap);
@@ -69,6 +90,14 @@ public class TeleopTest extends OpMode {
         //Call this once per loop
         follower.update();
         telemetryM.update();
+        intakeSubsystem.periodic(); // Need this if not extending NextFTCOpmode
+        shooterSubsystem.periodic();
+        LLResult result = limelight.getLatestResult();
+        if (result !=null && result.isValid()){
+                xOffset = result.getTx();
+                yOffset = result.getTy();
+                areaOffset = result.getTa();
+        }
 
 
         double driving = (-gamepad1.left_stick_y) * drivePower;
@@ -81,19 +110,48 @@ public class TeleopTest extends OpMode {
         double angletangent=0;
         double shootingangle=0;
         //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue));
+        List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
+                .filter(r -> r.getFiducialId() == 24)
+                .collect(Collectors.toList());
+
+        List<LLResultTypes.FiducialResult> tag20Results = result.getFiducialResults().stream()
+                .filter(r -> r.getFiducialId() == 20)
+                .collect(Collectors.toList());
+
         if (gamepad1.right_bumper) {
-            angletangent = (144-botyvalue)/(144-botxvalue);
-            shootingangle = Math.toDegrees(Math.atan(angletangent));
-            shootingangle = shootingangle;
-            targetAngleDeg = shootingangle + angleAllianceOffset;
-            goToTargetAngle = true;
+//            if (!tag24Results.isEmpty() && tag24Results.get(0).getTargetXDegrees() > 0 || tag24Results.get(0).getTargetXDegrees() < 0) {
+//                rotate = -xOffset * 0.025;
+//                driving = (17 - yOffset) * 0.025;
+//                strafe = (17 - yOffset) * 0.025;
+//                goToTargetAngle = false;
+//            }
+//            else {
+//                angletangent = (144-botyvalue)/botxvalue;
+//                shootingangle = Math.toDegrees(Math.atan(angletangent));
+//                shootingangle = 180-shootingangle;
+//                targetAngleDeg = shootingangle;
+//                goToTargetAngle = true;
+                  angletangent = (144-botyvalue)/(144-botxvalue);
+                  shootingangle = Math.toDegrees(Math.atan(angletangent));
+                  shootingangle = shootingangle;
+                  targetAngleDeg = shootingangle + angleAllianceOffset;
+                  goToTargetAngle = true;
+
             //drivePower = slowedDrivePower;
-        } else if (gamepad1.left_bumper) {
-            angletangent = (144-botyvalue)/botxvalue;
-            shootingangle = Math.toDegrees(Math.atan(angletangent));
-            shootingangle = 180-shootingangle;
-            targetAngleDeg = shootingangle + angleAllianceOffset;
-            goToTargetAngle = true;
+//        } else if (gamepad1.left_bumper) {
+//            if (!tag20Results.isEmpty() && tag20Results.get(0).getTargetXDegrees() > 0 || tag20Results.get(0).getTargetXDegrees() < 0) {
+//                rotate = -xOffset * 0.025;
+//                driving = (17 - yOffset) * 0.025;
+//                strafe = (17 - yOffset) * 0.025;
+//                goToTargetAngle = false;
+//            }
+//            else{
+//                angletangent = (144-botyvalue)/(144-botxvalue);
+//                shootingangle = Math.toDegrees(Math.atan(angletangent));
+//                shootingangle = shootingangle;
+//                targetAngleDeg = shootingangle + angleAllianceOffset;
+//                goToTargetAngle = true;
+//            }
         } else if (gamepad1.dpad_down) {
             targetAngleDeg = 180.0 + angleAllianceOffset;
             goToTargetAngle = true;
@@ -165,8 +223,19 @@ public class TeleopTest extends OpMode {
         telemetryM.debug("position", follower.getPose());
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
-        telemetryM.addData("Intake Power", this.intakeSubsystem.getPower());
 
+
+        if (result == null) {
+            telemetry.addData("Limelight", "No result object");
+        } else if (!result.isValid()) {
+            telemetry.addData("Limelight", "No valid target");
+        } else {
+            telemetry.addData("Limelight", "Target seen!");
+            telemetry.addData("tx", result.getTx());
+            telemetry.addData("ta", result.getTa());
+            telemetry.addData("ty", result.getTy());
+        }
+/* My controls
         if(gamepad2.right_trigger > 0.1)
         {
             this.intakeSubsystem.intake();
@@ -191,6 +260,25 @@ public class TeleopTest extends OpMode {
         }
         if(gamepad1.bWasPressed()){
             shooterSubsystem.stop();
+        }
+ End My controls */
+//Start Ian's controls
+        if (gamepad2.rightBumperWasPressed()) {
+            this.shooterSubsystem.spinUp(4000);
+        }
+        else if (gamepad2.leftBumperWasPressed()) {
+            this.shooterSubsystem.stop();
+        }
+
+        if (gamepad2.right_trigger > 0.1) {
+            this.intakeSubsystem.shoot();
+        }
+        else if (gamepad2.aWasPressed()) {
+            this.intakeSubsystem.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
+            this.shooterSubsystem.stop();
+        }
+        else if (gamepad2.b) {
+            this.intakeSubsystem.intakeReverse();
         }
 
     }

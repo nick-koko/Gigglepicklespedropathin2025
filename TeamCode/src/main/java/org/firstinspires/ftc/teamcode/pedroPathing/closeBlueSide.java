@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
-import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
@@ -13,6 +12,7 @@ import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
 import dev.nextftc.core.commands.groups.ParallelGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
+import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
@@ -21,10 +21,10 @@ import dev.nextftc.ftc.NextFTCOpMode;
 public class closeBlueSide extends NextFTCOpMode{
     public closeBlueSide() {
         addComponents(
-                new PedroComponent(Constants::createFollower)
+                new PedroComponent(Constants::createFollower),
+                new SubsystemComponent()
         );
     }
-        private Follower follower;
         private Timer pathTimer, actionTimer, opmodeTimer;
         private int pathState;
 
@@ -45,7 +45,7 @@ public class closeBlueSide extends NextFTCOpMode{
 
     /* Here is an example for Constant Interpolation
     scorePreload.setConstantInterpolation(startPose.getHeading()); */
-            firstshootpath=follower.pathBuilder()
+            firstshootpath=PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierLine(startPose,scorePose)
 
@@ -54,7 +54,7 @@ public class closeBlueSide extends NextFTCOpMode{
                     .build();
 
             /* This is our grabPickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            curvedLineBlue= follower.pathBuilder()
+            curvedLineBlue= PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierCurve(
                                     new Pose(65.027, 135.767),
@@ -119,37 +119,37 @@ public class closeBlueSide extends NextFTCOpMode{
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(135))
                     .build();
 
-            grabPickup1 = follower.pathBuilder()
+            grabPickup1 = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierLine(scorePose, pickup1Pose))
                     .setLinearHeadingInterpolation(scorePose.getHeading(), pickup1Pose.getHeading())
                     .build();
 
             /* This is our scorePickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            scorePickup1 = follower.pathBuilder()
+            scorePickup1 = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierLine(pickup1Pose, scorePose))
                     .setLinearHeadingInterpolation(pickup1Pose.getHeading(), scorePose.getHeading())
                     .build();
 
             /* This is our grabPickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            grabPickup2 = follower.pathBuilder()
+            grabPickup2 = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierLine(scorePose, pickup2Pose))
                     .setLinearHeadingInterpolation(scorePose.getHeading(), pickup2Pose.getHeading())
                     .build();
 
             /* This is our scorePickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            scorePickup2 = follower.pathBuilder()
+            scorePickup2 = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierLine(pickup2Pose, scorePose))
                     .setLinearHeadingInterpolation(pickup2Pose.getHeading(), scorePose.getHeading())
                     .build();
 
             /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            grabPickup3 = follower.pathBuilder()
+            grabPickup3 = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierLine(scorePose, pickup3Pose))
                     .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3Pose.getHeading())
                     .build();
 
             /* This is our scorePickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            scorePickup3 = follower.pathBuilder()
+            scorePickup3 = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierLine(pickup3Pose, scorePose))
                     .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
                     .build();
@@ -172,13 +172,12 @@ public class closeBlueSide extends NextFTCOpMode{
         public void onUpdate() {
 
             // These loop the movements of the robot, these must be called continuously in order to work
-            follower.update();
 
             // Feedback to Driver Hub for debugging
             telemetry.addData("path state", pathState);
-            telemetry.addData("x", follower.getPose().getX());
-            telemetry.addData("y", follower.getPose().getY());
-            telemetry.addData("heading", follower.getPose().getHeading());
+            telemetry.addData("x", PedroComponent.follower().getPose().getX());
+            telemetry.addData("y", PedroComponent.follower().getPose().getY());
+            telemetry.addData("heading", PedroComponent.follower().getPose().getHeading());
             telemetry.update();
         }
 
@@ -189,9 +188,8 @@ public class closeBlueSide extends NextFTCOpMode{
             opmodeTimer = new Timer();
             opmodeTimer.resetTimer();
 
-            follower = Constants.createFollower(hardwareMap);
             buildPaths();
-            follower.setStartingPose(startPose);
+            PedroComponent.follower().setStartingPose(startPose);
 
         }
 

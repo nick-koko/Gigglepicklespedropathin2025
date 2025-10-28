@@ -35,7 +35,7 @@ public class ShooterSubsystem implements Subsystem {
     public static double CR_LOW_TARGET_RPM = 500.0;
     
     // Motor constants
-    private static double SHOOTER_GEAR_RATIO = 1.0;  // Yellow Jacket 6000 RPM
+    private static double SHOOTER_GEAR_RATIO = (17.0/23.0);  // Yellow Jacket 6000 RPM geared to 17/23
     private static final double ENCODER_TICKS_PER_MOTOR_REV = 28.0;
 
     // =============================================
