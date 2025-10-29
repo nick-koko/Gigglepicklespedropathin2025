@@ -28,6 +28,9 @@ import dev.nextftc.core.subsystems.Subsystem;
 @Configurable
 public class IntakeWithSensorsSubsystem implements Subsystem {
 
+    public static final IntakeWithSensorsSubsystem INSTANCE = new IntakeWithSensorsSubsystem();
+    private IntakeWithSensorsSubsystem() {}
+
     // =============================================
     // CONFIGURABLE CONSTANTS
     // =============================================
@@ -94,6 +97,10 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private double m2TicksPerRev;
     private double m3TicksPerRev;
 
+    // Intake run state
+    private boolean isIntaking = false;
+    private double currentDirection = 0.0; // +1 forward, -1 reverse
+
     // =============================================
     // INITIALIZATION
     // =============================================
@@ -109,26 +116,23 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         s3 = hardwareMap.get(CRServo.class, "intake_servo2");
 
         // Initialize sensors
-        sensor0 = hardwareMap.get(DigitalChannel.class, "sensor0");
-        sensor1 = hardwareMap.get(DigitalChannel.class, "sensor1");
-        sensor2 = hardwareMap.get(DigitalChannel.class, "sensor2");
+        sensor0 = hardwareMap.get(DigitalChannel.class, "breakbeam0");
+        sensor1 = hardwareMap.get(DigitalChannel.class, "breakbeam1");
+        sensor2 = hardwareMap.get(DigitalChannel.class, "breakbeam2");
 
         // Configure motors
         m1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        //m2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         m3.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         m1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        //m2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         m3.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         m1.setDirection(DcMotorSimple.Direction.REVERSE);
-        //m2.setDirection(DcMotorSimple.Direction.FORWARD);
         m3.setDirection(DcMotorSimple.Direction.FORWARD);
 
         // Configure servos
-        s2.setDirection(DcMotorSimple.Direction.FORWARD);
-        s3.setDirection(DcMotorSimple.Direction.REVERSE);
+        s2.setDirection(DcMotorSimple.Direction.REVERSE);
+        s3.setDirection(DcMotorSimple.Direction.FORWARD);
 
         // Configure sensors
         sensor0.setMode(DigitalChannel.Mode.INPUT);
@@ -177,6 +181,11 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
                 startSingleShot();
             }
         }
+
+        // Re-apply intake outputs each loop so sensor flags take effect immediately
+        if (isIntaking) {
+            setIntakeDirection(currentDirection, shooting);
+        }
     }
 
     // =============================================
@@ -222,6 +231,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * Run intake forward at configured speeds.
      */
     public void intakeForward() {
+        isIntaking = true;
+        currentDirection = 1.0;
         setIntakeDirection(1.0, false);
     }
 
@@ -229,6 +240,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * Run intake in reverse at configured speeds.
      */
     public void intakeReverse() {
+        isIntaking = true;
+        currentDirection = -1.0;
         setIntakeDirection(-1.0, false);
     }
 
@@ -236,6 +249,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * Stop all intake motors and servos.
      */
     public void stop() {
+        isIntaking = false;
         m1.setPower(0.0);
         //m2.setPower(0.0);
         m3.setPower(0.0);
@@ -311,6 +325,15 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // =============================================
     
     public int getBallCount() { return ballCount; }
+    public void setBallCount(int count) {
+        // Clamp between 0 and 3
+        ballCount = Math.max(0, Math.min(3, count));
+        // Reflect existing balls by disabling the corresponding stages
+        // ball 1 present => disable m3; ball 2 => disable m2; ball 3 => disable m1
+        m3Enabled = ballCount < 1;
+        m2Enabled = ballCount < 2;
+        m1Enabled = ballCount < 3;
+    }
     public boolean isShooting() { return shooting; }
     public boolean isShootSequenceActive() { return shootSequenceActive; }
     public int getCurrentShot() { return currentShot; }

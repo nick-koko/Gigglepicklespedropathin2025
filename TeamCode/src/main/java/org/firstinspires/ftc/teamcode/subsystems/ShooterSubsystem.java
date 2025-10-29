@@ -22,6 +22,9 @@ import dev.nextftc.core.subsystems.Subsystem;
 @Configurable
 public class ShooterSubsystem implements Subsystem {
 
+    public static final ShooterSubsystem INSTANCE = new ShooterSubsystem();
+    private ShooterSubsystem() {}
+
     // =============================================
     // CONFIGURABLE CONSTANTS
     // =============================================
@@ -62,8 +65,8 @@ public class ShooterSubsystem implements Subsystem {
     
     public void initialize(HardwareMap hardwareMap) {
         // Initialize motors
-        shooter1 = hardwareMap.get(DcMotorEx.class, "shooter1");
-        shooter2 = hardwareMap.get(DcMotorEx.class, "shooter2");
+        shooter1 = hardwareMap.get(DcMotorEx.class, "shooter_motor1");
+        shooter2 = hardwareMap.get(DcMotorEx.class, "shooter_motor2");
         //counterRoller = hardwareMap.get(DcMotorEx.class, "m3");
 
         // Configure motors

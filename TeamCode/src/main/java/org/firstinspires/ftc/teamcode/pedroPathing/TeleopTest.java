@@ -16,6 +16,7 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 
@@ -44,10 +45,6 @@ public class TeleopTest extends OpMode {
     double drivePower = 1.0;
     public static double normDrivePower = 1;
     public static double slowedDrivePower = 0.5;
-    private IntakeWithSensorsSubsystem intakeSubsystem;
-
-    private ShooterSubsystem shooterSubsystem;
-
     private Limelight3A limelight;
 
     private double xOffset;
@@ -59,17 +56,20 @@ public class TeleopTest extends OpMode {
 
     @Override
     public void init() {
-        intakeSubsystem = new IntakeWithSensorsSubsystem();
-        intakeSubsystem.initialize(hardwareMap);
+        IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
-        shooterSubsystem = new ShooterSubsystem();
-        shooterSubsystem.initialize(hardwareMap);
+        ShooterSubsystem.INSTANCE.initialize(hardwareMap);
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
+
+        // Carry over ball count from auton if available
+        if (GlobalRobotData.endAutonBallCount >= 0) {
+            IntakeWithSensorsSubsystem.INSTANCE.setBallCount(GlobalRobotData.endAutonBallCount);
+        }
 
         pathChain = () -> follower.pathBuilder() //Lazy Curve Generation
                 .addPath(new Path(new BezierLine(follower::getPose, new Pose(45, 98))))
@@ -90,8 +90,8 @@ public class TeleopTest extends OpMode {
         //Call this once per loop
         follower.update();
         telemetryM.update();
-        intakeSubsystem.periodic(); // Need this if not extending NextFTCOpmode
-        shooterSubsystem.periodic();
+        IntakeWithSensorsSubsystem.INSTANCE.periodic(); // Need this if not extending NextFTCOpmode
+        ShooterSubsystem.INSTANCE.periodic();
         LLResult result = limelight.getLatestResult();
         if (result !=null && result.isValid()){
                 xOffset = result.getTx();
@@ -224,6 +224,11 @@ public class TeleopTest extends OpMode {
         telemetryM.debug("velocity", follower.getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
 
+        telemetry.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
+        telemetry.addData("sensor0", IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken());
+        telemetry.addData("sensor1", IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken());
+        telemetry.addData("sensor2", IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken());
+
 
         if (result == null) {
             telemetry.addData("Limelight", "No result object");
@@ -238,47 +243,47 @@ public class TeleopTest extends OpMode {
 /* My controls
         if(gamepad2.right_trigger > 0.1)
         {
-            this.intakeSubsystem.intake();
-            //this.shooterSubsystem.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.intake();
+            //ShooterSubsystem.INSTANCE.stop();
         }
         else if(gamepad2.left_trigger > 0.1)
         {
-            this.intakeSubsystem.outtake();
-            //this.shooterSubsystem.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.outtake();
+            //ShooterSubsystem.INSTANCE.stop();
         }
         else{
-            this.intakeSubsystem.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.stop();
         }
 
 
         if(gamepad1.right_trigger > 0.1)
         {
-            shooterSubsystem.spinUp(3500);
+            ShooterSubsystem.INSTANCE.spinUp(3500);
         }
         if(gamepad1.left_trigger > 0.1) {
-            shooterSubsystem.spinUp(5500);
+            ShooterSubsystem.INSTANCE.spinUp(5500);
         }
         if(gamepad1.bWasPressed()){
-            shooterSubsystem.stop();
+            ShooterSubsystem.INSTANCE.stop();
         }
  End My controls */
 //Start Ian's controls
         if (gamepad2.rightBumperWasPressed()) {
-            this.shooterSubsystem.spinUp(4000);
+            ShooterSubsystem.INSTANCE.spinUp(4000);
         }
         else if (gamepad2.leftBumperWasPressed()) {
-            this.shooterSubsystem.stop();
+            ShooterSubsystem.INSTANCE.stop();
         }
 
         if (gamepad2.right_trigger > 0.1) {
-            this.intakeSubsystem.shoot();
+            IntakeWithSensorsSubsystem.INSTANCE.shoot();
         }
         else if (gamepad2.aWasPressed()) {
-            this.intakeSubsystem.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
-            this.shooterSubsystem.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
+            ShooterSubsystem.INSTANCE.stop();
         }
         else if (gamepad2.b) {
-            this.intakeSubsystem.intakeReverse();
+            IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
 
     }

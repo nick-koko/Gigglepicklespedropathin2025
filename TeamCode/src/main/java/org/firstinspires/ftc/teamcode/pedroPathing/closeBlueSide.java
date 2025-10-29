@@ -8,6 +8,11 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
+import org.firstinspires.ftc.teamcode.GlobalRobotData;
+import org.firstinspires.ftc.teamcode.subsystems.FlywheelSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
 import dev.nextftc.core.commands.groups.ParallelGroup;
@@ -22,15 +27,16 @@ public class closeBlueSide extends NextFTCOpMode{
     public closeBlueSide() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
-                new SubsystemComponent()
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE)
         );
     }
         private Timer pathTimer, actionTimer, opmodeTimer;
         private int pathState;
 
         //private final Pose startPose = new Pose(55, 9.5, Math.toRadians(90)); // Start Pose of our robotprivate Path scorePreload;
-        private final Pose startPose = new Pose(20, 123.5, Math.toRadians(135)); // Start Pose of our robotprivate Path scorePreload;
+        private final Pose startPose = new Pose(18, 117.5, Math.toRadians(140)); // Start Pose of our robotprivate Path scorePreload;
         private final Pose scorePose = new Pose(50, 98.33, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+        private final Pose scorePoseClose = new Pose(37, 104, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
         private final Pose pickup1Pose = new Pose(37, 121, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
         private final Pose pickup2Pose = new Pose(43, 130, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
         private final Pose pickup3Pose = new Pose(49, 135, Math.toRadians(0)); // Lowest (Third Set) of Artifacts from the Spike Mark.
@@ -47,10 +53,10 @@ public class closeBlueSide extends NextFTCOpMode{
     scorePreload.setConstantInterpolation(startPose.getHeading()); */
             firstshootpath=PedroComponent.follower().pathBuilder()
                     .addPath(
-                            new BezierLine(startPose,scorePose)
+                            new BezierLine(startPose,scorePoseClose)
 
                     )
-                    .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
+                    .setLinearHeadingInterpolation(startPose.getHeading(), scorePoseClose.getHeading())
                     .build();
 
             /* This is our grabPickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
@@ -188,8 +194,12 @@ public class closeBlueSide extends NextFTCOpMode{
             opmodeTimer = new Timer();
             opmodeTimer.resetTimer();
 
-            buildPaths();
-            PedroComponent.follower().setStartingPose(startPose);
+        // Seed ball count for auton: assume robot starts loaded with 3
+        IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
+
+        // Build Pedro paths and set starting pose during init per docs
+        buildPaths();
+        PedroComponent.follower().setStartingPose(startPose);
 
         }
 
@@ -199,7 +209,11 @@ public class closeBlueSide extends NextFTCOpMode{
 
         /** We do not use this because everything should automatically disable **/
         @Override
-        public void onStop() {}// dont know what to do here
+    public void onStop() {
+        // Persist ball count (and optionally pose) for TeleOp
+        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+    }
 
         /** This method is called once at the start of the OhhpMode.
          * It runs all the setup actions, including building paths and starting the path system **/
@@ -207,7 +221,7 @@ public class closeBlueSide extends NextFTCOpMode{
         public void onStartButtonPressed()
 
         {
-            BlueCloseAuton().schedule();// dont know what to do here
+        BlueCloseAuton().schedule();
         }
 
     }

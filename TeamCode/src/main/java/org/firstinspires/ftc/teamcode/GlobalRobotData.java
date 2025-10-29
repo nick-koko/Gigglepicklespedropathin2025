@@ -1,0 +1,10 @@
+package org.firstinspires.ftc.teamcode;
+
+import com.pedropathing.geometry.Pose;
+
+public class GlobalRobotData {
+    public static int endAutonBallCount = -1;
+    public static Pose endAutonPose = null;
+}
+
+
