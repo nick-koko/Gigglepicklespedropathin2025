@@ -62,7 +62,14 @@ public class TeleopTest extends OpMode {
         limelight.start();
         ShooterSubsystem.INSTANCE.initialize(hardwareMap);
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(startingPose == null ? new Pose() : startingPose);
+
+        if ((GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun)) {
+            startingPose = GlobalRobotData.endAutonPose;
+            GlobalRobotData.hasAutonRun = false;
+        }
+
+        follower.setStartingPose(startingPose);
+
         follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 

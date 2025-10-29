@@ -209,19 +209,25 @@ public class closeBlueSide extends NextFTCOpMode{
 
         /** We do not use this because everything should automatically disable **/
         @Override
-    public void onStop() {
-        // Persist ball count (and optionally pose) for TeleOp
-        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-    }
+        public void onStop() {
+            // Persist ball count (and optionally pose) for TeleOp
+            GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+            GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+            GlobalRobotData.hasAutonRun = true;
+        }
 
         /** This method is called once at the start of the OhhpMode.
          * It runs all the setup actions, including building paths and starting the path system **/
         @Override
         public void onStartButtonPressed()
-
         {
-        BlueCloseAuton().schedule();
+
+            BlueCloseAuton().schedule();
+
+            // Persist ball count (and optionally pose) for TeleOp
+            GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+            GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+            GlobalRobotData.hasAutonRun = true;
         }
 
     }
