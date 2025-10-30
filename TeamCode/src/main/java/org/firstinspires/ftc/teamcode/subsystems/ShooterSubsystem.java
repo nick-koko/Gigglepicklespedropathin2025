@@ -5,6 +5,8 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.Range;
 
 import dev.nextftc.core.subsystems.Subsystem;
 
@@ -41,12 +43,16 @@ public class ShooterSubsystem implements Subsystem {
     private static double SHOOTER_GEAR_RATIO = (17.0/23.0);  // Yellow Jacket 6000 RPM geared to 17/23
     private static final double ENCODER_TICKS_PER_MOTOR_REV = 28.0;
 
+    private double targetRPM = 0;
+
     // =============================================
     // HARDWARE
     // =============================================
     
     private DcMotorEx shooter1;
     private DcMotorEx shooter2;
+
+    private Servo shooterHood;
     //private DcMotorEx counterRoller;
     
     private double ticksPerRev;
@@ -59,6 +65,8 @@ public class ShooterSubsystem implements Subsystem {
     private boolean highMode = true;  // true = high speed, false = low speed
     private boolean crHighMode = true;
 
+
+
     // =============================================
     // INITIALIZATION
     // =============================================
@@ -67,6 +75,7 @@ public class ShooterSubsystem implements Subsystem {
         // Initialize motors
         shooter1 = hardwareMap.get(DcMotorEx.class, "shooter_motor1");
         shooter2 = hardwareMap.get(DcMotorEx.class, "shooter_motor2");
+        shooterHood = hardwareMap.get(Servo.class, "shooter_hood");
         //counterRoller = hardwareMap.get(DcMotorEx.class, "m3");
 
         // Configure motors
@@ -115,14 +124,13 @@ public class ShooterSubsystem implements Subsystem {
      * @param shooterRPM Target RPM for shooter motors
      * counterRollerRPM Target RPM for counter roller
      */
-    public boolean spinUp(double shooterRPM) {
+    public void spinUp(double ty) {
+        this.targetRPM = 69.3784 * ty + 3200;
         enabled = true;
-        double shooterTps = rpmToTicksPerSecond(shooterRPM);
+        double shooterTps = rpmToTicksPerSecond(targetRPM);
         
         shooter1.setVelocity(shooterTps);
         shooter2.setVelocity(shooterTps);
-
-        return true;
     }
 
     /**
@@ -173,9 +181,30 @@ public class ShooterSubsystem implements Subsystem {
     public double getShooter1RPM() { return shooter1.getVelocity() * 60.0 / ticksPerRev; }
     public double getShooter2RPM() { return shooter2.getVelocity() * 60.0 / ticksPerRev; }
     //public double getCounterRollerRPM() { return counterRoller.getVelocity() * 60.0 / ticksPerRev; }
+
+    public double getShooterHoodPosition() { return this.shooterHood.getPosition(); }
+
+    public void driveShooterHood(double joystick) {
+        double currentPosition = shooterHood.getPosition();
+        double increment = -joystick * 0.01;  // adjust sensitivity here
+        double newPosition = Range.clip(currentPosition + increment, 0.0, 1.0);
+        shooterHood.setPosition(newPosition);
+    }
+
+    public void shooterHoodDrive(double yOffset){
+        if (yOffset > 11.25 && yOffset < 14.3) {
+            this.shooterHood.setPosition(0.488);
+        }
+        else if(yOffset > 14.3) {
+            this.shooterHood.setPosition(0.388);
+        }
+        else{
+            this.shooterHood.setPosition(0.15);
+        }
+    }
     
     public double getTargetShooterRPM() {
-        return highMode ? HIGH_TARGET_RPM : LOW_TARGET_RPM;
+        return this.targetRPM;
     }
     
     public double getTargetCounterRollerRPM() {
@@ -199,11 +228,9 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     
     private void updateVelocities() {
-        double shooterTarget = highMode ? HIGH_TARGET_RPM : LOW_TARGET_RPM;
-        double crTarget = crHighMode ? CR_HIGH_TARGET_RPM : CR_LOW_TARGET_RPM;
+        double shooterTarget = this.targetRPM;
         
         double shooterTps = rpmToTicksPerSecond(shooterTarget);
-        double crTps = rpmToTicksPerSecond(crTarget);
         
         shooter1.setVelocity(shooterTps);
         shooter2.setVelocity(shooterTps);

@@ -54,6 +54,7 @@ public class TeleopTest extends OpMode {
     private double areaOffset;
 
 
+
     @Override
     public void init() {
         IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
@@ -100,10 +101,10 @@ public class TeleopTest extends OpMode {
         IntakeWithSensorsSubsystem.INSTANCE.periodic(); // Need this if not extending NextFTCOpmode
         ShooterSubsystem.INSTANCE.periodic();
         LLResult result = limelight.getLatestResult();
-        if (result !=null && result.isValid()){
-                xOffset = result.getTx();
-                yOffset = result.getTy();
-                areaOffset = result.getTa();
+        if (result != null && result.isValid()) {
+            xOffset = result.getTx();
+            yOffset = result.getTy();
+            areaOffset = result.getTa();
         }
 
 
@@ -114,35 +115,40 @@ public class TeleopTest extends OpMode {
         double botHeadingRad = follower.getPose().getHeading();
         double botxvalue = follower.getPose().getX(); //gettingxvalue :D
         double botyvalue = follower.getPose().getY(); //gettingyvalue :D
-        double angletangent=0;
-        double shootingangle=0;
-        //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue));
-        List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
-                .filter(r -> r.getFiducialId() == 24)
-                .collect(Collectors.toList());
-
-        List<LLResultTypes.FiducialResult> tag20Results = result.getFiducialResults().stream()
-                .filter(r -> r.getFiducialId() == 20)
-                .collect(Collectors.toList());
+        double angletangent = 0;
+        double shootingangle = 0;
+        //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue)
 
         if (gamepad1.right_bumper) {
-//            if (!tag24Results.isEmpty() && tag24Results.get(0).getTargetXDegrees() > 0 || tag24Results.get(0).getTargetXDegrees() < 0) {
-//                rotate = -xOffset * 0.025;
-//                driving = (17 - yOffset) * 0.025;
-//                strafe = (17 - yOffset) * 0.025;
-//                goToTargetAngle = false;
-//            }
+            if (result != null && result.isValid()) {
+                List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
+                        .filter(r -> r.getFiducialId() == 24)
+                        .collect(Collectors.toList());
+
+//                List<LLResultTypes.FiducialResult> tag20Results = result.getFiducialResults().stream()
+//                        .filter(r -> r.getFiducialId() == 20)
+//                        .collect(Collectors.toList());
+//                if (!tag24Results.isEmpty()) {
+                if (!tag24Results.isEmpty()) {
+                    double targetX = tag24Results.get(0).getTargetXDegrees();
+                    if (targetX != 0) {
+                        rotate = -targetX * 0.025;
+                        goToTargetAngle = false;
+                    }
+                }
+        } else {
+            angletangent = (144 - botyvalue) / (144 - botxvalue);
+            shootingangle = Math.toDegrees(Math.atan(angletangent));
+            shootingangle = shootingangle;
+            targetAngleDeg = shootingangle + angleAllianceOffset;
+            goToTargetAngle = true;
+        }
 //            else {
 //                angletangent = (144-botyvalue)/botxvalue;
 //                shootingangle = Math.toDegrees(Math.atan(angletangent));
 //                shootingangle = 180-shootingangle;
 //                targetAngleDeg = shootingangle;
-//                goToTargetAngle = true;
-                  angletangent = (144-botyvalue)/(144-botxvalue);
-                  shootingangle = Math.toDegrees(Math.atan(angletangent));
-                  shootingangle = shootingangle;
-                  targetAngleDeg = shootingangle + angleAllianceOffset;
-                  goToTargetAngle = true;
+//                goToTargetAngle = true
 
             //drivePower = slowedDrivePower;
 //        } else if (gamepad1.left_bumper) {
@@ -235,6 +241,9 @@ public class TeleopTest extends OpMode {
         telemetry.addData("sensor0", IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken());
         telemetry.addData("sensor1", IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken());
         telemetry.addData("sensor2", IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken());
+        telemetry.addData("Shooter Hood Value", ShooterSubsystem.INSTANCE.getShooterHoodPosition());
+        telemetry.addData("Shooter Speed", ShooterSubsystem.INSTANCE.getShooter1RPM());
+        telemetry.addData("Target Shooter Speed", ShooterSubsystem.INSTANCE.getTargetShooterRPM());
 
 
         if (result == null) {
@@ -276,14 +285,14 @@ public class TeleopTest extends OpMode {
  End My controls */
 //Start Ian's controls
         if (gamepad2.rightBumperWasPressed()) {
-            ShooterSubsystem.INSTANCE.spinUp(4000);
+            ShooterSubsystem.INSTANCE.spinUp(yOffset);
         }
         else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();
         }
 
         if (gamepad2.right_trigger > 0.1) {
-            IntakeWithSensorsSubsystem.INSTANCE.shoot();
+            IntakeWithSensorsSubsystem.INSTANCE.shoot(ShooterSubsystem.INSTANCE.getShooter1RPM(), ShooterSubsystem.INSTANCE.getTargetShooterRPM());
         }
         else if (gamepad2.aWasPressed()) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
@@ -292,6 +301,8 @@ public class TeleopTest extends OpMode {
         else if (gamepad2.b) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
+
+        ShooterSubsystem.INSTANCE.shooterHoodDrive(this.yOffset);
 
     }
 }

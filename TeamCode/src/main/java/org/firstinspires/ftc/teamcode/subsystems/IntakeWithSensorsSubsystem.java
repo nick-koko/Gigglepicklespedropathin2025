@@ -52,8 +52,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double S3_SHOOT_SPEED = 0.7;
 
     // Shooting timing (in milliseconds)
-    public static long SHOOT_DURATION_MS = 800;      // How long to run motors for each shot
-    public static long DELAY_BETWEEN_SHOTS_MS = 500;  // Delay between sequential shots
+    public static long SHOOT_DURATION_MS = 250;      // How long to run motors for each shot
+    public static long DELAY_BETWEEN_SHOTS_MS = 200;  // Delay between sequential shots
     public static int MAX_SHOTS_PER_SEQUENCE = 3;     // Number of balls to shoot per button press
 
     // Motor constants
@@ -101,6 +101,34 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private boolean isIntaking = false;
     private double currentDirection = 0.0; // +1 forward, -1 reverse
 
+    // Lights
+    //private DigitalChannel light1, light2;
+
+    // Shooter recovery threshold (% of target speed)
+    private static final double SHOOTER_READY_THRESHOLD = 0.95;  // 95% of target speed
+    private boolean waitingForShooterSpeed = false;
+    private boolean hasBeenBelowSpeed = true;
+    private double shooterRpm = 0;
+    private double shooterGoal = 0;
+
+    private static final long SINGLE_SHOT_DURATION_MS = 33;   // how long feeder runs to shoot one ball
+    private static final long MAX_WAIT_FOR_DROP_MS = 100;// small grace window (tweak as needed)
+
+    private long waitForDropStartTime = 0;
+
+    // class-level fields
+    private double rpmAtShotEnd = 0.0;
+
+    private static final double DROP_THRESHOLD_PERCENT = 0.95; // how much RPM mustop
+
+    private long spinCheckStartTime = 0;
+    private static final long MIN_SPIN_WAIT_MS = 250;       // minimum time before we can fire next
+    private static final long MAX_SPIN_WAIT_MS = 800;       // safety timeout to never stall
+    private static final int SPEED_TOLERANCE_RPM = 50;      // acceptable speed window
+
+
+
+
     // =============================================
     // INITIALIZATION
     // =============================================
@@ -143,50 +171,68 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m1TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M1_GEAR_RATIO;
         //m2TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M2_GEAR_RATIO;
         m3TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M3_GEAR_RATIO;
+
+
+
+        // class-level field
+
+
+//        light1 = hardwareMap.get(DigitalChannel.class, "light1");
+//        light2 = hardwareMap.get(DigitalChannel.class, "light2");
+//
+//        light1.setMode(DigitalChannel.Mode.OUTPUT);
+//        light2.setMode(DigitalChannel.Mode.OUTPUT);
     }
 
     // =============================================
     // PERIODIC - Runs automatically every loop!
     // =============================================
-    
+
     @Override
     public void periodic() {
-        // Check sensors and update motor states
         checkSensorsAndUpdateMotors();
-        
-        // Handle multi-shot sequence
+
         if (shootSequenceActive) {
-            long currentTime = System.currentTimeMillis();
-            
-            // Check if current shot is finished
-            if (shooting && currentTime >= shootEndTime) {
+            long now = System.currentTimeMillis();
+
+            // --- 1. End the active shot ---
+            if (shooting && now >= shootEndTime) {
                 shooting = false;
-                stop();  // Stop motors between shots
-                
-                // Check if more shots remain in sequence
-                if (currentShot < shotsToFire) {
-                    // Schedule next shot
-                    nextShotTime = currentTime + DELAY_BETWEEN_SHOTS_MS;
-                } else {
-                    // Sequence complete
-                    shootSequenceActive = false;
-                    currentShot = 0;
-                    shotsToFire = 0;
-                }
+                stop();                // stop your feeder/intake motors only
+                waitingForShooterSpeed = true;
+                spinCheckStartTime = now;    // record when we began waiting
             }
-            
-            // Check if it's time to start next shot in sequence
-            if (!shooting && currentShot > 0 && currentShot < shotsToFire 
-                && currentTime >= nextShotTime) {
-                startSingleShot();
+
+            // --- 2. Wait until shooter speed recovered ---
+            if (waitingForShooterSpeed) {
+                double rpm = ShooterSubsystem.INSTANCE.getShooter1RPM();
+                double target = ShooterSubsystem.INSTANCE.getTargetShooterRPM();
+                boolean atSpeed = Math.abs(rpm - target) < SPEED_TOLERANCE_RPM;
+
+                // we always wait a minimum time to let the ball clear
+                boolean waitedLongEnough = now - spinCheckStartTime >= MIN_SPIN_WAIT_MS;
+                boolean timeout = now - spinCheckStartTime >= MAX_SPIN_WAIT_MS;
+
+                // fire again when either: shooter back to speed after the minimum wait
+                // OR we’ve waited too long (fallback safety)
+                if ((waitedLongEnough && atSpeed) || timeout) {
+                    waitingForShooterSpeed = false;
+                    if (currentShot < shotsToFire) {
+                        startSingleShot();
+                    } else {
+                        shootSequenceActive = false;
+                        currentShot = 0;
+                        shotsToFire = 0;
+                    }
+                }
             }
         }
 
-        // Re-apply intake outputs each loop so sensor flags take effect immediately
         if (isIntaking) {
             setIntakeDirection(currentDirection, shooting);
         }
     }
+
 
     // =============================================
     // SENSOR MONITORING (runs automatically)
@@ -263,7 +309,9 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * 
      * @return true if shoot sequence started, false if already shooting or no balls to shoot
      */
-    public boolean shoot() {
+    public boolean shoot(double shooterRpm, double shooterGoal) {
+        this.shooterRpm = shooterRpm;
+        this.shooterGoal = shooterGoal;
         // Prevent starting new sequence if already shooting
         if (shootSequenceActive) {
             return false;
@@ -302,15 +350,16 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private void startSingleShot() {
         currentShot++;
         shooting = true;
-        shootEndTime = System.currentTimeMillis() + SHOOT_DURATION_MS;
 
-        // Set shoot velocities
-        m1.setVelocity(rpmToTicksPerSecond(M1_SHOOT_RPM, m1TicksPerRev));
-        //m2.setVelocity(rpmToTicksPerSecond(M2_SHOOT_RPM, m2TicksPerRev));
-        m3.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
+        // Run feeder / indexer motors only
         s2.setPower(S2_SHOOT_SPEED);
         s3.setPower(S3_SHOOT_SPEED);
+        m3.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
+        m1.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
+        shootEndTime = System.currentTimeMillis() + SHOOT_DURATION_MS;
+
     }
+
 
 
     /**
@@ -333,6 +382,17 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m3Enabled = ballCount < 1;
         m2Enabled = ballCount < 2;
         m1Enabled = ballCount < 3;
+    }
+
+    private void attemptNextShotOrFinish() {
+        if (currentShot < shotsToFire) {
+            startSingleShot();
+        } else {
+            // All shots fired
+            shootSequenceActive = false;
+            currentShot = 0;
+            shotsToFire = 0;
+        }
     }
     public boolean isShooting() { return shooting; }
     public boolean isShootSequenceActive() { return shootSequenceActive; }
@@ -407,6 +467,12 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     private double rpmToTicksPerSecond(double rpm, double ticksPerRev) {
         return (rpm * ticksPerRev) / 60.0;
+    }
+
+    private boolean isShooterAtSpeed() {
+        double rpm = ShooterSubsystem.INSTANCE.getShooter1RPM();
+        double target = ShooterSubsystem.INSTANCE.getTargetShooterRPM();
+        return Math.abs(rpm - target) < 50; // tolerance in RPM
     }
 }
 
