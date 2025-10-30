@@ -53,6 +53,9 @@ public class TeleopTest extends OpMode {
 
     private double areaOffset;
 
+    private double targetRPM = 0;
+    private double shooterHoodPos = 0;
+
 
 
     @Override
@@ -285,14 +288,15 @@ public class TeleopTest extends OpMode {
  End My controls */
 //Start Ian's controls
         if (gamepad2.rightBumperWasPressed()) {
-            ShooterSubsystem.INSTANCE.spinUp(yOffset);
+            targetRPM = 69.3784 * yOffset + 3200;
+            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
         }
         else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();
         }
 
         if (gamepad2.right_trigger > 0.1) {
-            IntakeWithSensorsSubsystem.INSTANCE.shoot(ShooterSubsystem.INSTANCE.getShooter1RPM(), ShooterSubsystem.INSTANCE.getTargetShooterRPM());
+            IntakeWithSensorsSubsystem.INSTANCE.shoot();
         }
         else if (gamepad2.aWasPressed()) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
@@ -301,8 +305,16 @@ public class TeleopTest extends OpMode {
         else if (gamepad2.b) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
-
-        ShooterSubsystem.INSTANCE.shooterHoodDrive(this.yOffset);
+        if (yOffset > 11.25 && yOffset < 14.3) {
+            this.shooterHoodPos = 0.488;
+        }
+        else if(yOffset > 14.3) {
+            this.shooterHoodPos = 0.388;
+        }
+        else{
+            this.shooterHoodPos = 0.15;
+        }
+        ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
 
     }
 }
