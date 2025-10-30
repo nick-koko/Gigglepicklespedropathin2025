@@ -17,6 +17,7 @@ import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
 import dev.nextftc.core.commands.groups.ParallelGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
+import dev.nextftc.core.commands.utility.InstantCommand;
 import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
@@ -165,11 +166,12 @@ public class closeBlueSide extends NextFTCOpMode{
             return new SequentialGroup(
                     new ParallelGroup(
                             new FollowPath(firstshootpath),
+                            new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(5000.0)),
                             //ShooterSubsystem.INSTANCE.spinUp(5000.0),
                             new Delay(1.5)  //Would add or replace this with spinning up shooter while driving
                     ),
                     new Delay(1.0),  //Could replace this with shooting a ball
-                    //IntakeWithSensorsSubsystem.INSTANCE.shoot(),
+                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
                     new Delay(2.0)
             );
         }
