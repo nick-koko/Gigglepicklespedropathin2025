@@ -115,12 +115,14 @@ public class ShooterSubsystem implements Subsystem {
      * @param shooterRPM Target RPM for shooter motors
      * counterRollerRPM Target RPM for counter roller
      */
-    public void spinUp(double shooterRPM) {
+    public boolean spinUp(double shooterRPM) {
         enabled = true;
         double shooterTps = rpmToTicksPerSecond(shooterRPM);
         
         shooter1.setVelocity(shooterTps);
         shooter2.setVelocity(shooterTps);
+
+        return true;
     }
 
     /**

@@ -43,13 +43,13 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // Shoot RPM targets
     public static double M1_SHOOT_RPM = 500.0;
     //public static double M2_SHOOT_RPM = 200.0;
-    public static double M3_SHOOT_RPM = 1000.0;
+    public static double M3_SHOOT_RPM = 1200.0;
 
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;
     public static double S3_INTAKE_SPEED = 0.7;
-    public static double S2_SHOOT_SPEED = 0.5;
-    public static double S3_SHOOT_SPEED = 0.5;
+    public static double S2_SHOOT_SPEED = 0.7;
+    public static double S3_SHOOT_SPEED = 0.7;
 
     // Shooting timing (in milliseconds)
     public static long SHOOT_DURATION_MS = 800;      // How long to run motors for each shot
