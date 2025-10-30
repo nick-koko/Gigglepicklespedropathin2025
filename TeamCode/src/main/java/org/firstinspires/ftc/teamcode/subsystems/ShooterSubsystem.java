@@ -124,8 +124,7 @@ public class ShooterSubsystem implements Subsystem {
      * @param shooterRPM Target RPM for shooter motors
      * counterRollerRPM Target RPM for counter roller
      */
-    public void spinUp(double ty) {
-        this.targetRPM = 69.3784 * ty + 3200;
+    public void spinUp(double targetRPM) {
         enabled = true;
         double shooterTps = rpmToTicksPerSecond(targetRPM);
         
@@ -191,16 +190,8 @@ public class ShooterSubsystem implements Subsystem {
         shooterHood.setPosition(newPosition);
     }
 
-    public void shooterHoodDrive(double yOffset){
-        if (yOffset > 11.25 && yOffset < 14.3) {
-            this.shooterHood.setPosition(0.488);
-        }
-        else if(yOffset > 14.3) {
-            this.shooterHood.setPosition(0.388);
-        }
-        else{
-            this.shooterHood.setPosition(0.15);
-        }
+    public void shooterHoodDrive(double hoodPosition){
+        this.shooterHood.setPosition(hoodPosition);
     }
     
     public double getTargetShooterRPM() {
