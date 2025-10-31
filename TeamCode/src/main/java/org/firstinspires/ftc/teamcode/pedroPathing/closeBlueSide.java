@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
@@ -23,6 +24,7 @@ import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 
+@Configurable
 @Autonomous(name = "closeBlueSide", group = "Examples")
 public class closeBlueSide extends NextFTCOpMode{
     public closeBlueSide() {
@@ -33,6 +35,8 @@ public class closeBlueSide extends NextFTCOpMode{
     }
         private Timer pathTimer, actionTimer, opmodeTimer;
         private int pathState;
+
+        public static double autonShooterRPM = 3450.0;
 
         //private final Pose startPose = new Pose(55, 9.5, Math.toRadians(90)); // Start Pose of our robotprivate Path scorePreload;
         private final Pose startPose = new Pose(18, 117.5, Math.toRadians(140)); // Start Pose of our robotprivate Path scorePreload;
@@ -166,13 +170,25 @@ public class closeBlueSide extends NextFTCOpMode{
             return new SequentialGroup(
                     new ParallelGroup(
                             new FollowPath(firstshootpath),
-                            new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(5000.0)),
-                            //ShooterSubsystem.INSTANCE.spinUp(5000.0),
+                            new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
                             new Delay(1.5)  //Would add or replace this with spinning up shooter while driving
                     ),
                     new Delay(1.0),  //Could replace this with shooting a ball
                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
-                    new Delay(2.0)
+                    new Delay(2.0),
+                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop())/*,
+                    new ParallelGroup(
+                            new FollowPath(getFirstBalls),
+                            new SequentialGroup(
+                                    new Delay(1.0),
+                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                    new Delay(1.0),
+                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(5000.0)),
+                                    new Delay(1.0)
+                                    ),
+                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot())
+                    )*/
             );
         }
 
@@ -189,15 +205,21 @@ public class closeBlueSide extends NextFTCOpMode{
             telemetry.addData("x", PedroComponent.follower().getPose().getX());
             telemetry.addData("y", PedroComponent.follower().getPose().getY());
             telemetry.addData("heading", PedroComponent.follower().getPose().getHeading());
+            telemetry.addData("shooter 1 power", ShooterSubsystem.INSTANCE.getShooter1Power());
+            telemetry.addData("shooter 2 power", ShooterSubsystem.INSTANCE.getShooter2Power());
             telemetry.update();
         }
 
         /** This method is called once at the init of the OpMode. **/
         @Override
         public void onInit() {
+            super.onInit();
             pathTimer = new Timer();
             opmodeTimer = new Timer();
             opmodeTimer.resetTimer();
+
+            //ShooterSubsystem.INSTANCE.initialize(hardwareMap);
+            //IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
 
         // Seed ball count for auton: assume robot starts loaded with 3
         IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
@@ -215,6 +237,7 @@ public class closeBlueSide extends NextFTCOpMode{
         /** We do not use this because everything should automatically disable **/
         @Override
         public void onStop() {
+            super.onStop();
             // Persist ball count (and optionally pose) for TeleOp
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
@@ -226,7 +249,7 @@ public class closeBlueSide extends NextFTCOpMode{
         @Override
         public void onStartButtonPressed()
         {
-
+            super.onStartButtonPressed();
             BlueCloseAuton().schedule();
 
             // Persist ball count (and optionally pose) for TeleOp

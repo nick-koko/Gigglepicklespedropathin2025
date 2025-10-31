@@ -6,10 +6,10 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import dev.nextftc.core.subsystems.Subsystem;
+import dev.nextftc.ftc.ActiveOpMode;
 
 /**
  * Intake Subsystem with Break Beam Sensors
@@ -41,18 +41,18 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double M3_TARGET_RPM = 500.0;
 
     // Shoot RPM targets
-    public static double M1_SHOOT_RPM = 500.0;
+    public static double M1_SHOOT_RPM = 400.0;
     //public static double M2_SHOOT_RPM = 200.0;
-    public static double M3_SHOOT_RPM = 1200.0;
+    public static double M3_SHOOT_RPM = 900.0;
 
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;
     public static double S3_INTAKE_SPEED = 0.7;
-    public static double S2_SHOOT_SPEED = 0.7;
-    public static double S3_SHOOT_SPEED = 0.7;
+    public static double S2_SHOOT_SPEED = 0.5;
+    public static double S3_SHOOT_SPEED = 0.5;
 
     // Shooting timing (in milliseconds)
-    public static long SHOOT_DURATION_MS = 250;      // How long to run motors for each shot
+    public static long SHOOT_DURATION_MS = 275;      // How long to run motors for each shot
     public static long DELAY_BETWEEN_SHOTS_MS = 200;  // Delay between sequential shots
     public static int MAX_SHOTS_PER_SEQUENCE = 3;     // Number of balls to shoot per button press
 
@@ -126,27 +126,30 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private static final long MAX_SPIN_WAIT_MS = 800;       // safety timeout to never stall
     private static final int SPEED_TOLERANCE_RPM = 50;      // acceptable speed window
 
-
+    private static final long SHOT_DURATION_MS = 75; // how long to shoot one ball
+    private static final long SHOT_DELAY_MS = 1000;    // wait time between shots
+    private boolean shotInProgress = false;
 
 
     // =============================================
     // INITIALIZATION
     // =============================================
 
-    public void initialize(HardwareMap hardwareMap) {
+    @Override
+    public void initialize() {
         // Initialize motors
-        m1 = hardwareMap.get(DcMotorEx.class, "intake_motor");
+        m1 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "intake_motor");
         //m2 = hardwareMap.get(DcMotorEx.class, "m2");
-        m3 = hardwareMap.get(DcMotorEx.class, "intake_motor2");
+        m3 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "intake_motor2");
 
         // Initialize servos
-        s2 = hardwareMap.get(CRServo.class, "intake_servo1");
-        s3 = hardwareMap.get(CRServo.class, "intake_servo2");
+        s2 = ActiveOpMode.hardwareMap().get(CRServo.class, "intake_servo1");
+        s3 = ActiveOpMode.hardwareMap().get(CRServo.class, "intake_servo2");
 
         // Initialize sensors
-        sensor0 = hardwareMap.get(DigitalChannel.class, "breakbeam0");
-        sensor1 = hardwareMap.get(DigitalChannel.class, "breakbeam1");
-        sensor2 = hardwareMap.get(DigitalChannel.class, "breakbeam2");
+        sensor0 = ActiveOpMode.hardwareMap().get(DigitalChannel.class, "breakbeam0");
+        sensor1 = ActiveOpMode.hardwareMap().get(DigitalChannel.class, "breakbeam1");
+        sensor2 = ActiveOpMode.hardwareMap().get(DigitalChannel.class, "breakbeam2");
 
         // Configure motors
         m1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -190,10 +193,75 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     @Override
     public void periodic() {
+        if (shootSequenceActive) {
+            updateShooting();
+            return;
+        }
         if (isIntaking) {
+            currentShot = 0;
             checkSensorsAndUpdateMotors();
             setIntakeDirection(currentDirection, shooting);
         }
+    }
+
+    public void updateShooting() {
+        if (!shootSequenceActive) return;
+
+        long now = System.currentTimeMillis();
+
+        // 1️⃣ Currently shooting a ball
+        if (shotInProgress) {
+            if (now >= shootEndTime) {
+                stop(); // stop feeder motors
+                shotInProgress = false;
+
+                // Set pause period
+                nextShotTime = now + SHOT_DELAY_MS;
+
+                // Decrement ball count safely
+                if (ballCount > 0) ballCount--;
+                currentShot++;
+
+                // Prevent immediate restart in same loop
+                return;
+            }
+        }
+
+        // 2️⃣ Waiting before next shot
+        if (!shotInProgress && currentShot < shotsToFire && ballCount > 0) {
+            // Still in cooldown period
+            if (now < nextShotTime) {
+                // Do nothing — we're pausing intentionally
+                return;
+            }
+
+            // Done waiting — time for next shot
+            startSingleShot();
+        }
+
+        // 3️⃣ All done
+        if ((currentShot >= shotsToFire || ballCount <= 0) && !shotInProgress) {
+            shootSequenceActive = false;
+            shooting = false;
+            stop();
+        }
+    }
+
+
+    /**
+     * Start feeding one ball into the shooter.
+     */
+    private void startSingleShot() {
+        shooting = true;
+        shotInProgress = true;
+
+        // Start feeder/indexer motors
+        m1.setVelocity(rpmToTicksPerSecond(M1_SHOOT_RPM, m1TicksPerRev));
+        m3.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
+        s2.setPower(S2_SHOOT_SPEED);
+        s3.setPower(S3_SHOOT_SPEED);
+
+        shootEndTime = System.currentTimeMillis() + 250;
     }
 
 
@@ -273,52 +341,30 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * @return true if shoot sequence started, false if already shooting or no balls to shoot
      */
     public boolean shoot() {
-        // Prevent starting new sequence if already shooting
-        if (shootSequenceActive) {
-            return false;
-        }
+        if (shootSequenceActive) return false;
+        if (ballCount <= 0) return false;
 
-        // Check if there are any balls to shoot
-        if (ballCount <= 0) {
-            return false;  // No balls to shoot
-        }
-
-        // Determine how many shots to fire based on ball count (max is MAX_SHOTS_PER_SEQUENCE)
         shotsToFire = Math.min(ballCount, MAX_SHOTS_PER_SEQUENCE);
 
-        // Start the shooting sequence
+        m1Enabled = false;
+        m2Enabled = false;
+        m3Enabled = false;
+
         shootSequenceActive = true;
+        shooting = false;
+        shotInProgress = false; // ⬅️ start as false
         currentShot = 0;
+        nextShotTime = System.currentTimeMillis() + 200; // start immediately
         shootTimer.reset();
 
-        // Re-enable all motors for sequence
+        // Enable motors again for safety
         m1Enabled = true;
         m2Enabled = true;
         m3Enabled = true;
 
-        // Start first shot immediately
         startSingleShot();
 
-        // Reset ball count since we're shooting them all
-        ballCount--;
-
         return true;
-    }
-
-    /**
-     * Internal method to start a single shot within the sequence.
-     */
-    private void startSingleShot() {
-        currentShot++;
-        shooting = true;
-
-        // Run feeder/indexer motors only
-        s2.setPower(S2_SHOOT_SPEED);
-        s3.setPower(S3_SHOOT_SPEED);
-        m3.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
-        m1.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
-        shootEndTime = System.currentTimeMillis() + SHOOT_DURATION_MS;
-
     }
 
 

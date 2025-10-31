@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
 
 import dev.nextftc.core.subsystems.Subsystem;
+import dev.nextftc.ftc.ActiveOpMode;
 
 /**
  * Shooter Subsystem with Velocity Control
@@ -70,12 +71,12 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // INITIALIZATION
     // =============================================
-    
-    public void initialize(HardwareMap hardwareMap) {
+    @Override
+    public void initialize() {
         // Initialize motors
-        shooter1 = hardwareMap.get(DcMotorEx.class, "shooter_motor1");
-        shooter2 = hardwareMap.get(DcMotorEx.class, "shooter_motor2");
-        shooterHood = hardwareMap.get(Servo.class, "shooter_hood");
+        shooter1 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "shooter_motor1");
+        shooter2 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "shooter_motor2");
+        shooterHood = ActiveOpMode.hardwareMap().get(Servo.class, "shooter_hood");
         //counterRoller = hardwareMap.get(DcMotorEx.class, "m3");
 
         // Configure motors
@@ -121,15 +122,14 @@ public class ShooterSubsystem implements Subsystem {
 
     /**
      * Turn on the shooter at specific RPM.
-     * @param shooterRPM Target RPM for shooter motors
+     * shooterRPM Target RPM for shooter motors
      * counterRollerRPM Target RPM for counter roller
      */
     public void spinUp(double targetRPM) {
+        this.targetRPM = targetRPM;
         enabled = true;
-        double shooterTps = rpmToTicksPerSecond(targetRPM);
-        
-        shooter1.setVelocity(shooterTps);
-        shooter2.setVelocity(shooterTps);
+
+        updateVelocities();
     }
 
     /**
@@ -176,7 +176,9 @@ public class ShooterSubsystem implements Subsystem {
     
     public boolean isEnabled() { return enabled; }
     public boolean isHighMode() { return highMode; }
-    
+
+    public double getShooter1Power() {return shooter1.getPower(); }
+    public double getShooter2Power() {return shooter2.getPower(); }
     public double getShooter1RPM() { return shooter1.getVelocity() * 60.0 / ticksPerRev; }
     public double getShooter2RPM() { return shooter2.getVelocity() * 60.0 / ticksPerRev; }
     //public double getCounterRollerRPM() { return counterRoller.getVelocity() * 60.0 / ticksPerRev; }
@@ -200,6 +202,36 @@ public class ShooterSubsystem implements Subsystem {
     
     public double getTargetCounterRollerRPM() {
         return crHighMode ? CR_HIGH_TARGET_RPM : CR_LOW_TARGET_RPM;
+    }
+
+    public void increaseShooterRPMBy10() {
+        enabled = true;
+        updateVelocities();
+        if (this.targetRPM < 3000) {
+            this.targetRPM = 3000;
+        }
+        else {
+            this.targetRPM = this.targetRPM + 10;
+        }
+    }
+    public void decreaseShooterRPMBy10() {
+        enabled = true;
+        updateVelocities();
+        if (this.targetRPM < 3000) {
+            this.targetRPM = 3000;
+        }
+        else {
+            this.targetRPM = this.targetRPM - 10;
+        }
+    }
+
+    public void increaseShooterHoodPosInc() {
+        double curPos = this.shooterHood.getPosition();
+        this.shooterHood.setPosition(curPos + 0.1);
+    }
+    public void decreaseShooterHoodPosInc() {
+        double curPos = this.shooterHood.getPosition();
+        this.shooterHood.setPosition(curPos - 0.1);
     }
 
     /**
@@ -226,11 +258,16 @@ public class ShooterSubsystem implements Subsystem {
         shooter1.setVelocity(shooterTps);
         shooter2.setVelocity(shooterTps);
         //counterRoller.setVelocity(crTps);
+        shooter1.setPower(1.0);
+        shooter2.setPower(1.0);
+
     }
 
     private double rpmToTicksPerSecond(double rpm) {
         return (rpm * ticksPerRev) / 60.0;
     }
+
+
 }
 
 /*

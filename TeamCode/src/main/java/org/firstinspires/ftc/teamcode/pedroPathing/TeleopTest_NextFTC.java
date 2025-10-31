@@ -23,11 +23,21 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import dev.nextftc.core.components.SubsystemComponent;
+import dev.nextftc.extensions.pedro.PedroComponent;
+import dev.nextftc.ftc.ActiveOpMode;
+import dev.nextftc.ftc.NextFTCOpMode;
+
 @Configurable
 @TeleOp
-public class TeleopTest extends OpMode {
-    private Follower follower;
-    public static Pose startingPose = new Pose(71,8,Math.toRadians(270)); //See ExampleAuto to understand how to use this
+public class TeleopTest_NextFTC extends NextFTCOpMode {
+    public TeleopTest_NextFTC() {
+        addComponents(
+                new PedroComponent(Constants::createFollower),
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE)
+        );
+    }
+     public static Pose startingPose = new Pose(71,8,Math.toRadians(270)); //See ExampleAuto to understand how to use this
     private boolean automatedDrive;
     private Supplier<PathChain> pathChain;
     private TelemetryManager telemetryM;
@@ -56,23 +66,19 @@ public class TeleopTest extends OpMode {
 
 
     @Override
-    public void init() {
-        IntakeWithSensorsSubsystem.INSTANCE.initialize();
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+    public void onInit() {
+        super.onInit();
+        limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
-        ShooterSubsystem.INSTANCE.initialize();
-        LEDControlSubsystem.INSTANCE.initialize();
-        follower = Constants.createFollower(hardwareMap);
 
         if ((GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun)) {
             startingPose = GlobalRobotData.endAutonPose;
             GlobalRobotData.hasAutonRun = false;
         }
 
-        follower.setStartingPose(startingPose);
+        PedroComponent.follower().setStartingPose(startingPose);
 
-        follower.update();
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
         LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
@@ -82,27 +88,24 @@ public class TeleopTest extends OpMode {
             IntakeWithSensorsSubsystem.INSTANCE.setBallCount(GlobalRobotData.endAutonBallCount);
         }
 
-        pathChain = () -> follower.pathBuilder() //Lazy Curve Generation
-                .addPath(new Path(new BezierLine(follower::getPose, new Pose(45, 98))))
-                .setHeadingInterpolation(HeadingInterpolator.linearFromPoint(follower::getHeading, Math.toRadians(45), 0.8))
+        pathChain = () -> PedroComponent.follower().pathBuilder() //Lazy Curve Generation
+                .addPath(new Path(new BezierLine(PedroComponent.follower()::getPose, new Pose(45, 98))))
+                .setHeadingInterpolation(HeadingInterpolator.linearFromPoint(PedroComponent.follower()::getHeading, Math.toRadians(45), 0.8))
                 .build();
     }
 
     @Override
-    public void start() {
+    public void onStartButtonPressed() {
         //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)
-        follower.startTeleopDrive();
+        PedroComponent.follower().startTeleopDrive();
     }
 
     @Override
-    public void loop() {
+    public void onUpdate() {
         //Call this once per loop
-        follower.update();
         telemetryM.update();
-        IntakeWithSensorsSubsystem.INSTANCE.periodic(); // Need this if not extending NextFTCOpmode
-        ShooterSubsystem.INSTANCE.periodic();
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
@@ -115,9 +118,9 @@ public class TeleopTest extends OpMode {
         double strafe = (-gamepad1.left_stick_x) * drivePower;
         double rotate = (-gamepad1.right_stick_x) * 0.5;
 
-        double botHeadingRad = follower.getPose().getHeading();
-        double botxvalue = follower.getPose().getX(); //gettingxvalue :D
-        double botyvalue = follower.getPose().getY(); //gettingyvalue :D
+        double botHeadingRad = PedroComponent.follower().getPose().getHeading();
+        double botxvalue = PedroComponent.follower().getPose().getX(); //gettingxvalue :D
+        double botyvalue = PedroComponent.follower().getPose().getY(); //gettingyvalue :D
         double angletangent = 0;
         double shootingangle = 0;
         //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue)
@@ -212,7 +215,7 @@ public class TeleopTest extends OpMode {
 
             //This is the normal version to use in the TeleOp
 
-            follower.setTeleOpDrive(
+            PedroComponent.follower().setTeleOpDrive(
                     driving,
                     strafe,
                     rotate,
@@ -221,15 +224,15 @@ public class TeleopTest extends OpMode {
         }
 
         //Automated PathFollowing
-        if (gamepad1.aWasPressed()) {
-            follower.followPath(pathChain.get());
+       /* if (gamepad1.aWasPressed()) {
+            PedroComponent.follower().followPath(pathChain.get());
             automatedDrive = true;
-        }
+        }*/
 
 
         //Stop automated following if the follower is done
-        if (automatedDrive && (gamepad1.bWasPressed() || !follower.isBusy())) {
-            follower.startTeleopDrive();
+        if (automatedDrive && (gamepad1.bWasPressed() || !PedroComponent.follower().isBusy())) {
+            PedroComponent.follower().startTeleopDrive();
             automatedDrive = false;
         }
 
@@ -240,8 +243,8 @@ public class TeleopTest extends OpMode {
         telemetryM.debug("Use Special Angle?", goToTargetAngle);
         telemetryM.debug("Final Rotate Power", rotate);
         telemetryM.debug("Final Rotate Drive", rotate);
-        telemetryM.debug("position", follower.getPose());
-        telemetryM.debug("velocity", follower.getVelocity());
+        telemetryM.debug("position", PedroComponent.follower().getPose());
+        telemetryM.debug("velocity", PedroComponent.follower().getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
 
         telemetry.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());

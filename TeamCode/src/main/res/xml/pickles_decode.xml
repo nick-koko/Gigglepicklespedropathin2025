@@ -11,7 +11,6 @@
         <ServoHub name="Servo Hub 3" port="3">
 		    <ContinuousRotationServo name="intake_servo1" port="4" />
             <ContinuousRotationServo name="intake_servo2" port="5" />
-            <Servo name="ShooterHood" port="2" />
         </ServoHub>
         <LynxModule name="Control Hub" port="173">
             <goBILDA5202SeriesMotor name="front_right" port="0" />
@@ -19,7 +18,7 @@
             <goBILDA5202SeriesMotor name="back_right" port="2" />
             <goBILDA5202SeriesMotor name="back_left" port="3" />
             <Servo name="rgb_color_PWM2" port="0" />
-            <Servo name="hood_servo" port="2" />
+            <Servo name="shooter_hood" port="2" />
             <ControlHubImuBHI260AP name="imu" port="0" bus="0" />
             <DigitalDevice name="breakbeam0" port="0" />
             <DigitalDevice name="breakbeam1" port="2" />
