@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
-import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.HeadingInterpolator;
@@ -11,7 +10,6 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
@@ -29,9 +27,9 @@ import dev.nextftc.ftc.ActiveOpMode;
 import dev.nextftc.ftc.NextFTCOpMode;
 
 @Configurable
-@TeleOp
-public class TeleopTest_NextFTC extends NextFTCOpMode {
-    public TeleopTest_NextFTC() {
+@TeleOp(name = "Pickles 2025 Teleop", group = "Comp")
+public class Pickles2025Teleop extends NextFTCOpMode {
+    public Pickles2025Teleop() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE)
@@ -106,6 +104,7 @@ public class TeleopTest_NextFTC extends NextFTCOpMode {
     public void onUpdate() {
         //Call this once per loop
         telemetryM.update();
+        telemetry.update();
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
@@ -295,15 +294,15 @@ public class TeleopTest_NextFTC extends NextFTCOpMode {
  End My controls */
 //Start Ian's controls
         if (!hasResults) {
-            targetRPM = 3650;
+            targetRPM = 3150;
         } else {
-            targetRPM = -84.50063 * yOffset * yOffset + 2299.19126 * yOffset - 11242.88902;
+            targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
         }
         
         if (gamepad2.rightBumperWasPressed()) {
             telemetry.addData("Target Shooter Speed", targetRPM);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-            //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
+//            ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
         }
         else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();

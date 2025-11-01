@@ -10,7 +10,6 @@ import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
-import org.firstinspires.ftc.teamcode.subsystems.FlywheelSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 
@@ -25,43 +24,55 @@ import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 
 @Configurable
-@Autonomous(name = "closeBlueSide", group = "Examples")
-public class closeBlueSide extends NextFTCOpMode{
-    public closeBlueSide() {
+@Autonomous(name = "closeBothSide", group = "Comp")
+public class closeBothSide extends NextFTCOpMode{
+    public closeBothSide() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE)
         );
     }
+        int testDirection = 1;
         private Timer pathTimer, actionTimer, opmodeTimer;
         private int pathState;
 
-        public static double autonShooterRPM = 3450.0;
+        public static double autonShooterRPM = 2950.0;
+        public static double autonShooterHoodServoPos = 0.17;
 
-        //private final Pose startPose = new Pose(55, 9.5, Math.toRadians(90)); // Start Pose of our robotprivate Path scorePreload;
-        private final Pose startPose = new Pose(18, 117.5, Math.toRadians(140)); // Start Pose of our robotprivate Path scorePreload;
+        //private final Pose startPose = new Pose(55, 9.5, Math.toRadians(90)); // Start Pose of our robot
+        private final Pose startPoseBlue = new Pose(18, 117.5, Math.toRadians(140)); // Start Pose of our robot
+        private final Pose startPoseRed = new Pose(18, 117.5, Math.toRadians(140)).mirror(); // Start Pose of our robot
         private final Pose scorePose = new Pose(50, 98.33, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
-        private final Pose scorePoseClose = new Pose(37, 104, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+        private final Pose scorePoseCloseBlue = new Pose(37, 104, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+        private final Pose scorePoseCloseRed = new Pose(37, 104, Math.toRadians(135)).mirror(); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
         private final Pose pickup1Pose = new Pose(37, 121, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
         private final Pose pickup2Pose = new Pose(43, 130, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
         private final Pose pickup3Pose = new Pose(49, 135, Math.toRadians(0)); // Lowest (Third Set) of Artifacts from the Spike Mark.
 
         private Path scorePreload;
-        private PathChain grabPickup1, scorePickup1, grabPickup2, scorePickup2, grabPickup3, scorePickup3, curvedLineBlue, firstshootpath;
+        private PathChain grabPickup1, scorePickup1, grabPickup2, scorePickup2, grabPickup3, scorePickup3, curvedLineBlue, firstshootpathBlue, firstshootpathRed;
 
         public void buildPaths() {
             /* This is our scorePreload path. We are using a BezierLine, which is a straight line. */
-            scorePreload = new Path(new BezierLine(startPose, scorePose));
-            scorePreload.setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading());
+            scorePreload = new Path(new BezierLine(startPoseBlue, scorePose));
+            scorePreload.setLinearHeadingInterpolation(startPoseBlue.getHeading(), scorePose.getHeading());
 
     /* Here is an example for Constant Interpolation
     scorePreload.setConstantInterpolation(startPose.getHeading()); */
-            firstshootpath=PedroComponent.follower().pathBuilder()
+            firstshootpathBlue=PedroComponent.follower().pathBuilder()
                     .addPath(
-                            new BezierLine(startPose,scorePoseClose)
+                            new BezierLine(startPoseBlue,scorePoseCloseBlue)
 
                     )
-                    .setLinearHeadingInterpolation(startPose.getHeading(), scorePoseClose.getHeading())
+                    .setLinearHeadingInterpolation(startPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
+                    .build();
+
+            firstshootpathRed=PedroComponent.follower().pathBuilder()
+                    .addPath(
+                            new BezierLine(startPoseRed,scorePoseCloseRed)
+
+                    )
+                    .setLinearHeadingInterpolation(startPoseRed.getHeading(), scorePoseCloseRed.getHeading())
                     .build();
 
             /* This is our grabPickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
@@ -169,11 +180,11 @@ public class closeBlueSide extends NextFTCOpMode{
         private Command BlueCloseAuton() {
             return new SequentialGroup(
                     new ParallelGroup(
-                            new FollowPath(firstshootpath),
+                            new FollowPath(firstshootpathBlue),
                             new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
                             new Delay(1.5)  //Would add or replace this with spinning up shooter while driving
                     ),
-                    new Delay(1.0),  //Could replace this with shooting a ball
+                    new Delay(2.0),  //Could replace this with shooting a ball
                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
                     new Delay(2.0),
                     new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop())/*,
@@ -192,6 +203,31 @@ public class closeBlueSide extends NextFTCOpMode{
             );
         }
 
+    private Command RedCloseAuton() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new FollowPath(firstshootpathRed),
+                        new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
+                        new Delay(1.5)  //Would add or replace this with spinning up shooter while driving
+                ),
+                new Delay(2.0),  //Could replace this with shooting a ball
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
+                new Delay(2.0),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop())/*,
+                    new ParallelGroup(
+                            new FollowPath(getFirstBalls),
+                            new SequentialGroup(
+                                    new Delay(1.0),
+                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                    new Delay(1.0),
+                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(5000.0)),
+                                    new Delay(1.0)
+                                    ),
+                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot())
+                    )*/
+        );
+    }
 
 
         /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
@@ -217,7 +253,7 @@ public class closeBlueSide extends NextFTCOpMode{
             pathTimer = new Timer();
             opmodeTimer = new Timer();
             opmodeTimer.resetTimer();
-
+            ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
             //ShooterSubsystem.INSTANCE.initialize(hardwareMap);
             //IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
 
@@ -226,13 +262,34 @@ public class closeBlueSide extends NextFTCOpMode{
 
         // Build Pedro paths and set starting pose during init per docs
         buildPaths();
-        PedroComponent.follower().setStartingPose(startPose);
+
+        PedroComponent.follower().setStartingPose(startPoseBlue);
 
         }
 
         /** This method is called continuously after Init while waiting for "play". **/
         @Override
-        public void onWaitForStart() {}// dont know what to do here
+        public void onWaitForStart() {
+            if (gamepad1.x) {
+                GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
+                PedroComponent.follower().setStartingPose(startPoseBlue);
+            } else if (gamepad1.b) {
+                GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
+                PedroComponent.follower().setStartingPose(startPoseRed);
+            }
+
+            telemetry.addLine("Hello Pickle of the robot");
+            telemetry.addLine("This is an Mr. Todone Speaking,");
+            telemetry.addLine("----------------------------------------------");
+            if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+                telemetry.addLine("Favorite fruit: Blueberries!!! (Blue)");
+            } else {
+                telemetry.addLine("Favorite fruit: Raspberries!!! (Red)");
+            }
+
+            telemetry.update();
+
+        }// dont know what to do here
 
         /** We do not use this because everything should automatically disable **/
         @Override
@@ -250,7 +307,11 @@ public class closeBlueSide extends NextFTCOpMode{
         public void onStartButtonPressed()
         {
             super.onStartButtonPressed();
-            BlueCloseAuton().schedule();
+            if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+                BlueCloseAuton().schedule();
+            } else {
+                RedCloseAuton().schedule();
+            }
 
             // Persist ball count (and optionally pose) for TeleOp
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();

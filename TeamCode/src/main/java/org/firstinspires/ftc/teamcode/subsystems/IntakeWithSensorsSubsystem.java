@@ -127,7 +127,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private static final int SPEED_TOLERANCE_RPM = 50;      // acceptable speed window
 
     private static final long SHOT_DURATION_MS = 75; // how long to shoot one ball
-    private static final long SHOT_DELAY_MS = 1000;    // wait time between shots
+    private static final long SHOT_DELAY_MS = 200;    // wait time between shots
     private boolean shotInProgress = false;
 
 
@@ -261,7 +261,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         s2.setPower(S2_SHOOT_SPEED);
         s3.setPower(S3_SHOOT_SPEED);
 
-        shootEndTime = System.currentTimeMillis() + 250;
+        shootEndTime = System.currentTimeMillis() + 200;
     }
 
 

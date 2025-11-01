@@ -94,6 +94,8 @@ public class ShooterSubsystem implements Subsystem {
 
         // Calculate ticks per revolution
         ticksPerRev = ENCODER_TICKS_PER_MOTOR_REV * SHOOTER_GEAR_RATIO;
+
+        shooter1.setPositionPIDFCoefficients(0.05);
     }
 
     // =============================================
@@ -191,7 +193,6 @@ public class ShooterSubsystem implements Subsystem {
         double newPosition = Range.clip(currentPosition + increment, 0.0, 1.0);
         shooterHood.setPosition(newPosition);
     }
-
     public void shooterHoodDrive(double hoodPosition){
         this.shooterHood.setPosition(hoodPosition);
     }

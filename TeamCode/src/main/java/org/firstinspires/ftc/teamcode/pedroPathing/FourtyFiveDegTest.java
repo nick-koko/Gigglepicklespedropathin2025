@@ -7,6 +7,7 @@ import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
@@ -20,7 +21,7 @@ import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
-
+@Disabled
 @Autonomous(name = "45 Deg Test", group = "Examples")
 public class FourtyFiveDegTest extends NextFTCOpMode{
     public FourtyFiveDegTest() {
@@ -119,13 +120,13 @@ public class FourtyFiveDegTest extends NextFTCOpMode{
         /** This method is called continuously after Init while waiting for "play". **/
         @Override
         public void onWaitForStart() {
-            if (gamepad1.dpadUpWasPressed()) {
+            if (gamepad1.dpad_up) {
                 testDirection = 1;
-            } else if (gamepad1.dpadDownWasPressed()) {
+            } else if (gamepad1.dpad_down) {
                 testDirection = 2;
-            } else if (gamepad1.dpadRightWasPressed()) {
+            } else if (gamepad1.dpad_right) {
                 testDirection = 3;
-            } else if (gamepad1.dpadLeftWasPressed()) {
+            } else if (gamepad1.dpad_left) {
                 testDirection = 4;
             }
 
