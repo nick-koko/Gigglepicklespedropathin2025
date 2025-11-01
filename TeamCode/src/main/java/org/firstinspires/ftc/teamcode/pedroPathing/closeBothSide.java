@@ -45,20 +45,15 @@ public class closeBothSide extends NextFTCOpMode{
         private final Pose scorePose = new Pose(50, 98.33, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
         private final Pose scorePoseCloseBlue = new Pose(37, 104, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
         private final Pose scorePoseCloseRed = new Pose(37, 104, Math.toRadians(135)).mirror(); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
-        private final Pose pickup1Pose = new Pose(37, 121, Math.toRadians(0)); // Highest (First Set) of Artifacts from the Spike Mark.
-        private final Pose pickup2Pose = new Pose(43, 130, Math.toRadians(0)); // Middle (Second Set) of Artifacts from the Spike Mark.
-        private final Pose pickup3Pose = new Pose(49, 135, Math.toRadians(0)); // Lowest (Third Set) of Artifacts from the Spike Mark.
+        private final Pose pickup1PoseBlue = new Pose(19.8, 84, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+        private final Pose pickup1CP1Blue = new Pose(60.1, 92.1, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+        private final Pose pickup1CP2Blue = new Pose(40, 81.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+        private final Pose offLineBlue = new Pose(40, 60, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
 
-        private Path scorePreload;
-        private PathChain grabPickup1, scorePickup1, grabPickup2, scorePickup2, grabPickup3, scorePickup3, curvedLineBlue, firstshootpathBlue, firstshootpathRed;
+        private PathChain curvedLineBlue, firstshootpathBlue, firstshootpathRed, firstPickupBlue, moveOffLineBlue;
 
         public void buildPaths() {
-            /* This is our scorePreload path. We are using a BezierLine, which is a straight line. */
-            scorePreload = new Path(new BezierLine(startPoseBlue, scorePose));
-            scorePreload.setLinearHeadingInterpolation(startPoseBlue.getHeading(), scorePose.getHeading());
 
-    /* Here is an example for Constant Interpolation
-    scorePreload.setConstantInterpolation(startPose.getHeading()); */
             firstshootpathBlue=PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierLine(startPoseBlue,scorePoseCloseBlue)
@@ -73,6 +68,28 @@ public class closeBothSide extends NextFTCOpMode{
 
                     )
                     .setLinearHeadingInterpolation(startPoseRed.getHeading(), scorePoseCloseRed.getHeading())
+                    .build();
+
+            firstPickupBlue= PedroComponent.follower().pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    scorePoseCloseBlue,
+                                    pickup1CP1Blue,
+                                    pickup1CP2Blue,
+                                    pickup1PoseBlue
+                            )
+                    )
+                    .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), pickup1PoseBlue.getHeading())
+                    .addPath(new BezierLine(pickup1PoseBlue, scorePoseCloseBlue))
+                    .setLinearHeadingInterpolation(pickup1PoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
+                    .build();
+
+            moveOffLineBlue=PedroComponent.follower().pathBuilder()
+                    .addPath(
+                            new BezierLine(scorePoseCloseBlue,offLineBlue)
+
+                    )
+                    .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), offLineBlue.getHeading())
                     .build();
 
             /* This is our grabPickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
@@ -141,40 +158,6 @@ public class closeBothSide extends NextFTCOpMode{
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(135))
                     .build();
 
-            grabPickup1 = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(scorePose, pickup1Pose))
-                    .setLinearHeadingInterpolation(scorePose.getHeading(), pickup1Pose.getHeading())
-                    .build();
-
-            /* This is our scorePickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            scorePickup1 = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup1Pose, scorePose))
-                    .setLinearHeadingInterpolation(pickup1Pose.getHeading(), scorePose.getHeading())
-                    .build();
-
-            /* This is our grabPickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            grabPickup2 = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(scorePose, pickup2Pose))
-                    .setLinearHeadingInterpolation(scorePose.getHeading(), pickup2Pose.getHeading())
-                    .build();
-
-            /* This is our scorePickup2 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            scorePickup2 = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2Pose, scorePose))
-                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), scorePose.getHeading())
-                    .build();
-
-            /* This is our grabPickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            grabPickup3 = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(scorePose, pickup3Pose))
-                    .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3Pose.getHeading())
-                    .build();
-
-            /* This is our scorePickup3 PathChain. We are using a single path with a BezierLine, which is a straight line. */
-            scorePickup3 = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup3Pose, scorePose))
-                    .setLinearHeadingInterpolation(pickup3Pose.getHeading(), scorePose.getHeading())
-                    .build();
         }
 
         private Command BlueCloseAuton() {
@@ -187,19 +170,22 @@ public class closeBothSide extends NextFTCOpMode{
                     new Delay(2.0),  //Could replace this with shooting a ball
                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
                     new Delay(2.0),
-                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop())/*,
+                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                     new ParallelGroup(
-                            new FollowPath(getFirstBalls),
+                            new FollowPath(firstPickupBlue),
                             new SequentialGroup(
-                                    new Delay(1.0),
+                                    new Delay(0.5),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                    new Delay(1.0),
-                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(5000.0)),
-                                    new Delay(1.0)
+                                    new Delay(2.0),
+                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
+                                    new Delay(2.0)
                                     ),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot())
-                    )*/
+                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
+                    new Delay(2.0),
+                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                    new FollowPath(moveOffLineBlue)
+                    )
             );
         }
 
