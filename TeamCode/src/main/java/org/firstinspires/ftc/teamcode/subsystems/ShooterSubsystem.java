@@ -95,7 +95,9 @@ public class ShooterSubsystem implements Subsystem {
         // Calculate ticks per revolution
         ticksPerRev = ENCODER_TICKS_PER_MOTOR_REV * SHOOTER_GEAR_RATIO;
 
-        shooter1.setPositionPIDFCoefficients(0.05);
+        shooter1.setVelocityPIDFCoefficients(2, 0, 0.002, 19);
+        shooter2.setVelocityPIDFCoefficients(2, 0, 0.002, 19);
+        //shooter1.setPositionPIDFCoefficients(0.05);
     }
 
     // =============================================
@@ -266,6 +268,10 @@ public class ShooterSubsystem implements Subsystem {
 
     private double rpmToTicksPerSecond(double rpm) {
         return (rpm * ticksPerRev) / 60.0;
+    }
+
+    public boolean getEnabled() {
+        return this.enabled;
     }
 
 

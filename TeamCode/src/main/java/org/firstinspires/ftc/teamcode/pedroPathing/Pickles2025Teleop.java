@@ -117,6 +117,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double strafe = (-gamepad1.left_stick_x) * drivePower;
         double rotate = (-gamepad1.right_stick_x) * 0.5;
 
+        if(GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+            driving *= -1;
+            strafe *= -1;
+        }
+
         double botHeadingRad = PedroComponent.follower().getPose().getHeading();
         double botxvalue = PedroComponent.follower().getPose().getX(); //gettingxvalue :D
         double botyvalue = PedroComponent.follower().getPose().getY(); //gettingyvalue :D
@@ -126,31 +131,57 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         if (gamepad1.right_bumper) {
             if (result != null && result.isValid()) {
-                List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
-                        .filter(r -> r.getFiducialId() == 24)
+                if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
+                    List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
+                            .filter(r -> r.getFiducialId() == 24)
+                            .collect(Collectors.toList());
+
+                    if (!tag24Results.isEmpty()) {
+                        hasResults = true;
+                        double targetX = tag24Results.get(0).getTargetXDegrees();
+                        if (targetX != 0) {
+                            rotate = -targetX * 0.025;
+                            goToTargetAngle = false;
+                        }
+                    }
+                    else{
+                        hasResults = false;
+                    }
+                }
+                else{
+                    List<LLResultTypes.FiducialResult> tag20Results = result.getFiducialResults().stream()
+                        .filter(r -> r.getFiducialId() == 20)
                         .collect(Collectors.toList());
+
+                    if (!tag20Results.isEmpty()) {
+                        hasResults = true;
+                        double targetX = tag20Results.get(0).getTargetXDegrees();
+                        if (targetX != 0) {
+                            rotate = -targetX * 0.025;
+                            goToTargetAngle = false;
+                        }
+                    }
+                    else{
+                        hasResults = false;
+                    }
+                }
+
 
 //                List<LLResultTypes.FiducialResult> tag20Results = result.getFiducialResults().stream()
 //                        .filter(r -> r.getFiducialId() == 20)
 //                        .collect(Collectors.toList());
-//                if (!tag24Results.isEmpty()) {
-                if (!tag24Results.isEmpty()) {
-                    hasResults = true;
-                    double targetX = tag24Results.get(0).getTargetXDegrees();
-                    if (targetX != 0) {
-                        rotate = -targetX * 0.025;
-                        goToTargetAngle = false;
-                    }
-                }
-                else{
-                    hasResults = false;
-                }
+//                if (!tag24Results.isEmpty())
         } else {
-            hasResults = false;
-            angletangent = (144 - botyvalue) / (144 - botxvalue);
-            shootingangle = Math.toDegrees(Math.atan(angletangent));
-            targetAngleDeg = shootingangle + angleAllianceOffset;
-            goToTargetAngle = true;
+//            hasResults = false;
+//            angletangent = (144 - botyvalue) / (144 - botxvalue);
+//            shootingangle = Math.toDegrees(Math.atan(angletangent));
+//            targetAngleDeg = shootingangle + angleAllianceOffset;
+//            goToTargetAngle = true;
+//                angletangent = (135-botyvalue)/botxvalue;
+//                shootingangle = Math.toDegrees(Math.atan(angletangent));
+//                shootingangle = shootingangle;
+//                targetAngleDeg = 180 - shootingangle;
+//                goToTargetAngle = true;
         }
 //            else {
 //                angletangent = (144-botyvalue)/botxvalue;
@@ -294,7 +325,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
  End My controls */
 //Start Ian's controls
         if (!hasResults) {
-            targetRPM = 3150;
+            targetRPM = 3300;
         } else {
             targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
         }
@@ -302,7 +333,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (gamepad2.rightBumperWasPressed()) {
             telemetry.addData("Target Shooter Speed", targetRPM);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-//            ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
         }
         else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();
@@ -334,6 +364,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             this.shooterHoodPos = 0.40;
         }
         ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
+
+
+        if(IntakeWithSensorsSubsystem.INSTANCE.getNumberOfBalls() == 3) {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+        }
+        else if(ShooterSubsystem.INSTANCE.isAtTargetSpeed(100) && ShooterSubsystem.INSTANCE.isEnabled()){
+            LEDControlSubsystem.INSTANCE.startStrobe(LEDControlSubsystem.LedColor.GREEN , LEDControlSubsystem.LedColor.OFF ,500);
+        }
+        else{
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
+        }
 
     }
 }
