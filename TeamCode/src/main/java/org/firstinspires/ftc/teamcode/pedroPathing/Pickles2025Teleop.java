@@ -128,6 +128,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double angletangent = 0;
         double shootingangle = 0;
         //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue)
+        if(gamepad1.y){
+            PedroComponent.follower().setPose(new Pose(71,8,Math.toRadians(270)));
+        }
 
         if (gamepad1.right_bumper) {
             if (result != null && result.isValid()) {
@@ -325,7 +328,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
  End My controls */
 //Start Ian's controls
         if (!hasResults) {
-            targetRPM = 3300;
+            targetRPM = 3000;
         } else {
             targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
         }

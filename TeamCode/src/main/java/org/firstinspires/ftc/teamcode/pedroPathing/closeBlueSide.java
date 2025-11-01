@@ -4,7 +4,6 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -25,8 +24,8 @@ import dev.nextftc.ftc.NextFTCOpMode;
 
 @Configurable
 @Autonomous(name = "closeBothSide", group = "Comp")
-public class closeBothSide extends NextFTCOpMode{
-    public closeBothSide() {
+public class closeBlueSide extends NextFTCOpMode{
+    public closeBlueSide() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE)
@@ -47,10 +46,14 @@ public class closeBothSide extends NextFTCOpMode{
         private final Pose scorePoseCloseRed = new Pose(37, 104, Math.toRadians(135)).mirror(); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
         private final Pose pickup1PoseBlue = new Pose(19.8, 84, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
         private final Pose pickup1CP1Blue = new Pose(60.1, 92.1, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
-        private final Pose pickup1CP2Blue = new Pose(40, 81.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+        private final Pose pickup1CP2Blue = new Pose(50, 81.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
         private final Pose offLineBlue = new Pose(40, 60, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
+    private final Pose pickup1PoseRed = new Pose(19.8, 84, Math.toRadians(180)).mirror(); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup1CP1Red = new Pose(60.1, 92.1, Math.toRadians(180)).mirror(); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup1CP2Red = new Pose(50, 81.5, Math.toRadians(180)).mirror(); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose offLineRed = new Pose(40, 60, Math.toRadians(180)).mirror(); // Middle (Second Set) of Artifacts from the Spike Mark.
 
-        private PathChain curvedLineBlue, firstshootpathBlue, firstshootpathRed, firstPickupBlue, moveOffLineBlue;
+    private PathChain curvedLineBlue, firstshootpathBlue, firstshootpathRed, firstPickupBlue, moveOffLineBlue, firstPickupRed, moveOffLineRed;
 
         public void buildPaths() {
 
@@ -91,6 +94,29 @@ public class closeBothSide extends NextFTCOpMode{
                     )
                     .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), offLineBlue.getHeading())
                     .build();
+
+            firstPickupRed= PedroComponent.follower().pathBuilder()
+                    .addPath(
+                            new BezierCurve(
+                                    scorePoseCloseRed,
+                                    pickup1CP1Red,
+                                    pickup1CP2Red,
+                                    pickup1PoseRed
+                            )
+                    )
+                    .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), pickup1PoseRed.getHeading())
+                    .addPath(new BezierLine(pickup1PoseRed, scorePoseCloseRed))
+                    .setLinearHeadingInterpolation(pickup1PoseRed.getHeading(), scorePoseCloseRed.getHeading())
+                    .build();
+
+            moveOffLineRed=PedroComponent.follower().pathBuilder()
+                    .addPath(
+                            new BezierLine(scorePoseCloseRed,offLineRed)
+
+                    )
+                    .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), offLineRed.getHeading())
+                    .build();
+
 
             /* This is our grabPickup1 PathChain. We are using a single path with a BezierLine, which is a straight line. */
             curvedLineBlue= PedroComponent.follower().pathBuilder()
@@ -199,19 +225,22 @@ public class closeBothSide extends NextFTCOpMode{
                 new Delay(2.0),  //Could replace this with shooting a ball
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
                 new Delay(2.0),
-                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop())/*,
-                    new ParallelGroup(
-                            new FollowPath(getFirstBalls),
-                            new SequentialGroup(
-                                    new Delay(1.0),
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                    new Delay(1.0),
-                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(5000.0)),
-                                    new Delay(1.0)
-                                    ),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot())
-                    )*/
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new ParallelGroup(
+                        new FollowPath(firstPickupRed),
+                        new SequentialGroup(
+                                new Delay(0.5),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                new Delay(2.0),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
+                                new Delay(2.0)
+                        ),
+                        new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.shoot()),
+                        new Delay(2.0),
+                        new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                        new FollowPath(moveOffLineRed)
+                )
         );
     }
 
@@ -240,6 +269,7 @@ public class closeBothSide extends NextFTCOpMode{
             opmodeTimer = new Timer();
             opmodeTimer.resetTimer();
             ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
+            ShooterSubsystem.INSTANCE.stop();
             //ShooterSubsystem.INSTANCE.initialize(hardwareMap);
             //IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
 
@@ -247,9 +277,10 @@ public class closeBothSide extends NextFTCOpMode{
         IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
 
         // Build Pedro paths and set starting pose during init per docs
-        buildPaths();
+        //buildPaths();
 
         PedroComponent.follower().setStartingPose(startPoseBlue);
+            buildPaths();
 
         }
 
@@ -259,9 +290,11 @@ public class closeBothSide extends NextFTCOpMode{
             if (gamepad1.x) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
                 PedroComponent.follower().setStartingPose(startPoseBlue);
+                buildPaths();
             } else if (gamepad1.b) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
                 PedroComponent.follower().setStartingPose(startPoseRed);
+                buildPaths();
             }
 
             telemetry.addLine("Hello Pickle of the robot");
