@@ -38,17 +38,17 @@ public class closeBlueSide extends NextFTCOpMode{
     private final Pose startPoseBlue = new Pose(18, 117.5, Math.toRadians(144)); // Start Pose of our robot
     private final Pose scorePoseCloseBlue = new Pose(37, 104, Math.toRadians(135)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
-    private final Pose pickup1PoseBlue = new Pose(24, 82.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup1PoseBlue = new Pose(24, 81.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP1Blue = new Pose(60.1, 92.1, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP2Blue = new Pose( 50, 81.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup2PoseBlue = new Pose(20, 57.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2PoseBlue = new Pose(22, 55.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP1Blue = new Pose(70, 90.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickup2CP2Blue = new Pose( 65.5, 64, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2CP2Blue = new Pose( 55.5, 50, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup3PoseBlue = new Pose(20, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup3PoseBlue = new Pose(22, 33.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP1Blue = new Pose(44,75.6  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickup3CP2Blue = new Pose( 72, 40.09, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup3CP2Blue = new Pose( 68, 32, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
     private final Pose offLineBlue = new Pose(40, 60, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
 
@@ -179,7 +179,8 @@ public class closeBlueSide extends NextFTCOpMode{
                     new ParallelGroup(
                             new FollowPath(firstPickupBlue),
                             new SequentialGroup(
-                                    new Delay(0.5),
+                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                    new Delay(0.25),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
                                     new Delay(2.0),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
@@ -196,7 +197,8 @@ public class closeBlueSide extends NextFTCOpMode{
                     new ParallelGroup(
                             new FollowPath(secondPickupBlue),
                             new SequentialGroup(
-                                    new Delay(0.5),
+                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                    new Delay(0.25),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
                                     new Delay(2.0),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
@@ -213,7 +215,8 @@ public class closeBlueSide extends NextFTCOpMode{
                     new ParallelGroup(
                             new FollowPath(thirdPickupBlue),
                             new SequentialGroup(
-                                    new Delay(0.5),
+                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                    new Delay(0.25),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
                                     new Delay(2.0),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
@@ -227,6 +230,7 @@ public class closeBlueSide extends NextFTCOpMode{
                     new Delay(1.5),
                     new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
                     new FollowPath(moveOffLineBlue)
             );
         }
