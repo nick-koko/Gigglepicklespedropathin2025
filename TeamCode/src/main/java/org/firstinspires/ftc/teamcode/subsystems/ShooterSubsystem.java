@@ -1,10 +1,11 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.bylazar.configurables.annotations.Configurable;
+import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PIDFController;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
 
@@ -66,6 +67,21 @@ public class ShooterSubsystem implements Subsystem {
     private boolean highMode = true;  // true = high speed, false = low speed
     private boolean crHighMode = true;
 
+    private PIDFController shooterPID1;
+    private PIDFController shooterPID2;
+
+    private static final PIDFCoefficients SHOOTER_PID_COEFFS = new PIDFCoefficients(0.005, 0, 0.00005, 0.00006);
+
+//    @Configurable
+//    public static double kP = 0.005;
+//    @Configurable
+//    public static double kI = 0.0;
+//    @Configurable
+//    public static double kD = 0.0005;
+//
+//    @Configurable
+//    public static double kF = 0.0005;
+
 
 
     // =============================================
@@ -95,9 +111,14 @@ public class ShooterSubsystem implements Subsystem {
         // Calculate ticks per revolution
         ticksPerRev = ENCODER_TICKS_PER_MOTOR_REV * SHOOTER_GEAR_RATIO;
 
-        shooter1.setVelocityPIDFCoefficients(2, 0, 0.002, 19);
-        shooter2.setVelocityPIDFCoefficients(2, 0, 0.002, 19);
-        //shooter1.setPositionPIDFCoefficients(0.05);
+//        shooter1.setVelocityPIDFCoefficients(5., 0, 0.005, 17.85);
+//        shooter2.setVelocityPIDFCoefficients(5, 0, 0.0005, 17.85);
+
+        shooterPID1 = new PIDFController(SHOOTER_PID_COEFFS);
+        shooterPID2 = new PIDFController(SHOOTER_PID_COEFFS);
+
+        shooterPID1.reset();
+        shooterPID2.reset();
     }
 
     // =============================================
@@ -107,6 +128,8 @@ public class ShooterSubsystem implements Subsystem {
     @Override
     public void periodic() {
         // Update motor velocities if enabled
+        this.shooterPID1.updatePosition(this.shooter1.getVelocity());
+        this.shooterPID2.updatePosition(this.shooter2.getVelocity());
         if (enabled) {
             updateVelocities();
         }
@@ -123,6 +146,11 @@ public class ShooterSubsystem implements Subsystem {
         enabled = true;
         updateVelocities();
     }
+
+//    public void updatePIDCoeffs() {
+//        shooterPID1.setCoefficients(new PIDFCoefficients(kP, kI, kD, kF));
+//        shooterPID2.setCoefficients(new PIDFCoefficients(kP, kI, kD, kF));
+//    }
 
     /**
      * Turn on the shooter at specific RPM.
@@ -253,17 +281,40 @@ public class ShooterSubsystem implements Subsystem {
     // HELPER METHODS
     // =============================================
     
-    private void updateVelocities() {
-        double shooterTarget = this.targetRPM;
-        
-        double shooterTps = rpmToTicksPerSecond(shooterTarget);
-        
-        shooter1.setVelocity(shooterTps);
-        shooter2.setVelocity(shooterTps);
-        //counterRoller.setVelocity(crTps);
-        shooter1.setPower(1.0);
-        shooter2.setPower(1.0);
+//    private void updateVelocities() {
+//        double shooterTarget = this.targetRPM;
+//
+//        double shooterTps = rpmToTicksPerSecond(shooterTarget);
+//
+//        shooter1.setVelocity(shooterTps);
+//        shooter2.setVelocity(shooterTps);
+//        //counterRoller.setVelocity(crTps);
+//        shooter1.setPower(1.0);
+//        shooter2.setPower(1.0);
+//
+//    }
 
+    private void updateVelocities() {
+        double shooterTargetRPM = targetRPM;
+
+        // Current feedback (in RPM)
+        double shooter1RPM = getShooter1RPM();
+        double shooter2RPM = getShooter2RPM();
+        double rpm = rpmToTicksPerSecond(shooterTargetRPM);
+
+        // Compute PID output
+        shooterPID1.setTargetPosition(rpm);
+        shooterPID2.setTargetPosition(rpm);
+
+        double power1 = shooterPID1.run();
+        double power2 = shooterPID1.run();
+
+        // Clip power to motor-safe range [-1, 1]
+        power1 = Range.clip(power1, 0, 1);
+        power2 = Range.clip(power2, 0, 1);
+
+        shooter1.setPower(power1);
+        shooter2.setPower(power2);
     }
 
     private double rpmToTicksPerSecond(double rpm) {

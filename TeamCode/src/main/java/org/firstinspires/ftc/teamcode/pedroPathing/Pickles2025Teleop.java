@@ -35,7 +35,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE)
         );
     }
-     public static Pose startingPose = new Pose(71,8,Math.toRadians(270)); //See ExampleAuto to understand how to use this
+    public static Pose startingPose = new Pose(71,8,Math.toRadians(270)); //See ExampleAuto to understand how to use this
+
+    public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
+    public static Pose blueShootingTarget = new Pose(16.37, 130.35, Math.toRadians(144));
+
+    private Pose shootingTargetLocation;
     private boolean automatedDrive;
     private Supplier<PathChain> pathChain;
     private TelemetryManager telemetryM;
@@ -98,6 +103,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)
         PedroComponent.follower().startTeleopDrive();
+
+        if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
+            shootingTargetLocation = redShootingTarget;
+        } else {
+            shootingTargetLocation = blueShootingTarget;
+        }
+
     }
 
     @Override
@@ -127,6 +139,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double botyvalue = PedroComponent.follower().getPose().getY(); //gettingyvalue :D
         double angletangent = 0;
         double shootingangle = 0;
+		// Add location based shooting angle here eventually
         //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue)
         if(gamepad1.y){
             PedroComponent.follower().setPose(new Pose(71,8,Math.toRadians(270)));
@@ -208,10 +221,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //                targetAngleDeg = shootingangle + angleAllianceOffset;
 //                goToTargetAngle = true;
 //            }
-        } else if (gamepad1.dpad_down) {
+        } else if (gamepad1.right_trigger > 0.1) {
             targetAngleDeg = 180.0 + angleAllianceOffset;
             goToTargetAngle = true;
-        } else if (gamepad1.dpad_right) {
+        } else if (gamepad1.left_trigger > 0.1) {
             targetAngleDeg = -90.0 + angleAllianceOffset;
             goToTargetAngle = true;
         } else if (gamepad1.dpad_left) {
@@ -326,14 +339,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             ShooterSubsystem.INSTANCE.stop();
         }
  End My controls */
-//Start Ian's controls
-        if (!hasResults) {
-            targetRPM = 3000;
-        } else {
-            targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
-        }
-        
+//Start Ian's control
+
         if (gamepad2.rightBumperWasPressed()) {
+            if (!hasResults) {
+                targetRPM = 3200;
+            } else {
+                targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
+            }
             telemetry.addData("Target Shooter Speed", targetRPM);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
         }
@@ -360,7 +373,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
         if (!hasResults) {
-            this.shooterHoodPos = 0.20;
+            this.shooterHoodPos = 0.06;
         } else if (yOffset <= 13.0) {
             this.shooterHoodPos = 0.43;
         } else {
@@ -371,8 +384,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         if(IntakeWithSensorsSubsystem.INSTANCE.getNumberOfBalls() == 3) {
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+            if (!hasResults) {
+                targetRPM = 3200;
+            } else {
+                targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
+            }
+            telemetry.addData("Target Shooter Speed", targetRPM);
+//            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
         }
-        else if(ShooterSubsystem.INSTANCE.isAtTargetSpeed(100) && ShooterSubsystem.INSTANCE.isEnabled()){
+        else if(ShooterSubsystem.INSTANCE.isAtTargetSpeed(250) && ShooterSubsystem.INSTANCE.isEnabled()){
             LEDControlSubsystem.INSTANCE.startStrobe(LEDControlSubsystem.LedColor.GREEN , LEDControlSubsystem.LedColor.OFF ,500);
         }
         else{

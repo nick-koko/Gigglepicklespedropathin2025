@@ -127,7 +127,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private static final int SPEED_TOLERANCE_RPM = 50;      // acceptable speed window
 
     private static final long SHOT_DURATION_MS = 75; // how long to shoot one ball
-    private static final long SHOT_DELAY_MS = 250;    // wait time between shots
+    private static final long SHOT_DELAY_MS = 300;    // wait time between shots
     private boolean shotInProgress = false;
 
 
@@ -261,7 +261,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         s2.setPower(S2_SHOOT_SPEED);
         s3.setPower(S3_SHOOT_SPEED);
 
-        shootEndTime = System.currentTimeMillis() + 250;
+        shootEndTime = System.currentTimeMillis() + 300;
     }
 
 
@@ -324,6 +324,20 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         isIntaking = true;
         currentDirection = -1.0;
         setIntakeDirection(-1.0, false);
+    }
+
+    /**
+     * Just run all motors/servos at shoot speed, ignoring ball counts or time limits
+     */
+
+    public void dumbShoot() {
+        // Start feeder/indexer motors
+        m1.setVelocity(rpmToTicksPerSecond(M1_SHOOT_RPM, m1TicksPerRev));
+        m3.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
+        s2.setPower(S2_SHOOT_SPEED);
+        s3.setPower(S3_SHOOT_SPEED);
+        ballCount = 0;
+
     }
 
     /**

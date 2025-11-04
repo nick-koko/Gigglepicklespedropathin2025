@@ -885,18 +885,19 @@ class DriveTuner extends OpMode {
 
     @Override
     public void start() {
+        follower.setStartingPose(new Pose(72,40,Math.toRadians(90)));
         follower.deactivateAllPIDFs();
         follower.activateDrive();
         
         forwards = follower.pathBuilder()
                 .setGlobalDeceleration()
-                .addPath(new BezierLine(new Pose(0,0), new Pose(DISTANCE,0)))
+                .addPath(new BezierLine(new Pose(72,40), new Pose(72,80)))
                 .setConstantHeadingInterpolation(0)
                 .build();
 
         backwards = follower.pathBuilder()
                 .setGlobalDeceleration()
-                .addPath(new BezierLine(new Pose(DISTANCE,0), new Pose(0,0)))
+                .addPath(new BezierLine(new Pose(72,80), new Pose(72,40)))
                 .setConstantHeadingInterpolation(0)
                 .build();
 
@@ -1133,7 +1134,7 @@ class Triangle extends OpMode {
  * @version 1.0, 3/12/2024
  */
 class Circle extends OpMode {
-    public static double RADIUS = 10;
+    public static double RADIUS = 40;
     private PathChain circle;
 
     public void start() {

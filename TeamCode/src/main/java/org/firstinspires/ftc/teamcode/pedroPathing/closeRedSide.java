@@ -23,7 +23,7 @@ import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 
 @Configurable
-@Autonomous(name = "closeBothSide", group = "Comp")
+@Autonomous(name = "closeRedSide", group = "Comp")
 public class closeRedSide extends NextFTCOpMode{
     public closeRedSide() {
         addComponents(
