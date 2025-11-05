@@ -182,6 +182,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     }
                 }
 
+                if(hasResults) {
+                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.WHITE);
+                }
+                else{
+                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+                }
+
 
 //                List<LLResultTypes.FiducialResult> tag20Results = result.getFiducialResults().stream()
 //                        .filter(r -> r.getFiducialId() == 20)
@@ -344,59 +351,69 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (gamepad2.rightBumperWasPressed()) {
             if (!hasResults) {
                 targetRPM = 3200;
-            } else {
-                targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
+            } else if (hasResults && yOffset > 10) {
+                targetRPM = -0.2089 * Math.pow(yOffset, 3)
+                        + 18.43 * Math.pow(yOffset, 2)
+                        - 495.97 * yOffset
+                        + 7809.06;
+            }
+            else if (hasResults && yOffset < 10) {
+                targetRPM = -1.301 * Math.pow(yOffset, 3)
+                        + 33.97 * Math.pow(yOffset, 2)
+                        - 271.64 * yOffset
+                        + 5263.88;
             }
             telemetry.addData("Target Shooter Speed", targetRPM);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+//            ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
         }
         else if (gamepad2.leftBumperWasPressed()) {
-            ShooterSubsystem.INSTANCE.stop();
-            //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
+            //ShooterSubsystem.INSTANCE.stop();
+            ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
-//        if (gamepad2.xWasPressed()) {
-//            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
-//        }
-//        if(gamepad2.yWasPressed()) {
-//            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
-//        }
+        if (gamepad2.xWasPressed()) {
+            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
+        }
+        if(gamepad2.yWasPressed()) {
+            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
+        }
 
         if (gamepad2.right_trigger > 0.1) {
-            IntakeWithSensorsSubsystem.INSTANCE.shoot();
+            long delay = 0;
+            long shotTime = 250;
+            if (hasResults && yOffset >= 11) {
+                delay = 100;
+            }
+            else if (hasResults && yOffset < 11){
+                delay = 700;
+            }
+            IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
         }
         else if (gamepad2.aWasPressed()) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
             ShooterSubsystem.INSTANCE.stop();
+            this.hasResults = false;
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
         }
         else if (gamepad2.b) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
         if (!hasResults) {
-            this.shooterHoodPos = 0.06;
+            this.shooterHoodPos = 0.12;
         } else if (yOffset <= 13.0) {
             this.shooterHoodPos = 0.43;
-        } else {
+        } else if (yOffset > 11.5 && yOffset < 17){
             this.shooterHoodPos = 0.40;
+        }
+        else{
+            this.shooterHoodPos = 0.3;
         }
         ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
 
 
         if(IntakeWithSensorsSubsystem.INSTANCE.getNumberOfBalls() == 3) {
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
-            if (!hasResults) {
-                targetRPM = 3200;
-            } else {
-                targetRPM = 33 * Math.pow(yOffset, 2) - 1038 * yOffset + 11618;
-            }
-            telemetry.addData("Target Shooter Speed", targetRPM);
-//            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-        }
-        else if(ShooterSubsystem.INSTANCE.isAtTargetSpeed(250) && ShooterSubsystem.INSTANCE.isEnabled()){
-            LEDControlSubsystem.INSTANCE.startStrobe(LEDControlSubsystem.LedColor.GREEN , LEDControlSubsystem.LedColor.OFF ,500);
-        }
-        else{
-            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
         }
 
     }

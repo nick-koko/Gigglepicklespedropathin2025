@@ -127,7 +127,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private static final int SPEED_TOLERANCE_RPM = 50;      // acceptable speed window
 
     private static final long SHOT_DURATION_MS = 75; // how long to shoot one ball
-    private static final long SHOT_DELAY_MS = 300;    // wait time between shots
+    private long SHOT_DELAY_MS = 300;
+    private long SHOT_TIME = 300;// wait time between shots
     private boolean shotInProgress = false;
 
 
@@ -261,7 +262,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         s2.setPower(S2_SHOOT_SPEED);
         s3.setPower(S3_SHOOT_SPEED);
 
-        shootEndTime = System.currentTimeMillis() + 300;
+        shootEndTime = System.currentTimeMillis() + SHOT_TIME;
     }
 
 
@@ -358,7 +359,9 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      *
      * @return true if shoot sequence started, false if already shooting or no balls to shoot
      */
-    public boolean shoot() {
+    public boolean shoot(long shotDuration, long delay) {
+        this.SHOT_DELAY_MS = delay;
+        this.SHOT_TIME = shotDuration;
         if (shootSequenceActive) return false;
         if (ballCount <= 0) return false;
 
@@ -372,7 +375,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         shooting = false;
         shotInProgress = false; // ⬅️ start as false
         currentShot = 0;
-        nextShotTime = System.currentTimeMillis() + 200; // start immediately
+        nextShotTime = System.currentTimeMillis() + shotDuration; // start immediately
         shootTimer.reset();
 
         // Enable motors again for safety
