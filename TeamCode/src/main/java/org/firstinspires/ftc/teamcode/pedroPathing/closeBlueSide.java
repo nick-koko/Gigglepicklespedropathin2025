@@ -64,9 +64,9 @@ public class closeBlueSide extends NextFTCOpMode{
     private final Pose pickup2PoseRed = pickup2PoseBlue.mirror();
     private final Pose pickup2CP1Red = pickup2CP1Blue.mirror();
     private final Pose pickup2CP2Red = pickup2CP2Blue.mirror();
-    private final Pose pickup3PoseRed = pickup2PoseBlue.mirror();
-    private final Pose pickup3CP1Red = pickup2CP1Blue.mirror();
-    private final Pose pickup3CP2Red = pickup2CP2Blue.mirror();
+    private final Pose pickup3PoseRed = pickup3PoseBlue.mirror();
+    private final Pose pickup3CP1Red = pickup3CP1Blue.mirror();
+    private final Pose pickup3CP2Red = pickup3CP2Blue.mirror();
 
     private final Pose offLineLeverRed = offLineLeverBlue.mirror();
     private final Pose offLineCloseRed = offLineCloseBlue.mirror();

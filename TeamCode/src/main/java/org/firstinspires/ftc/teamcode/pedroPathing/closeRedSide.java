@@ -63,9 +63,9 @@ public class closeRedSide extends NextFTCOpMode{
     private final Pose pickup2PoseRed = pickup2PoseBlue.mirror();
     private final Pose pickup2CP1Red = pickup2CP1Blue.mirror();
     private final Pose pickup2CP2Red = pickup2CP2Blue.mirror();
-    private final Pose pickup3PoseRed = pickup2PoseBlue.mirror();
-    private final Pose pickup3CP1Red = pickup2CP1Blue.mirror();
-    private final Pose pickup3CP2Red = pickup2CP2Blue.mirror();
+    private final Pose pickup3PoseRed = pickup3PoseBlue.mirror();
+    private final Pose pickup3CP1Red = pickup3CP1Blue.mirror();
+    private final Pose pickup3CP2Red = pickup3CP2Blue.mirror();
 
     private final Pose offLineLeverRed = offLineLeverBlue.mirror();
     private final Pose offLineCloseRed = offLineCloseBlue.mirror();
@@ -312,71 +312,71 @@ public class closeRedSide extends NextFTCOpMode{
     }
 
     private Command CloseRed12BallAuto() {
-            return new SequentialGroup(
-                    new ParallelGroup(
-                            new FollowPath(firstshootpathRed),
-                            new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
-                    ),
-                    new Delay(1.5),  //Could replace this with shooting a ball
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                    new Delay(1.5),
-                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                    new ParallelGroup(
-                            new FollowPath(firstPickupRed),
-                            new SequentialGroup(
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                    new Delay(0.25),
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                    new Delay(2.0),
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
-                                    )
-                    ),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                    new Delay(1.5),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                    new Delay(1.5),
-                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                    new ParallelGroup(
-                            new FollowPath(secondPickupRed),
-                            new SequentialGroup(
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                    new Delay(0.25),
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                    new Delay(2.0),
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
-                            )
-                    ),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                    new Delay(1.5),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                    new Delay(1.5),
-                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                    new ParallelGroup(
-                            new FollowPath(thirdPickupRed),
-                            new SequentialGroup(
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                    new Delay(0.25),
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                    new Delay(2.0),
-                                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
-                            )
-                    ),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                    new Delay(1.5),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                    new Delay(1.5),
-                    new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                    new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                    new FollowPath(moveOffLineLeverRed)
-            );
-        }
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new FollowPath(firstshootpathRed),
+                        new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                ),
+                new Delay(1.5),  //Could replace this with shooting a ball
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                new Delay(1.5),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                new ParallelGroup(
+                        new FollowPath(firstPickupRed),
+                        new SequentialGroup(
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                new Delay(0.25),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                new Delay(2.0),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(1.5),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                new Delay(1.5),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                new ParallelGroup(
+                        new FollowPath(secondPickupRed),
+                        new SequentialGroup(
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                new Delay(0.25),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                new Delay(2.0),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(1.5),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                new Delay(1.5),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                new ParallelGroup(
+                        new FollowPath(thirdPickupRed),
+                        new SequentialGroup(
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                new Delay(0.25),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                new Delay(2.0),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(1.5),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                new Delay(1.5),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                new FollowPath(moveOffLineLeverRed)
+        );
+    }
 
     private Command CloseBlue3BallAuto() {
         return new SequentialGroup(
@@ -540,7 +540,6 @@ public class closeRedSide extends NextFTCOpMode{
                 new FollowPath(moveOffLineLeverBlue)
         );
     }
-
 
 
 
