@@ -350,7 +350,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         if (gamepad2.rightBumperWasPressed()) {
             if (!hasResults) {
-                targetRPM = 3200;
+                targetRPM = 3000;
             } else if (hasResults && yOffset > 10) {
                 targetRPM = -0.2089 * Math.pow(yOffset, 3)
                         + 18.43 * Math.pow(yOffset, 2)
@@ -358,25 +358,26 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         + 7809.06;
             }
             else if (hasResults && yOffset < 10) {
-                targetRPM = -1.301 * Math.pow(yOffset, 3)
-                        + 33.97 * Math.pow(yOffset, 2)
-                        - 271.64 * yOffset
-                        + 5263.88;
+                targetRPM = 4600;
+//                targetRPM = -1.301 * Math.pow(yOffset, 3)
+//                        + 33.97 * Math.pow(yOffset, 2)
+//                        - 271.64 * yOffset
+//                        + 5263.88;
             }
             telemetry.addData("Target Shooter Speed", targetRPM);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
 //            ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
         }
         else if (gamepad2.leftBumperWasPressed()) {
-            //ShooterSubsystem.INSTANCE.stop();
-            ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
+            ShooterSubsystem.INSTANCE.stop();
+//            ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
         if (gamepad2.xWasPressed()) {
-            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
+//            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
         }
         if(gamepad2.yWasPressed()) {
-            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
+//            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
         }
 
         if (gamepad2.right_trigger > 0.1) {
@@ -400,9 +401,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
         if (!hasResults) {
-            this.shooterHoodPos = 0.12;
-        } else if (yOffset <= 13.0) {
-            this.shooterHoodPos = 0.43;
+            this.shooterHoodPos = 0.05;
+        } else if (yOffset <= 11.5) {
+            this.shooterHoodPos = 0.4;
         } else if (yOffset > 11.5 && yOffset < 17){
             this.shooterHoodPos = 0.40;
         }

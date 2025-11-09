@@ -22,9 +22,9 @@ import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 
 @Configurable
-@Autonomous(name = "farBlueSide", group = "Comp")
-public class farBlueSide extends NextFTCOpMode{
-    public farBlueSide() {
+@Autonomous(name = "farRedSide", group = "Comp")
+public class farRedSide extends NextFTCOpMode{
+    public farRedSide() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE)
@@ -551,8 +551,8 @@ public class farBlueSide extends NextFTCOpMode{
             //ShooterSubsystem.INSTANCE.initialize(hardwareMap);
             //IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
 
-            GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
-            PedroComponent.follower().setStartingPose(startPoseBlue);
+            GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
+            PedroComponent.follower().setStartingPose(startPoseRed);
 
             // Seed ball count for auton: assume robot starts loaded with 3
             IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
