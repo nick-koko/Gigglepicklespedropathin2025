@@ -18,6 +18,7 @@ import dev.nextftc.core.commands.groups.ParallelGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.commands.utility.InstantCommand;
 import dev.nextftc.core.components.SubsystemComponent;
+import dev.nextftc.extensions.fateweaver.FateComponent;
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
@@ -28,7 +29,8 @@ public class closeBlueSide extends NextFTCOpMode{
     public closeBlueSide() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
-                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE)
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
+                FateComponent.INSTANCE
         );
     }
     public static double autonShooterRPM = 3000.0;

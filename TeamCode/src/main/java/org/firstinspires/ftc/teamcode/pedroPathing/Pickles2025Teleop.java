@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
+
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
+import com.bylazar.utils.LoopTimer;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.HeadingInterpolator;
@@ -22,6 +24,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import dev.nextftc.core.components.SubsystemComponent;
+import dev.nextftc.extensions.fateweaver.FateComponent;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.ActiveOpMode;
 import dev.nextftc.ftc.NextFTCOpMode;
@@ -32,13 +35,31 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public Pickles2025Teleop() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
-                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE)
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE),
+                FateComponent.INSTANCE
         );
     }
     public static Pose startingPose = new Pose(71,8,Math.toRadians(270)); //See ExampleAuto to understand how to use this
 
     public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
     public static Pose blueShootingTarget = new Pose(16.37, 130.35, Math.toRadians(144));
+
+    // Adjust these from Panels at runtime
+    public static boolean SHOW_SMOOTHED = true;
+    public static int SMOOTH_WINDOW = 8;           // samples for moving average
+    private final LoopTimer timer = new LoopTimer();
+    private double rpmShooter1Smoothed = 0.0;
+    private double rpmShooter2Smoothed = 0.0;
+    private double rpmOuttakeSmoothed = 0.0;
+    private double[] windowShooter1;
+    private int wIdxShooter1 = 0;
+    private int wFillShooter1 = 0;
+    private double[] windowShooter2;
+    private int wIdxShooter2 = 0;
+    private int wFillShooter2 = 0;
+    private double[] windowOuttake;
+    private int wIdxOuttake = 0;
+    private int wFillOuttake = 0;
 
     private Pose shootingTargetLocation;
     private boolean automatedDrive;
@@ -83,6 +104,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         PedroComponent.follower().setStartingPose(startingPose);
 
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
+        windowShooter1 = new double[Math.max(1, SMOOTH_WINDOW)];
+        windowShooter2 = new double[Math.max(1, SMOOTH_WINDOW)];
+        windowOuttake = new double[Math.max(1, SMOOTH_WINDOW)];
 
         LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
 
@@ -115,6 +139,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     @Override
     public void onUpdate() {
         //Call this once per loop
+        timer.start();
         telemetryM.update();
         telemetry.update();
         LLResult result = limelight.getLatestResult();
@@ -289,6 +314,87 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             automatedDrive = false;
         }
 
+        double rpmShooter1 = ShooterSubsystem.INSTANCE.getShooter1RPM();
+        double rpmShooter2 = ShooterSubsystem.INSTANCE.getShooter2RPM();
+        double rpmOuttake = IntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM();
+
+        // Optional simple moving average
+        if (SHOW_SMOOTHED) {
+            if (windowShooter1.length != Math.max(1, SMOOTH_WINDOW)) {
+                // if you change SMOOTH_WINDOW live, re-init the buffer on the fly
+                windowShooter1 = new double[Math.max(1, SMOOTH_WINDOW)];
+                wIdxShooter1 = 0;
+                wFillShooter1 = 0;
+                rpmShooter1Smoothed = 0.0;
+            }
+            windowShooter1[wIdxShooter1] = rpmShooter1;
+            wIdxShooter1 = (wIdxShooter1 + 1) % windowShooter1.length;
+            if (wFillShooter1 < windowShooter1.length) wFillShooter1++;
+
+            double sum = 0.0;
+            for (int i = 0; i < wFillShooter1; i++) sum += windowShooter1[i];
+            rpmShooter1Smoothed = sum / wFillShooter1;
+
+            if (windowShooter2.length != Math.max(1, SMOOTH_WINDOW)) {
+                // if you change SMOOTH_WINDOW live, re-init the buffer on the fly
+                windowShooter2 = new double[Math.max(1, SMOOTH_WINDOW)];
+                wIdxShooter2 = 0;
+                wFillShooter2 = 0;
+                rpmShooter2Smoothed = 0.0;
+            }
+            windowShooter2[wIdxShooter2] = rpmShooter2;
+            wIdxShooter2 = (wIdxShooter2 + 1) % windowShooter2.length;
+            if (wFillShooter2 < windowShooter2.length) wFillShooter2++;
+
+            sum = 0.0;
+            for (int i = 0; i < wFillShooter1; i++) sum += windowShooter1[i];
+            rpmShooter1Smoothed = sum / wFillShooter1;
+
+            if (windowOuttake.length != Math.max(1, SMOOTH_WINDOW)) {
+                // if you change SMOOTH_WINDOW live, re-init the buffer on the fly
+                windowOuttake = new double[Math.max(1, SMOOTH_WINDOW)];
+                wIdxOuttake = 0;
+                wFillOuttake = 0;
+                rpmOuttakeSmoothed = 0.0;
+            }
+            windowOuttake[wIdxOuttake] = rpmOuttake;
+            wIdxOuttake = (wIdxOuttake + 1) % windowOuttake.length;
+            if (wFillOuttake < windowOuttake.length) wFillOuttake++;
+
+            sum = 0.0;
+            for (int i = 0; i < wFillOuttake; i++) sum += windowOuttake[i];
+            rpmOuttakeSmoothed = sum / wFillOuttake;
+
+        }
+
+        // Graph
+        telemetryM.addData("Shooter1_RPM", rpmShooter1);
+        telemetryM.addData("Shooter2_RPM", rpmShooter2);
+        telemetryM.addData("Outtake_RPM", rpmOuttake);
+
+        if (SHOW_SMOOTHED) {
+            telemetryM.addData("Shooter1_RPM (smoothed)", rpmShooter1Smoothed);
+            telemetryM.addData("Shooter2_RPM (smoothed)", rpmShooter2Smoothed);
+            telemetryM.addData("Outtake_RPM (smoothed)", rpmOuttakeSmoothed);
+        }
+
+        telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
+        telemetryM.addData("BB_sensor0", IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken());
+        telemetryM.addData("BB_sensor1", IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken());
+        telemetryM.addData("BB_sensor2", IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken());
+
+        telemetryM.addData("LoopTime_ms", timer.getMs());
+
+
+        telemetryM.debug(String.format("Shooter1_RPM: %.1f", rpmShooter1));
+        telemetryM.debug(String.format("Shooter2_RPM: %.1f", rpmShooter2));
+        telemetryM.debug(String.format("Outake_RPM: %.1f", rpmOuttake));
+
+        telemetryM.debug(String.format("LoopTime: %.2fms / %.2fHz", timer.getMs(), timer.getHz()));
+
+        telemetryM.update(telemetry);
+
+
         telemetryM.debug("Triangle Side 1", botxvalue);
         telemetryM.debug("Triangle Side 1", 144-botyvalue);
         telemetryM.debug("Shootin Gangle", shootingangle);
@@ -417,5 +523,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
         }
 
+        timer.end();
     }
 }
