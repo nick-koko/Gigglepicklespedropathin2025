@@ -35,6 +35,8 @@ public class LEDControlSubsystem implements Subsystem {
     public static double GREEN_POSITION = 0.50;
     public static double BLUE_POSITION = 0.61;
     public static double WHITE_POSITION = 1.00;
+    public static double YELLOW_POSITION = 0.38;
+    public static double ORANGE_POSITION = 0.33;
     public static double STROBE_INTERVAL_MS = 250.0;
 
     // =============================================
@@ -236,6 +238,8 @@ public class LEDControlSubsystem implements Subsystem {
         GREEN(() -> GREEN_POSITION),
         BLUE(() -> BLUE_POSITION),
         WHITE(() -> WHITE_POSITION);
+//        YELLOW(() ->YELLOW_POSITION);
+//        ORANGE(() ->ORANGE_POSITION);
 
         private final DoubleSupplier supplier;
 

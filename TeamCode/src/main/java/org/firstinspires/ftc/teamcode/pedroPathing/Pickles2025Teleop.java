@@ -386,11 +386,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetryM.addData("LoopTime_ms", timer.getMs());
 
 
-        telemetryM.debug(String.format("Shooter1_RPM: %.1f", rpmShooter1));
-        telemetryM.debug(String.format("Shooter2_RPM: %.1f", rpmShooter2));
-        telemetryM.debug(String.format("Outake_RPM: %.1f", rpmOuttake));
-
-        telemetryM.debug(String.format("LoopTime: %.2fms / %.2fHz", timer.getMs(), timer.getHz()));
+//        telemetryM.debug(String.format("Shooter1_RPM: %.1f", rpmShooter1));
+//        telemetryM.debug(String.format("Shooter2_RPM: %.1f", rpmShooter2));
+//        telemetryM.debug(String.format("Outake_RPM: %.1f", rpmOuttake));
+//
+//        telemetryM.debug(String.format("LoopTime: %.2fms / %.2fHz", timer.getMs(), timer.getHz()));
 
         telemetryM.update(telemetry);
 
@@ -495,7 +495,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             else if (hasResults && yOffset < 11){
                 delay = 700;
             }
-            IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
+            IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
         }
         else if (gamepad2.aWasPressed()) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)

@@ -40,6 +40,10 @@ public class ShooterSubsystem implements Subsystem {
     // Counter roller RPM targets
     public static double CR_HIGH_TARGET_RPM = 900.0;
     public static double CR_LOW_TARGET_RPM = 500.0;
+    public static double SHOOTER_P = 0.05;
+    public static double SHOOTER_I = 0;
+    public static double SHOOTER_D = 0.001;
+    public static double SHOOTER_F = 0;
     
     // Motor constants
     private static double SHOOTER_GEAR_RATIO = (17.0/23.0);  // Yellow Jacket 6000 RPM geared to 17/23
@@ -70,7 +74,7 @@ public class ShooterSubsystem implements Subsystem {
     private PIDFController shooterPID1;
     private PIDFController shooterPID2;
 
-    private static final PIDFCoefficients SHOOTER_PID_COEFFS = new PIDFCoefficients(0.005, 0, 0.00005, 0.00006);
+    public static PIDFCoefficients SHOOTER_PID_COEFFS = new PIDFCoefficients(SHOOTER_P, SHOOTER_I, SHOOTER_D, SHOOTER_F);
 
 //    @Configurable
 //    public static double kP = 0.005;
@@ -128,6 +132,7 @@ public class ShooterSubsystem implements Subsystem {
     @Override
     public void periodic() {
         // Update motor velocities if enabled
+        SHOOTER_PID_COEFFS.setCoefficients(SHOOTER_P, SHOOTER_I, SHOOTER_D, SHOOTER_F);
         this.shooterPID1.updatePosition(this.shooter1.getVelocity());
         this.shooterPID2.updatePosition(this.shooter2.getVelocity());
         if (enabled) {
