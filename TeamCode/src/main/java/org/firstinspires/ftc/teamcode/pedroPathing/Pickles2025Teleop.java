@@ -495,7 +495,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             else if (hasResults && yOffset < 11){
                 delay = 700;
             }
-            IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+            //IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+            IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
         }
         else if (gamepad2.aWasPressed()) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
@@ -510,7 +511,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             this.shooterHoodPos = 0.05;
         } else if (yOffset <= 11.5) {
             this.shooterHoodPos = 0.4;
-        } else if (yOffset > 11.5 && yOffset < 17){
+        } else if (yOffset > 11.5 && yOffset < 17) {
             this.shooterHoodPos = 0.40;
         }
         else{

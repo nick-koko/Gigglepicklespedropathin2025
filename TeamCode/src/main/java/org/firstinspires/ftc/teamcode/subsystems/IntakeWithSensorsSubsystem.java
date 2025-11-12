@@ -194,15 +194,15 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     @Override
     public void periodic() {
-//        if (shootSequenceActive) {
-//            updateShooting();
-//            return;
-//        }
-//        if (isIntaking) {
-//            currentShot = 0;
-//            checkSensorsAndUpdateMotors();
-//            setIntakeDirection(currentDirection, shooting);
-//        }
+        if (shootSequenceActive) {
+            updateShooting();
+            return;
+        }
+        if (isIntaking) {
+            currentShot = 0;
+            checkSensorsAndUpdateMotors();
+            setIntakeDirection(currentDirection, shooting);
+        }
     }
 
     public void updateShooting() {
@@ -335,6 +335,9 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         // Start feeder/indexer motors
 //        m1.setVelocity(rpmToTicksPerSecond(M1_SHOOT_RPM, m1TicksPerRev));
 //        m3.setVelocity(rpmToTicksPerSecond(M3_SHOOT_RPM, m3TicksPerRev));
+//        s2.setPower(S2_SHOOT_SPEED);
+//        s3.setPower(S3_SHOOT_SPEED);
+
         m1.setPower(1.);
         m3.setPower(1.);
         s2.setPower(1.);

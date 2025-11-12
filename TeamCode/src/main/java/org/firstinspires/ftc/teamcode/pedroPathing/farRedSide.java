@@ -45,7 +45,7 @@ public class farRedSide extends NextFTCOpMode{
     private final Pose pickup1CP1Blue = new Pose(51, 40, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP2Blue = new Pose( 41, 35, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     //our robot is very peak :D
-    private final Pose pickup2PoseBlue = new Pose(7, 8.5, Math.toRadians(-90)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2PoseBlue = new Pose(7, 8.5, Math.toRadians(-100)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP1Blue = new Pose(42.5, 25, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP2Blue = new Pose( 13, 42, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     //our robot is himalayas :D
@@ -280,11 +280,11 @@ public class farRedSide extends NextFTCOpMode{
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
                                 new Delay(0.25),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                new Delay(2.0),
-                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new Delay(4.0),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                         )
                 ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(1.5),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),

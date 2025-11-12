@@ -40,11 +40,11 @@ public class ShooterSubsystem implements Subsystem {
     // Counter roller RPM targets
     public static double CR_HIGH_TARGET_RPM = 900.0;
     public static double CR_LOW_TARGET_RPM = 500.0;
-    public static double SHOOTER_P = 0.05;
+    public static double SHOOTER_P = 0.005;
     public static double SHOOTER_I = 0;
-    public static double SHOOTER_D = 0.001;
-    public static double SHOOTER_F = 0;
-    
+    public static double SHOOTER_D = 0.00005;
+    public static double SHOOTER_F = 0.00006;
+
     // Motor constants
     private static double SHOOTER_GEAR_RATIO = (17.0/23.0);  // Yellow Jacket 6000 RPM geared to 17/23
     private static final double ENCODER_TICKS_PER_MOTOR_REV = 28.0;
