@@ -237,9 +237,9 @@ public class LEDControlSubsystem implements Subsystem {
         RED(() -> RED_POSITION),
         GREEN(() -> GREEN_POSITION),
         BLUE(() -> BLUE_POSITION),
-        WHITE(() -> WHITE_POSITION);
-//        YELLOW(() ->YELLOW_POSITION);
-//        ORANGE(() ->ORANGE_POSITION);
+        WHITE(() -> WHITE_POSITION),
+        YELLOW(() -> YELLOW_POSITION),
+        ORANGE(() -> ORANGE_POSITION);
 
         private final DoubleSupplier supplier;
 

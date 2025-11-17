@@ -43,7 +43,7 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
     public static Pose startingPose = new Pose(71,8,Math.toRadians(270)); //See ExampleAuto to understand how to use this
 
     public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
-    public static Pose blueShootingTarget = new Pose(16.37, 130.35, Math.toRadians(144));
+    public static Pose blueShootingTarget = redShootingTarget.mirror();
 
     // Adjust these from Panels at runtime
     public static boolean SHOW_SMOOTHED = true;
@@ -70,6 +70,7 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
     double targetAngleDeg = -135.0;
     double targetAngleRad;
     double propAngleGain = -0.5;
+    public static double shooterTargetkP = 0.025;
     double minAnglePower = 0.075;
     double maxRotate = 0.8;
     double angleAllianceOffset = 0.0;
@@ -77,9 +78,12 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
     public static double normDrivePower = 1;
     public static double slowedDrivePower = 0.5;
     private Limelight3A limelight;
+    private double cameraHeightFromTags =18.25;
 
     private double xOffset;
     private double yOffset;
+    private double distanceLL;
+    private double ODODistance;
     private double yDesired = 17;
 
     private double areaOffset;
@@ -145,8 +149,9 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
             xOffset = result.getTx();
             yOffset = result.getTy();
             areaOffset = result.getTa();
+            distanceLL =  cameraHeightFromTags/(Math.tan(Math.toRadians(yOffset)));
         }
-
+        ODODistance = PedroComponent.follower().getPose().distanceFrom(shootingTargetLocation);
 
         double driving = (-gamepad1.left_stick_y) * drivePower;
         double strafe = (-gamepad1.left_stick_x) * drivePower;
@@ -160,6 +165,25 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
         double botHeadingRad = PedroComponent.follower().getPose().getHeading();
         double botxvalue = PedroComponent.follower().getPose().getX(); //gettingxvalue :D
         double botyvalue = PedroComponent.follower().getPose().getY(); //gettingyvalue :D
+
+        double shootTargetX = shootingTargetLocation.getX();
+        double shootTargetY = shootingTargetLocation.getY();
+
+        // Vector from robot -> target
+        double dx = shootTargetX - botxvalue;
+        double dy = shootTargetY - botyvalue;
+
+        // 1) Field-relative angle to the target (0 rad along +X, CCW positive)
+        double fieldAngleRad = Math.atan2(dy, dx);
+        // - fieldAngleDeg  -> "absolute field heading I want the robot to face"
+        double fieldAngleDeg = Math.toDegrees(fieldAngleRad);
+
+        // 2) Robot-relative angle error (how much you need to turn or point the turret)
+        double angleErrorRad = normalizeRadians(fieldAngleRad - botHeadingRad);
+        // - angleErrorDeg  -> "how many degrees left/right from current heading"
+        double angleErrorDeg = Math.toDegrees(angleErrorRad);
+
+
         double angletangent = 0;
         double shootingangle = 0;
 		// Add location based shooting angle here eventually
@@ -179,7 +203,7 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
                         hasResults = true;
                         double targetX = tag24Results.get(0).getTargetXDegrees();
                         if (targetX != 0) {
-                            rotate = -targetX * 0.025;
+                            rotate = -targetX * shooterTargetkP;
                             goToTargetAngle = false;
                         }
                     }
@@ -196,7 +220,7 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
                         hasResults = true;
                         double targetX = tag20Results.get(0).getTargetXDegrees();
                         if (targetX != 0) {
-                            rotate = -targetX * 0.025;
+                            rotate = -targetX * shooterTargetkP;
                             goToTargetAngle = false;
                         }
                     }
@@ -217,7 +241,8 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
 //                        .filter(r -> r.getFiducialId() == 20)
 //                        .collect(Collectors.toList());
 //                if (!tag24Results.isEmpty())
-        } else {
+        }
+                else {
 //            hasResults = false;
 //            angletangent = (144 - botyvalue) / (144 - botxvalue);
 //            shootingangle = Math.toDegrees(Math.atan(angletangent));
@@ -251,6 +276,9 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
 //                targetAngleDeg = shootingangle + angleAllianceOffset;
 //                goToTargetAngle = true;
 //            }
+        } else if (gamepad1.left_bumper) {
+            rotate = angleErrorDeg * shooterTargetkP;
+            goToTargetAngle = false;
         } else if (gamepad1.right_trigger > 0.1) {
             targetAngleDeg = 180.0 + angleAllianceOffset;
             goToTargetAngle = true;
@@ -386,6 +414,8 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
         telemetryM.addData("BB_sensor2", bb2 ? 1 : 0);
 
         telemetryM.addData("LoopTime_ms", timer.getMs());
+        telemetry.addData("rotate", rotate);
+
 
 
 /*
@@ -418,7 +448,9 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
             telemetry.addData("tx", result.getTx());
             telemetry.addData("ta", result.getTa());
             telemetry.addData("ty", result.getTy());
+            telemetry.addData("LL distance", distanceLL);
         }
+        telemetry.addData("ODO distance", ODODistance);
 /* My controls
         if(gamepad2.right_trigger > 0.1)
         {
@@ -470,6 +502,7 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
         }
         else if (gamepad2.leftBumperWasPressed()) {
             TestingShooterSubsystem.INSTANCE.stop();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.stop();
 //            TestingShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
@@ -519,6 +552,13 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
         }
         telemetryM.update(telemetry);
+        telemetry.update();
         timer.end();
+    }
+
+    private double normalizeRadians(double angle) {
+        while (angle > Math.PI)  angle -= 2.0 * Math.PI;
+        while (angle < -Math.PI) angle += 2.0 * Math.PI;
+        return angle;
     }
 }

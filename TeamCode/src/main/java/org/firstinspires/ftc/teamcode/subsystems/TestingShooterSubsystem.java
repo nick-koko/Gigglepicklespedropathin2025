@@ -23,12 +23,12 @@ public class TestingShooterSubsystem implements Subsystem {
     // =============================================
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
-    public static double kP = 0.0008;
+    public static double kP = 0.002;
     public static double kI = 0.0000;
     public static double kD = 0.00005;
 
-    public static double kS = 0.15;
-    public static double kV = 0.0001348;
+    public static double kS = .1431;
+    public static double kV = 0.000126;
     public static double kA = 0.00000;
 
     public static double HEADROOM = 0.10;

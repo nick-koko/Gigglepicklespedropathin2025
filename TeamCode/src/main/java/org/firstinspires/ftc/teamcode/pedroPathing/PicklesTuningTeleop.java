@@ -149,6 +149,7 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
         }
         else if (gamepad2.leftBumperWasPressed()) {
             TestingShooterSubsystem.INSTANCE.stop();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.stop();
         }
 
         if (gamepad2.right_trigger > 0.1) {
