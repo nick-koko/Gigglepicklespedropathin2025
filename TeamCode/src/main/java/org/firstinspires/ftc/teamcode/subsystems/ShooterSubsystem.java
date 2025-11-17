@@ -14,13 +14,13 @@ import dev.nextftc.ftc.ActiveOpMode;
 
 /**
  * Shooter Subsystem with Velocity Control
- * 
+ *
  * Hardware:
  * - m1, m2: Shooter motors (flywheels)
  * - m3: Counter roller motor
- * 
+ *
  * This subsystem controls shooting mechanism with velocity control for consistent performance.
- * 
+ *
  * Future: Can be enhanced with PIDF control using NextFTC's built-in controllers.
  */
 @Configurable
@@ -32,11 +32,11 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // CONFIGURABLE CONSTANTS
     // =============================================
-    
+
     // Shooter RPM targets
     public static double HIGH_TARGET_RPM = 2000.0;
     public static double LOW_TARGET_RPM = 1300.0;
-    
+
     // Counter roller RPM targets
     public static double CR_HIGH_TARGET_RPM = 900.0;
     public static double CR_LOW_TARGET_RPM = 500.0;
@@ -54,19 +54,19 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // HARDWARE
     // =============================================
-    
+
     private DcMotorEx shooter1;
     private DcMotorEx shooter2;
 
     private Servo shooterHood;
     //private DcMotorEx counterRoller;
-    
+
     private double ticksPerRev;
 
     // =============================================
     // STATE TRACKING
     // =============================================
-    
+
     private boolean enabled = false;
     private boolean highMode = true;  // true = high speed, false = low speed
     private boolean crHighMode = true;
@@ -100,8 +100,8 @@ public class ShooterSubsystem implements Subsystem {
         //counterRoller = hardwareMap.get(DcMotorEx.class, "m3");
 
         // Configure motors
-        shooter1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        shooter2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooter1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        shooter2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         //counterRoller.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -128,7 +128,7 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // PERIODIC - Could add PIDF control here later
     // =============================================
-    
+
     @Override
     public void periodic() {
         // Update motor velocities if enabled
@@ -143,7 +143,7 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // PUBLIC CONTROL METHODS
     // =============================================
-    
+
     /**
      * Turn on the shooter at current speed mode.
      */
@@ -210,7 +210,7 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // GETTERS
     // =============================================
-    
+
     public boolean isEnabled() { return enabled; }
     public boolean isHighMode() { return highMode; }
 
@@ -231,11 +231,11 @@ public class ShooterSubsystem implements Subsystem {
     public void shooterHoodDrive(double hoodPosition){
         this.shooterHood.setPosition(hoodPosition);
     }
-    
+
     public double getTargetShooterRPM() {
         return this.targetRPM;
     }
-    
+
     public double getTargetCounterRollerRPM() {
         return crHighMode ? CR_HIGH_TARGET_RPM : CR_LOW_TARGET_RPM;
     }
@@ -285,7 +285,7 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // HELPER METHODS
     // =============================================
-    
+
 //    private void updateVelocities() {
 //        double shooterTarget = this.targetRPM;
 //
@@ -335,16 +335,16 @@ public class ShooterSubsystem implements Subsystem {
 
 /*
  * NOTES FOR FUTURE PIDF ENHANCEMENT:
- * 
+ *
  * To add NextFTC's PIDF control (future enhancement):
- * 
+ *
  * 1. Add PIDFController field:
  *    private PIDFController shooterPID;
- * 
+ *
  * 2. Initialize in initialize():
  *    shooterPID = new PIDFController(kP, kI, kD, kF);
  *    shooterPID.setTolerance(50); // RPM tolerance
- * 
+ *
  * 3. Update periodic() to use PIDF:
  *    if (enabled) {
  *        double currentRPM = getShooter1RPM();
@@ -352,10 +352,10 @@ public class ShooterSubsystem implements Subsystem {
  *        shooter1.setPower(output);
  *        // same for shooter2
  *    }
- * 
+ *
  * 4. Add isAtTarget() check:
  *    return shooterPID.atSetpoint();
- * 
+ *
  * This would give much better control than built-in velocity control!
  */
 

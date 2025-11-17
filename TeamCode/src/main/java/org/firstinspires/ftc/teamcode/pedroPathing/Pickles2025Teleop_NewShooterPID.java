@@ -15,28 +15,27 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
-import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.LEDControlSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.TestingIntakeWithSensorsSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.TestingShooterSubsystem;
 
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import dev.nextftc.core.components.SubsystemComponent;
-import dev.nextftc.extensions.fateweaver.FateComponent;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.ActiveOpMode;
 import dev.nextftc.ftc.NextFTCOpMode;
 import dev.nextftc.ftc.components.BulkReadComponent;
 
 @Configurable
-@TeleOp(name = "Pickles 2025 Teleop", group = "Comp")
-public class Pickles2025Teleop extends NextFTCOpMode {
-    public Pickles2025Teleop() {
+@TeleOp(name = "Pickles New ShooterPID 2025 Teleop", group = "Comp")
+public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
+    public Pickles2025Teleop_NewShooterPID() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
-                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE),
+                new SubsystemComponent(TestingShooterSubsystem.INSTANCE, TestingIntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE),
                 BulkReadComponent.INSTANCE
                 //FateComponent.INSTANCE
         );
@@ -93,7 +92,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     @Override
     public void onInit() {
-        super.onInit();
         limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
@@ -114,7 +112,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         // Carry over ball count from auton if available
         if (GlobalRobotData.endAutonBallCount >= 0) {
-            IntakeWithSensorsSubsystem.INSTANCE.setBallCount(GlobalRobotData.endAutonBallCount);
+            TestingIntakeWithSensorsSubsystem.INSTANCE.setBallCount(GlobalRobotData.endAutonBallCount);
         }
 
         pathChain = () -> PedroComponent.follower().pathBuilder() //Lazy Curve Generation
@@ -142,8 +140,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public void onUpdate() {
         //Call this once per loop
         timer.start();
-        telemetryM.update();
-        telemetry.update();
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
@@ -316,9 +312,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             automatedDrive = false;
         }
 
-        double rpmShooter1 = ShooterSubsystem.INSTANCE.getShooter1RPM();
-        double rpmShooter2 = ShooterSubsystem.INSTANCE.getShooter2RPM();
-        double rpmOuttake = IntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM();
+        double rpmShooter1 = TestingShooterSubsystem.INSTANCE.getShooter1RPM();
+        double rpmShooter2 = TestingShooterSubsystem.INSTANCE.getShooter2RPM();
+        double rpmOuttake = TestingIntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM();
 
         // Optional simple moving average
         if (SHOW_SMOOTHED) {
@@ -349,8 +345,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             if (wFillShooter2 < windowShooter2.length) wFillShooter2++;
 
             sum = 0.0;
-            for (int i = 0; i < wFillShooter1; i++) sum += windowShooter1[i];
-            rpmShooter1Smoothed = sum / wFillShooter1;
+            for (int i = 0; i < wFillShooter2; i++) sum += windowShooter2[i];
+            rpmShooter2Smoothed = sum / wFillShooter2;
 
             if (windowOuttake.length != Math.max(1, SMOOTH_WINDOW)) {
                 // if you change SMOOTH_WINDOW live, re-init the buffer on the fly
@@ -380,23 +376,19 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             telemetryM.addData("Outtake_RPM (smoothed)", rpmOuttakeSmoothed);
         }
 
-        telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
-        telemetryM.addData("BB_sensor0", IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken());
-        telemetryM.addData("BB_sensor1", IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken());
-        telemetryM.addData("BB_sensor2", IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken());
+        boolean bb0 = TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken();
+        boolean bb1 = TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken();
+        boolean bb2 = TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken();
+
+        telemetryM.addData("ballCount", TestingIntakeWithSensorsSubsystem.INSTANCE.getBallCount());
+        telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
+        telemetryM.addData("BB_sensor1", bb1 ? 1 : 0);
+        telemetryM.addData("BB_sensor2", bb2 ? 1 : 0);
 
         telemetryM.addData("LoopTime_ms", timer.getMs());
 
 
-//        telemetryM.debug(String.format("Shooter1_RPM: %.1f", rpmShooter1));
-//        telemetryM.debug(String.format("Shooter2_RPM: %.1f", rpmShooter2));
-//        telemetryM.debug(String.format("Outake_RPM: %.1f", rpmOuttake));
-//
-//        telemetryM.debug(String.format("LoopTime: %.2fms / %.2fHz", timer.getMs(), timer.getHz()));
-
-        telemetryM.update(telemetry);
-
-
+/*
         telemetryM.debug("Triangle Side 1", botxvalue);
         telemetryM.debug("Triangle Side 1", 144-botyvalue);
         telemetryM.debug("Shootin Gangle", shootingangle);
@@ -408,14 +400,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetryM.debug("velocity", PedroComponent.follower().getVelocity());
         telemetryM.debug("automatedDrive", automatedDrive);
 
-        telemetry.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
-        telemetry.addData("sensor0", IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken());
-        telemetry.addData("sensor1", IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken());
-        telemetry.addData("sensor2", IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken());
-        telemetry.addData("Shooter Hood Value", ShooterSubsystem.INSTANCE.getShooterHoodPosition());
-        telemetry.addData("Shooter Speed", ShooterSubsystem.INSTANCE.getShooter1RPM());
-        telemetry.addData("Target Shooter Speed", ShooterSubsystem.INSTANCE.getTargetShooterRPM());
-
+        telemetry.addData("ballCount", TestingIntakeWithSensorsSubsystem.INSTANCE.getBallCount());
+        telemetry.addData("sensor0", TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken());
+        telemetry.addData("sensor1", TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken());
+        telemetry.addData("sensor2", TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken());
+        telemetry.addData("Shooter Hood Value", TestingShooterSubsystem.INSTANCE.getShooterHoodPosition());
+        telemetry.addData("Shooter Speed", TestingShooterSubsystem.INSTANCE.getShooter1RPM());
+        telemetry.addData("Target Shooter Speed", TestingShooterSubsystem.INSTANCE.getTargetShooterRPM());
+*/
 
         if (result == null) {
             telemetry.addData("Limelight", "No result object");
@@ -430,28 +422,28 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 /* My controls
         if(gamepad2.right_trigger > 0.1)
         {
-            IntakeWithSensorsSubsystem.INSTANCE.intake();
-            //ShooterSubsystem.INSTANCE.stop();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.intake();
+            //TestingShooterSubsystem.INSTANCE.stop();
         }
         else if(gamepad2.left_trigger > 0.1)
         {
-            IntakeWithSensorsSubsystem.INSTANCE.outtake();
-            //ShooterSubsystem.INSTANCE.stop();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.outtake();
+            //TestingShooterSubsystem.INSTANCE.stop();
         }
         else{
-            IntakeWithSensorsSubsystem.INSTANCE.stop();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.stop();
         }
 
 
         if(gamepad1.right_trigger > 0.1)
         {
-            ShooterSubsystem.INSTANCE.spinUp(3500);
+            TestingShooterSubsystem.INSTANCE.spinUp(3500);
         }
         if(gamepad1.left_trigger > 0.1) {
-            ShooterSubsystem.INSTANCE.spinUp(5500);
+            TestingShooterSubsystem.INSTANCE.spinUp(5500);
         }
         if(gamepad1.bWasPressed()){
-            ShooterSubsystem.INSTANCE.stop();
+            TestingShooterSubsystem.INSTANCE.stop();
         }
  End My controls */
 //Start Ian's control
@@ -473,19 +465,19 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //                        + 5263.88;
             }
             telemetry.addData("Target Shooter Speed", targetRPM);
-            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-//            ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
+            TestingShooterSubsystem.INSTANCE.spinUp(targetRPM);
+//            TestingShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
         }
         else if (gamepad2.leftBumperWasPressed()) {
-            ShooterSubsystem.INSTANCE.stop();
-//            ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
+            TestingShooterSubsystem.INSTANCE.stop();
+//            TestingShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
         if (gamepad2.xWasPressed()) {
-//            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
+//            TestingShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
         }
         if(gamepad2.yWasPressed()) {
-//            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
+//            TestingShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
         }
 
         if (gamepad2.right_trigger > 0.1) {
@@ -497,17 +489,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             else if (hasResults && yOffset < 11){
                 delay = 700;
             }
-            //IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-            IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
+            TestingIntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.setBallCount(0);
+            //TestingIntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
         }
         else if (gamepad2.aWasPressed()) {
-            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
-            ShooterSubsystem.INSTANCE.stop();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
+            TestingShooterSubsystem.INSTANCE.stop();
             this.hasResults = false;
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
         }
         else if (gamepad2.b) {
-            IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
+            TestingIntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
         if (!hasResults) {
             this.shooterHoodPos = 0.05;
@@ -519,13 +512,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         else{
             this.shooterHoodPos = 0.3;
         }
-        ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
+        TestingShooterSubsystem.INSTANCE.shooterHoodDrive(shooterHoodPos);
 
 
-        if(IntakeWithSensorsSubsystem.INSTANCE.getNumberOfBalls() == 3) {
+        if(TestingIntakeWithSensorsSubsystem.INSTANCE.getNumberOfBalls() == 3) {
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
         }
-
+        telemetryM.update(telemetry);
         timer.end();
     }
 }
