@@ -93,6 +93,7 @@ public class TestingIntakeWithSensorsSubsystem implements Subsystem {
     // Intake run state
     private boolean isIntaking = false;
     private double currentDirection = 0.0; // +1 forward, -1 reverse
+    private boolean singleBallActive = false;
 
     private long SHOT_DELAY_MS = 300;
     private long SHOT_TIME = 300;// wait time between shots
@@ -157,6 +158,9 @@ public class TestingIntakeWithSensorsSubsystem implements Subsystem {
             currentShot = 0;
             checkSensorsAndUpdateMotors();
             setIntakeDirection(currentDirection, shooting);
+        }
+        if (singleBallActive) {
+            currentShot -= 1;
         }
     }
 
@@ -246,6 +250,12 @@ public class TestingIntakeWithSensorsSubsystem implements Subsystem {
                 ballCount = 2;
             } else if (sensor0Falling && ballCount == 2) {
                 m1Enabled = false;  // Ball 3 broke sensor0, stop m1
+                ballCount = 3;
+            }
+			else if(!sensor0State && !sensor1State && !sensor2State) {
+                m1Enabled = false;
+                m2Enabled = false;
+                m3Enabled = false;
                 ballCount = 3;
             }
         }

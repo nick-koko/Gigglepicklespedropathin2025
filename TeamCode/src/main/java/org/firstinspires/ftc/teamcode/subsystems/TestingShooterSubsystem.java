@@ -12,7 +12,8 @@ import dev.nextftc.ftc.ActiveOpMode;
 
 /**
  * Testing shooter subsystem with dt-aware PIDF + feedforward, burst caps,
- * and slew-limited positive-only output for dual flywheels.
+ * slew-limited positive-only output for dual flywheels,
+ * and a simple time-based boost activation (no RPM detection).
  */
 @Configurable
 public class TestingShooterSubsystem implements Subsystem {
@@ -23,8 +24,8 @@ public class TestingShooterSubsystem implements Subsystem {
     // =============================================
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
-    public static double kP = 0.002;
-    public static double kI = 0.0000;
+    public static double kP = 0.005;
+    public static double kI = 0.0001;
     public static double kD = 0.00005;
 
     public static double kS = .1431;
@@ -36,6 +37,12 @@ public class TestingShooterSubsystem implements Subsystem {
     public static double CONTACT_DROOP_RPM = 50.0;
     public static double SLEW_PER_SECOND = 1.5;
     public static double I_ZONE = 500.0;
+
+    // =============================================
+    // TIME BASED BOOST SETTINGS
+    // =============================================
+    public static double BOOST_AMOUNT = 0.20; // 20% extra power
+    public static long BOOST_DELAY_MS = 10;   // boost activates 30ms after spinUp()
 
     // =============================================
     // CONSTANTS
@@ -63,7 +70,9 @@ public class TestingShooterSubsystem implements Subsystem {
     private long lastTimestampNanos = 0L;
     private double lastOutput = 0.0;
     private boolean enabled = false;
-
+    // BOOST STATE
+    public boolean boostActive = false;
+    private long boostStartTimeMs = 0;
     private boolean preBoostActive = false;
     private boolean contactWindowActive = false;
     private boolean recoveryWindowActive = false;
@@ -99,6 +108,7 @@ public class TestingShooterSubsystem implements Subsystem {
     // =============================================
     public void update() {
         long now = System.nanoTime();
+        long nowMs = System.currentTimeMillis();
         double measuredRpm = getAverageRpmInstant();
 
         if (lastTimestampNanos == 0L) {
@@ -113,20 +123,28 @@ public class TestingShooterSubsystem implements Subsystem {
             return;
         }
 
-        if (!enabled && targetRpm <= 0.0) {
+        if (!enabled) {
             applyPower(0.0);
             lastMeasuredRpm = measuredRpm;
             lastTimestampNanos = now;
             integral = 0.0;
             lastError = 0.0;
             lastOutput = 0.0;
+            resetControllerState();
             return;
         }
 
+        // === AUTO-BOOST ACTIVATION ===
+        if (!boostActive && boostStartTimeMs > 0 && nowMs >= boostStartTimeMs + BOOST_DELAY_MS) {
+            boostActive = true;
+        }
+
+        // Effective RPM target
         double effectiveTarget = contactWindowActive
                 ? Math.max(0.0, targetRpm - CONTACT_DROOP_RPM)
                 : targetRpm;
 
+        // PID calculations
         double error = effectiveTarget - measuredRpm;
 
         if (!contactWindowActive && Math.abs(error) < I_ZONE) {
@@ -137,16 +155,21 @@ public class TestingShooterSubsystem implements Subsystem {
         double derivative = (error - lastError) / dt;
         double pid = (kP * error) + (kI * integral) + (kD * derivative);
 
+        // Feedforward
         double ffStatic = kS * Math.signum(effectiveTarget);
         double ffVel = kV * effectiveTarget;
         double accel = (measuredRpm - lastMeasuredRpm) / dt;
         double ffAccel = kA * accel;
         double ff = ffStatic + ffVel + ffAccel;
 
+        // Base output
         double output = Math.max(ff + pid, 0.0);
 
+        // === APPLY BOOST ===
         if (preBoostActive) {
             output = Math.min(output + PRE_BOOST_AMOUNT, 1.0);
+        } else if (boostActive) {
+            output = Math.min(output * 1.75, 1.0);
         }
 
         double cap = Math.max(0.0, ff + HEADROOM);
@@ -154,15 +177,12 @@ public class TestingShooterSubsystem implements Subsystem {
             output = Math.min(output, cap);
         }
 
-        double maxStep = Math.max(0.0, SLEW_PER_SECOND * dt);
-        if (maxStep > 0.0) {
-            double delta = output - lastOutput;
-            if (delta > maxStep) {
-                output = lastOutput + maxStep;
-            } else if (delta < -maxStep) {
-                output = lastOutput - maxStep;
-            }
-        }
+        // Slew limit
+        double maxStep = SLEW_PER_SECOND * dt;
+        double delta = output - lastOutput;
+
+        if (Math.abs(delta) > maxStep)
+            output = lastOutput + Math.signum(delta) * maxStep;
 
         output = Range.clip(output, 0.0, 1.0);
         applyPower(output);
@@ -179,6 +199,7 @@ public class TestingShooterSubsystem implements Subsystem {
     public void spinUp(double rpm) {
         targetRpm = Math.max(0.0, rpm);
         enabled = targetRpm > 0.0;
+        // Start boost timer
     }
 
     public double getTargetRpm() {
@@ -188,6 +209,8 @@ public class TestingShooterSubsystem implements Subsystem {
     public void stop() {
         targetRpm = 0.0;
         enabled = false;
+        boostActive = false;
+        boostStartTimeMs = 0;
         resetControllerState();
         applyPower(0.0);
     }
@@ -233,6 +256,11 @@ public class TestingShooterSubsystem implements Subsystem {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public void setBoostOn() {
+        boostActive = false;
+        boostStartTimeMs = System.currentTimeMillis();
     }
 
     public void setPreBoostWindow(boolean active) {

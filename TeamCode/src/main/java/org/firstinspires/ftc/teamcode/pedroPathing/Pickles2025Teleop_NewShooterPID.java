@@ -415,6 +415,7 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
 
         telemetryM.addData("LoopTime_ms", timer.getMs());
         telemetry.addData("rotate", rotate);
+		telemetry.addData("boostActive", TestingShooterSubsystem.INSTANCE.boostActive);
 
 
 
@@ -487,10 +488,10 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
                 targetRPM = -0.2089 * Math.pow(yOffset, 3)
                         + 18.43 * Math.pow(yOffset, 2)
                         - 495.97 * yOffset
-                        + 7809.06;
+                        + 7769.06;
             }
             else if (hasResults && yOffset < 10) {
-                targetRPM = 4600;
+                targetRPM = 4550;
 //                targetRPM = -1.301 * Math.pow(yOffset, 3)
 //                        + 33.97 * Math.pow(yOffset, 2)
 //                        - 271.64 * yOffset
@@ -523,6 +524,7 @@ public class Pickles2025Teleop_NewShooterPID extends NextFTCOpMode {
                 delay = 700;
             }
             TestingIntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+			TestingShooterSubsystem.INSTANCE.setBoostOn();
             TestingIntakeWithSensorsSubsystem.INSTANCE.setBallCount(0);
             //TestingIntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
         }

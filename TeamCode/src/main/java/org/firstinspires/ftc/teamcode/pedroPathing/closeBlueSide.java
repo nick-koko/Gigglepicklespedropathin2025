@@ -33,28 +33,28 @@ public class closeBlueSide extends NextFTCOpMode{
                 FateComponent.INSTANCE
         );
     }
-    public static double autonShooterRPM = 3000.0;
-    public static double autonShooterHoodServoPos = 0.06;
+    public static double autonShooterRPM = 2975.0;
+    public static double autonShooterHoodServoPos = 0.0;
 
     public double intAmount = 12;
 
     private Pose finalStartPose = new Pose();
-    private final Pose startPoseBlue = new Pose(18, 117.5, Math.toRadians(144)); // Start Pose of our robot
-    private final Pose scorePoseCloseBlue = new Pose(37, 104, Math.toRadians(137)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    private final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(180)); // Start Pose of our robot
+    private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(128)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
-    private final Pose pickup1PoseBlue = new Pose(24, 81.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup1PoseBlue = new Pose(25, 84.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1CP1Blue = new Pose(60.1, 92.1, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP2Blue = new Pose( 50, 81.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup2PoseBlue = new Pose(22, 55.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2PoseBlue = new Pose(25, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP1Blue = new Pose(70, 90.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP2Blue = new Pose( 55.5, 50, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup3PoseBlue = new Pose(22, 33.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup3PoseBlue = new Pose(24, 39.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP1Blue = new Pose(44,75.6  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP2Blue = new Pose( 68, 32, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose offLineLeverBlue = new Pose(40, 72, Math.toRadians(180)); // Middle (Second Set) of Artifacts from the Spike Mark.
+    private final Pose offLineLeverBlue = new Pose(30, 80, Math.toRadians(270)); // Middle (Second Set) of Artifacts from the Spike Mark.
     private final Pose offLineCloseBlue = new Pose(50, 117, Math.toRadians(135));
 
     private final Pose startPoseRed = startPoseBlue.mirror();
@@ -78,6 +78,7 @@ public class closeBlueSide extends NextFTCOpMode{
 
         public void buildPaths() {
 
+            // if we want to change braking for a pathchain, then use .setNoDeceleration() or .setBrakingStrength(double set) after a path is added
             firstshootpathBlue=PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierLine(startPoseBlue,scorePoseCloseBlue)
@@ -217,7 +218,7 @@ public class closeBlueSide extends NextFTCOpMode{
                     .build();
 
         }
-
+    // if you want to reduce power for a path, use FollowPath(pathchain, holdend, maxpower)
     private Command CloseRed3BallAuto() {
         return new SequentialGroup(
                 new ParallelGroup(
@@ -363,9 +364,9 @@ public class closeBlueSide extends NextFTCOpMode{
                             new FollowPath(thirdPickupRed),
                             new SequentialGroup(
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                    new Delay(0.25),
+                                    new Delay(1.25),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                    new Delay(2.0),
+                                    new Delay(3.5),
                                     new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                                     new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                             )
@@ -526,9 +527,9 @@ public class closeBlueSide extends NextFTCOpMode{
                         new FollowPath(thirdPickupBlue),
                         new SequentialGroup(
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(0.25),
+                                new Delay(1.25),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
-                                new Delay(2.0),
+                                new Delay(3.5),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                         )
@@ -566,7 +567,6 @@ public class closeBlueSide extends NextFTCOpMode{
         /** This method is called once at the init of the OpMode. **/
         @Override
         public void onInit() {
-            super.onInit();
             ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
             ShooterSubsystem.INSTANCE.stop();
 
@@ -631,7 +631,6 @@ public class closeBlueSide extends NextFTCOpMode{
         /** We do not use this because everything should automatically disable **/
         @Override
         public void onStop() {
-            super.onStop();
             // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
@@ -644,8 +643,6 @@ public class closeBlueSide extends NextFTCOpMode{
         @Override
         public void onStartButtonPressed()
         {
-            super.onStartButtonPressed();
-
             if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
                 if (intAmount == 3){
                     CloseBlue3BallAuto().schedule();
