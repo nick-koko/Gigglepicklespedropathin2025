@@ -1,9 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.bylazar.configurables.annotations.Configurable;
-import com.pedropathing.control.PIDFCoefficients;
-import com.pedropathing.control.PIDFController;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -13,15 +10,11 @@ import dev.nextftc.core.subsystems.Subsystem;
 import dev.nextftc.ftc.ActiveOpMode;
 
 /**
- * Shooter Subsystem with Velocity Control
+ * Shooter subsystem with dt-aware PIDF + feedforward, burst caps,
+ * slew-limited positive-only output for dual flywheels,
+ * and time-based boost activation.
  *
- * Hardware:
- * - m1, m2: Shooter motors (flywheels)
- * - m3: Counter roller motor
- *
- * This subsystem controls shooting mechanism with velocity control for consistent performance.
- *
- * Future: Can be enhanced with PIDF control using NextFTC's built-in controllers.
+ * This is based on the former TestingShooterSubsystem implementation.
  */
 @Configurable
 public class ShooterSubsystem implements Subsystem {
@@ -30,332 +23,308 @@ public class ShooterSubsystem implements Subsystem {
     private ShooterSubsystem() {}
 
     // =============================================
-    // CONFIGURABLE CONSTANTS
+    // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
+    public static double kP = 0.005;
+    public static double kI = 0.0001;
+    public static double kD = 0.00005;
 
-    // Shooter RPM targets
-    public static double HIGH_TARGET_RPM = 2000.0;
-    public static double LOW_TARGET_RPM = 1300.0;
+    public static double kS = .1431;
+    public static double kV = 0.000126;
+    public static double kA = 0.00000;
 
-    // Counter roller RPM targets
-    public static double CR_HIGH_TARGET_RPM = 900.0;
-    public static double CR_LOW_TARGET_RPM = 500.0;
-    public static double SHOOTER_P = 0.005;
-    public static double SHOOTER_I = 0;
-    public static double SHOOTER_D = 0.00005;
-    public static double SHOOTER_F = 0.00006;
+    public static double HEADROOM = 0.10;
+    public static double PRE_BOOST_AMOUNT = 0.05;
+    public static double CONTACT_DROOP_RPM = 50.0;
+    public static double SLEW_PER_SECOND = 1.5;
+    public static double I_ZONE = 500.0;
 
-    // Motor constants
-    private static double SHOOTER_GEAR_RATIO = (17.0/23.0);  // Yellow Jacket 6000 RPM geared to 17/23
+    // =============================================
+    // TIME BASED BOOST SETTINGS
+    // =============================================
+    public static double BOOST_AMOUNT = 0.20; // 20% extra power
+    public static long BOOST_DELAY_MS = 10;   // boost activates after spinUp()
+
+    // =============================================
+    // CONSTANTS
+    // =============================================
+    private static final double SHOOTER_GEAR_RATIO = (17.0 / 23.0);
     private static final double ENCODER_TICKS_PER_MOTOR_REV = 28.0;
-
-    private double targetRPM = 0;
+    private static final double TICKS_PER_REV = ENCODER_TICKS_PER_MOTOR_REV * SHOOTER_GEAR_RATIO;
+    private static final double INTEGRAL_MIN = -1.0;
+    private static final double INTEGRAL_MAX = 1.0;
 
     // =============================================
     // HARDWARE
     // =============================================
-
     private DcMotorEx shooter1;
     private DcMotorEx shooter2;
-
     private Servo shooterHood;
-    //private DcMotorEx counterRoller;
-
-    private double ticksPerRev;
 
     // =============================================
-    // STATE TRACKING
+    // STATE
     // =============================================
-
+    private double targetRpm = 0.0;
+    private double lastError = 0.0;
+    private double integral = 0.0;
+    private double lastMeasuredRpm = 0.0;
+    private long lastTimestampNanos = 0L;
+    private double lastOutput = 0.0;
     private boolean enabled = false;
-    private boolean highMode = true;  // true = high speed, false = low speed
-    private boolean crHighMode = true;
 
-    private PIDFController shooterPID1;
-    private PIDFController shooterPID2;
-
-    public static PIDFCoefficients SHOOTER_PID_COEFFS = new PIDFCoefficients(SHOOTER_P, SHOOTER_I, SHOOTER_D, SHOOTER_F);
-
-//    @Configurable
-//    public static double kP = 0.005;
-//    @Configurable
-//    public static double kI = 0.0;
-//    @Configurable
-//    public static double kD = 0.0005;
-//
-//    @Configurable
-//    public static double kF = 0.0005;
-
-
+    // BOOST STATE
+    public boolean boostActive = false;
+    private long boostStartTimeMs = 0;
+    private boolean preBoostActive = false;
+    private boolean contactWindowActive = false;
+    private boolean recoveryWindowActive = false;
 
     // =============================================
-    // INITIALIZATION
+    // NEXTFTC HOOKS
     // =============================================
     @Override
     public void initialize() {
-        // Initialize motors
         shooter1 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "shooter_motor1");
         shooter2 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "shooter_motor2");
         shooterHood = ActiveOpMode.hardwareMap().get(Servo.class, "shooter_hood");
-        //counterRoller = hardwareMap.get(DcMotorEx.class, "m3");
 
-        // Configure motors
-        shooter1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        shooter2.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        //counterRoller.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooter1.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
+        shooter2.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
-        shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        shooter2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        //counterRoller.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooter1.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
+        shooter2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
 
         shooter1.setDirection(DcMotorSimple.Direction.REVERSE);
         shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
-        //counterRoller.setDirection(DcMotorSimple.Direction.FORWARD);
 
-        // Calculate ticks per revolution
-        ticksPerRev = ENCODER_TICKS_PER_MOTOR_REV * SHOOTER_GEAR_RATIO;
-
-//        shooter1.setVelocityPIDFCoefficients(5., 0, 0.005, 17.85);
-//        shooter2.setVelocityPIDFCoefficients(5, 0, 0.0005, 17.85);
-
-        shooterPID1 = new PIDFController(SHOOTER_PID_COEFFS);
-        shooterPID2 = new PIDFController(SHOOTER_PID_COEFFS);
-
-        shooterPID1.reset();
-        shooterPID2.reset();
+        resetControllerState();
     }
-
-    // =============================================
-    // PERIODIC - Could add PIDF control here later
-    // =============================================
 
     @Override
     public void periodic() {
-        // Update motor velocities if enabled
-        SHOOTER_PID_COEFFS.setCoefficients(SHOOTER_P, SHOOTER_I, SHOOTER_D, SHOOTER_F);
-        this.shooterPID1.updatePosition(this.shooter1.getVelocity());
-        this.shooterPID2.updatePosition(this.shooter2.getVelocity());
-        if (enabled) {
-            updateVelocities();
+        update();
+    }
+
+    // =============================================
+    // CONTROL LOOP
+    // =============================================
+    public void update() {
+        long now = System.nanoTime();
+        long nowMs = System.currentTimeMillis();
+        double measuredRpm = getAverageRpmInstant();
+
+        if (lastTimestampNanos == 0L) {
+            lastTimestampNanos = now;
+            lastMeasuredRpm = measuredRpm;
+            return;
         }
+
+        double dt = (now - lastTimestampNanos) / 1e9;
+        if (dt <= 0.0) {
+            lastTimestampNanos = now;
+            return;
+        }
+
+        if (!enabled) {
+            applyPower(0.0);
+            lastMeasuredRpm = measuredRpm;
+            lastTimestampNanos = now;
+            integral = 0.0;
+            lastError = 0.0;
+            lastOutput = 0.0;
+            resetControllerState();
+            return;
+        }
+
+        // === AUTO-BOOST ACTIVATION ===
+        if (!boostActive && boostStartTimeMs > 0 && nowMs >= boostStartTimeMs + BOOST_DELAY_MS) {
+            boostActive = true;
+        }
+
+        // Effective RPM target
+        double effectiveTarget = contactWindowActive
+                ? Math.max(0.0, targetRpm - CONTACT_DROOP_RPM)
+                : targetRpm;
+
+        // PID calculations
+        double error = effectiveTarget - measuredRpm;
+
+        if (!contactWindowActive && Math.abs(error) < I_ZONE) {
+            integral += error * dt;
+            integral = Range.clip(integral, INTEGRAL_MIN, INTEGRAL_MAX);
+        }
+
+        double derivative = (error - lastError) / dt;
+        double pid = (kP * error) + (kI * integral) + (kD * derivative);
+
+        // Feedforward
+        double ffStatic = kS * Math.signum(effectiveTarget);
+        double ffVel = kV * effectiveTarget;
+        double accel = (measuredRpm - lastMeasuredRpm) / dt;
+        double ffAccel = kA * accel;
+        double ff = ffStatic + ffVel + ffAccel;
+
+        // Base output
+        double output = Math.max(ff + pid, 0.0);
+
+        // === APPLY BOOST ===
+        if (preBoostActive) {
+            output = Math.min(output + PRE_BOOST_AMOUNT, 1.0);
+        } else if (boostActive) {
+            output = Math.min(output * 1.75, 1.0);
+        }
+
+        double cap = Math.max(0.0, ff + HEADROOM);
+        if (contactWindowActive || recoveryWindowActive) {
+            output = Math.min(output, cap);
+        }
+
+        // Slew limit
+        double maxStep = SLEW_PER_SECOND * dt;
+        double delta = output - lastOutput;
+
+        if (Math.abs(delta) > maxStep) {
+            output = lastOutput + Math.signum(delta) * maxStep;
+        }
+
+        output = Range.clip(output, 0.0, 1.0);
+        applyPower(output);
+
+        lastOutput = output;
+        lastError = error;
+        lastMeasuredRpm = measuredRpm;
+        lastTimestampNanos = now;
     }
 
     // =============================================
-    // PUBLIC CONTROL METHODS
+    // PUBLIC API
     // =============================================
-
-    /**
-     * Turn on the shooter at current speed mode.
-     */
-    public void spinUp() {
-        enabled = true;
-        updateVelocities();
+    public void spinUp(double rpm) {
+        targetRpm = Math.max(0.0, rpm);
+        enabled = targetRpm > 0.0;
+        // Caller can optionally start boost timer via setBoostOn()
     }
 
-//    public void updatePIDCoeffs() {
-//        shooterPID1.setCoefficients(new PIDFCoefficients(kP, kI, kD, kF));
-//        shooterPID2.setCoefficients(new PIDFCoefficients(kP, kI, kD, kF));
-//    }
-
-    /**
-     * Turn on the shooter at specific RPM.
-     * shooterRPM Target RPM for shooter motors
-     * counterRollerRPM Target RPM for counter roller
-     */
-    public void spinUp(double targetRPM) {
-        this.targetRPM = targetRPM;
-        enabled = true;
-
-        updateVelocities();
+    public double getTargetRpm() {
+        return targetRpm;
     }
 
-    /**
-     * Stop all shooter motors.
-     */
+    // Backwards-compatible alias for old API
+    public double getTargetShooterRPM() {
+        return targetRpm;
+    }
+
     public void stop() {
+        targetRpm = 0.0;
         enabled = false;
-        shooter1.setPower(0.0);
-        shooter2.setPower(0.0);
+        boostActive = false;
+        boostStartTimeMs = 0;
+        resetControllerState();
+        applyPower(0.0);
     }
 
-    /**
-     * Set to high speed mode.
-     */
-    public void setHighSpeed() {
-        highMode = true;
-        crHighMode = true;
-        if (enabled) updateVelocities();
+    public double getCurrentRpm() {
+        return getAverageRpmInstant();
     }
 
-    /**
-     * Set to low speed mode.
-     */
-    public void setLowSpeed() {
-        highMode = false;
-        crHighMode = false;
-        if (enabled) updateVelocities();
+    public boolean isAtSpeed(double tolerance) {
+        return Math.abs(targetRpm - getCurrentRpm()) < tolerance;
     }
 
-    /**
-     * Toggle shooter on/off.
-     */
-    public void toggle() {
-        if (enabled) {
-            stop();
-        } else {
-            spinUp();
-        }
+    public double getShooter1RPM() {
+        return ticksPerSecondToRpm(shooter1.getVelocity());
     }
 
-    // =============================================
-    // GETTERS
-    // =============================================
+    public double getShooter2RPM() {
+        return ticksPerSecondToRpm(shooter2.getVelocity());
+    }
 
-    public boolean isEnabled() { return enabled; }
-    public boolean isHighMode() { return highMode; }
+    public double getShooter1Power() {
+        return shooter1.getPower();
+    }
 
-    public double getShooter1Power() {return shooter1.getPower(); }
-    public double getShooter2Power() {return shooter2.getPower(); }
-    public double getShooter1RPM() { return shooter1.getVelocity() * 60.0 / ticksPerRev; }
-    public double getShooter2RPM() { return shooter2.getVelocity() * 60.0 / ticksPerRev; }
-    //public double getCounterRollerRPM() { return counterRoller.getVelocity() * 60.0 / ticksPerRev; }
+    public double getShooter2Power() {
+        return shooter2.getPower();
+    }
 
-    public double getShooterHoodPosition() { return this.shooterHood.getPosition(); }
+    public double getShooterHoodPosition() {
+        return shooterHood.getPosition();
+    }
 
     public void driveShooterHood(double joystick) {
         double currentPosition = shooterHood.getPosition();
-        double increment = -joystick * 0.01;  // adjust sensitivity here
+        double increment = -joystick * 0.01;
         double newPosition = Range.clip(currentPosition + increment, 0.0, 1.0);
         shooterHood.setPosition(newPosition);
     }
-    public void shooterHoodDrive(double hoodPosition){
-        this.shooterHood.setPosition(hoodPosition);
-    }
 
-    public double getTargetShooterRPM() {
-        return this.targetRPM;
-    }
-
-    public double getTargetCounterRollerRPM() {
-        return crHighMode ? CR_HIGH_TARGET_RPM : CR_LOW_TARGET_RPM;
-    }
-
-    public void increaseShooterRPMBy10() {
-        enabled = true;
-        updateVelocities();
-        if (this.targetRPM < 3000) {
-            this.targetRPM = 3000;
-        }
-        else {
-            this.targetRPM = this.targetRPM + 10;
-        }
-    }
-    public void decreaseShooterRPMBy10() {
-        enabled = true;
-        updateVelocities();
-        if (this.targetRPM < 3000) {
-            this.targetRPM = 3000;
-        }
-        else {
-            this.targetRPM = this.targetRPM - 10;
-        }
+    public void shooterHoodDrive(double hoodPosition) {
+        shooterHood.setPosition(Range.clip(hoodPosition, 0.0, 1.0));
     }
 
     public void increaseShooterHoodPosInc() {
-        double curPos = this.shooterHood.getPosition();
-        this.shooterHood.setPosition(curPos + 0.1);
+        shooterHood.setPosition(Range.clip(shooterHood.getPosition() + 0.1, 0.0, 1.0));
     }
+
     public void decreaseShooterHoodPosInc() {
-        double curPos = this.shooterHood.getPosition();
-        this.shooterHood.setPosition(curPos - 0.1);
+        shooterHood.setPosition(Range.clip(shooterHood.getPosition() - 0.1, 0.0, 1.0));
     }
 
-    /**
-     * Check if shooters are at target speed (within tolerance).
-     * @param toleranceRPM Acceptable RPM difference
-     * @return True if both shooters are within tolerance
-     */
-    public boolean isAtTargetSpeed(double toleranceRPM) {
-        double targetShooter = getTargetShooterRPM();
-        boolean s1Good = Math.abs(getShooter1RPM() - targetShooter) < toleranceRPM;
-        boolean s2Good = Math.abs(getShooter2RPM() - targetShooter) < toleranceRPM;
-        return s1Good && s2Good;
+    public boolean isEnabled() {
+        return enabled;
     }
 
-    // =============================================
-    // HELPER METHODS
-    // =============================================
-
-//    private void updateVelocities() {
-//        double shooterTarget = this.targetRPM;
-//
-//        double shooterTps = rpmToTicksPerSecond(shooterTarget);
-//
-//        shooter1.setVelocity(shooterTps);
-//        shooter2.setVelocity(shooterTps);
-//        //counterRoller.setVelocity(crTps);
-//        shooter1.setPower(1.0);
-//        shooter2.setPower(1.0);
-//
-//    }
-
-    private void updateVelocities() {
-        double shooterTargetRPM = targetRPM;
-
-        // Current feedback (in RPM)
-        double shooter1RPM = getShooter1RPM();
-        double shooter2RPM = getShooter2RPM();
-        double rpm = rpmToTicksPerSecond(shooterTargetRPM);
-
-        // Compute PID output
-        shooterPID1.setTargetPosition(rpm);
-        shooterPID2.setTargetPosition(rpm);
-
-        double power1 = shooterPID1.run();
-        double power2 = shooterPID1.run();
-
-        // Clip power to motor-safe range [-1, 1]
-        power1 = Range.clip(power1, 0, 1);
-        power2 = Range.clip(power2, 0, 1);
-
-        shooter1.setPower(power1);
-        shooter2.setPower(power2);
-    }
-
-    private double rpmToTicksPerSecond(double rpm) {
-        return (rpm * ticksPerRev) / 60.0;
-    }
-
+    // Backwards-compatible alias for old API
     public boolean getEnabled() {
-        return this.enabled;
+        return enabled;
     }
 
+    public void setBoostOn() {
+        boostActive = false;
+        boostStartTimeMs = System.currentTimeMillis();
+    }
 
+    public void setPreBoostWindow(boolean active) {
+        preBoostActive = active;
+    }
+
+    public void setContactWindow(boolean active) {
+        contactWindowActive = active;
+        if (active) {
+            integral = 0.0;
+        }
+    }
+
+    public void setRecoveryWindow(boolean active) {
+        recoveryWindowActive = active;
+    }
+
+    // =============================================
+    // HELPERS
+    // =============================================
+    private double getAverageRpmInstant() {
+        double leftRpm = ticksPerSecondToRpm(shooter1.getVelocity());
+        double rightRpm = ticksPerSecondToRpm(shooter2.getVelocity());
+        return 0.5 * (leftRpm + rightRpm);
+    }
+
+    private double ticksPerSecondToRpm(double ticksPerSecond) {
+        return (ticksPerSecond / TICKS_PER_REV) * 60.0;
+    }
+
+    private void applyPower(double power) {
+        double clipped = Range.clip(power, 0.0, 1.0);
+        shooter1.setPower(clipped);
+        shooter2.setPower(clipped);
+    }
+
+    private void resetControllerState() {
+        integral = 0.0;
+        lastError = 0.0;
+        lastMeasuredRpm = 0.0;
+        lastTimestampNanos = 0L;
+        lastOutput = 0.0;
+    }
 }
 
-/*
- * NOTES FOR FUTURE PIDF ENHANCEMENT:
- *
- * To add NextFTC's PIDF control (future enhancement):
- *
- * 1. Add PIDFController field:
- *    private PIDFController shooterPID;
- *
- * 2. Initialize in initialize():
- *    shooterPID = new PIDFController(kP, kI, kD, kF);
- *    shooterPID.setTolerance(50); // RPM tolerance
- *
- * 3. Update periodic() to use PIDF:
- *    if (enabled) {
- *        double currentRPM = getShooter1RPM();
- *        double output = shooterPID.calculate(currentRPM, targetRPM);
- *        shooter1.setPower(output);
- *        // same for shooter2
- *    }
- *
- * 4. Add isAtTarget() check:
- *    return shooterPID.atSetpoint();
- *
- * This would give much better control than built-in velocity control!
- */
 

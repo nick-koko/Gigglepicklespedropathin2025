@@ -9,8 +9,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.TestingIntakeWithSensorsSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.TestingShooterSubsystem;
 
 import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
@@ -22,7 +20,7 @@ import dev.nextftc.ftc.components.BulkReadComponent;
 public class PicklesTuningTeleop extends NextFTCOpMode {
     public PicklesTuningTeleop() {
         addComponents(
-                new SubsystemComponent(TestingShooterSubsystem.INSTANCE, TestingIntakeWithSensorsSubsystem.INSTANCE),
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
                 BulkReadComponent.INSTANCE
         );
     }
@@ -70,9 +68,9 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
         //Call this once per loop
         timer.start();
 
-        double rpmShooter1 = TestingShooterSubsystem.INSTANCE.getShooter1RPM();
-        double rpmShooter2 = TestingShooterSubsystem.INSTANCE.getShooter2RPM();
-        double rpmOuttake = TestingIntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM();
+        double rpmShooter1 = ShooterSubsystem.INSTANCE.getShooter1RPM();
+        double rpmShooter2 = ShooterSubsystem.INSTANCE.getShooter2RPM();
+        double rpmOuttake = IntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM();
 
         // Optional simple moving average
         if (SHOW_SMOOTHED) {
@@ -134,11 +132,11 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
             telemetryM.addData("Outtake_RPM (smoothed)", rpmOuttakeSmoothed);
         }
 
-        boolean bb0 = TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken();
-        boolean bb1 = TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken();
-        boolean bb2 = TestingIntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken();
+        boolean bb0 = IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken();
+        boolean bb1 = IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken();
+        boolean bb2 = IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken();
 
-        telemetryM.addData("ballCount", TestingIntakeWithSensorsSubsystem.INSTANCE.getBallCount());
+        telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
         telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
         telemetryM.addData("BB_sensor1", bb1 ? 1 : 0);
         telemetryM.addData("BB_sensor2", bb2 ? 1 : 0);
@@ -147,27 +145,27 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
 
 
         if (gamepad2.rightBumperWasPressed()) {
-            TestingShooterSubsystem.INSTANCE.spinUp(targetRPM);
+            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
         }
         else if (gamepad2.leftBumperWasPressed()) {
-            TestingShooterSubsystem.INSTANCE.stop();
-            TestingIntakeWithSensorsSubsystem.INSTANCE.stop();
+            ShooterSubsystem.INSTANCE.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.stop();
         }
 
         if (gamepad2.right_trigger > 0.1) {
-            TestingIntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-            TestingIntakeWithSensorsSubsystem.INSTANCE.setBallCount(0);
+            IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+            IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0);
 
         }
         else if (gamepad2.aWasPressed()) {
-            TestingIntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
-            TestingShooterSubsystem.INSTANCE.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
+            ShooterSubsystem.INSTANCE.stop();
         }
         else if (gamepad2.b) {
-            TestingIntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
+            IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
 
-        TestingShooterSubsystem.INSTANCE.shooterHoodDrive(shooterHoodPos);
+        ShooterSubsystem.INSTANCE.shooterHoodDrive(shooterHoodPos);
 
 
         telemetryM.update(telemetry);
