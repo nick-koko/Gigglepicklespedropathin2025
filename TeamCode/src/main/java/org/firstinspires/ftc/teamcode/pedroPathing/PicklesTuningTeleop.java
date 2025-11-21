@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.LEDControlSubsystem;
 
 import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
@@ -152,7 +153,13 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.stop();
         }
 
-        if (gamepad2.right_trigger > 0.1) {
+        // Left trigger: test single-ball full-power feed when shooter is at speed
+        if (gamepad2.left_trigger > 0.1) {
+            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
+                IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower();
+            }
+        }
+        else if (gamepad2.right_trigger > 0.1) {
             IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
             IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0);
 
@@ -167,6 +174,17 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
 
         ShooterSubsystem.INSTANCE.shooterHoodDrive(shooterHoodPos);
 
+        // LED status based on number of balls
+        int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+        if (balls >= 3) {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+        } else if (balls == 2) {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.ORANGE);
+        } else if (balls == 1) {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.YELLOW);
+        } else {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
+        }
 
         telemetryM.update(telemetry);
 

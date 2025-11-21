@@ -102,6 +102,16 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private boolean shotInProgress = false;
 
     // =============================================
+    // SINGLE-BALL FULL-POWER FEED STATE
+    // =============================================
+    /**
+     * True while we are advancing exactly one ball at full power using sensor2
+     * (broken -> clear) as the stop condition.
+     */
+    private boolean singleBallFeedActive = false;
+    private boolean prevSensor2BrokenForSingleFeed = false;
+
+    // =============================================
     // INITIALIZATION
     // =============================================
 
@@ -150,6 +160,12 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     @Override
     public void periodic() {
+        // Handle dedicated single-ball full-power feed, if active
+        if (singleBallFeedActive) {
+            updateSingleBallFeed();
+            return;
+        }
+
         if (shootSequenceActive) {
             updateShooting();
             return;
@@ -162,6 +178,37 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         if (singleBallActive) {
             currentShot -= 1;
         }
+    }
+
+    /**
+     * Updates state for a single-ball full-power feed.
+     * Stops the intake once sensor2 transitions from broken -> clear,
+     * and decrements ballCount by 1 (clamped to >= 0).
+     */
+    private void updateSingleBallFeed() {
+        boolean currentBroken = isSensor2Broken();
+
+        // We want: sensor2.getState() false (broken) -> true (clear)
+        // isSensor2Broken() is !sensor2.getState(), so that becomes true -> false.
+        if (prevSensor2BrokenForSingleFeed && !currentBroken) {
+            // Ball has just cleared sensor2 – stop everything
+            stop();
+
+            // Safely decrement ball count
+            if (ballCount > 0) {
+                ballCount--;
+            }
+
+            singleBallFeedActive = false;
+        } else {
+            // Keep feeding at full power
+            m1.setPower(1.0);
+            m3.setPower(1.0);
+            s2.setPower(1.0);
+            s3.setPower(1.0);
+        }
+
+        prevSensor2BrokenForSingleFeed = currentBroken;
     }
 
     public void updateShooting() {
@@ -343,6 +390,43 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m3Enabled = true;
 
         startSingleShot();
+
+        return true;
+    }
+
+    /**
+     * Begin advancing exactly one ball at 100% power.
+     * This is intended for testing / tuning from TeleOp: the caller should
+     * ensure the shooter is at speed before invoking.
+     *
+     * The feed will automatically stop once sensor2 transitions from broken to
+     * clear, and ballCount will be decremented by 1.
+     *
+     * @return true if the single-ball feed was started, false if already busy
+     *         or there are no balls to advance.
+     */
+    public boolean feedSingleBallFullPower() {
+        // Don't interfere with existing shooting sequence or another single feed
+        if (shootSequenceActive || singleBallFeedActive) {
+            return false;
+        }
+
+        if (ballCount <= 0) {
+            return false;
+        }
+
+        // Ensure regular intake logic is not running
+        isIntaking = false;
+        shooting = false;
+
+        // Start full-power feed
+        singleBallFeedActive = true;
+        prevSensor2BrokenForSingleFeed = isSensor2Broken();
+
+        m1.setPower(1.0);
+        m3.setPower(1.0);
+        s2.setPower(1.0);
+        s3.setPower(1.0);
 
         return true;
     }
