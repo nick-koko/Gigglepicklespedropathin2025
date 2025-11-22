@@ -470,11 +470,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
 
-        if (!hasResults) {
-            this.shooterHoodPos = 0.05;
-        } else if (yOffset <= 11.5) {
+        if (!hasResults) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
+            if (ODODistance > 40.5) {   //if yOffset <11.5deg then distance is greater than 40.5"
+                this.shooterHoodPos = 0.4;
+            } else if (ODODistance < 15.0) {  //Guessing when the limelight is too close to see, and had to default to 0.05
+                this.shooterHoodPos = 0.05;
+            } else if (ODODistance < 27.0) {  //when yOffset is > 17deg then distance is less than 27"
+                this.shooterHoodPos = 0.3;
+            } else { // default when between 27" and 40.5"
+                this.shooterHoodPos = 0.40;
+            }
+
+            //this.shooterHoodPos = 0.05;
+        } else if (yOffset <= 11.5) {   //11.5 deg angle is about 40.5" distance from the target
             this.shooterHoodPos = 0.4;
-        } else if (yOffset > 11.5 && yOffset < 17) {
+        } else if (yOffset > 11.5 && yOffset < 17) {  //17 deg angle is about 27" distance from the target
             this.shooterHoodPos = 0.40;
         } else {
             this.shooterHoodPos = 0.3;

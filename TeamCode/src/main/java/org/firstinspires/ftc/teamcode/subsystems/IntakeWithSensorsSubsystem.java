@@ -202,10 +202,6 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
             singleBallFeedActive = false;
         } else {
             // Keep feeding at full power
-            m1.setPower(1.0);
-            m3.setPower(1.0);
-            s2.setPower(1.0);
-            s3.setPower(1.0);
         }
 
         prevSensor2BrokenForSingleFeed = currentBroken;
@@ -423,10 +419,10 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         singleBallFeedActive = true;
         prevSensor2BrokenForSingleFeed = isSensor2Broken();
 
-        m1.setPower(1.0);
+        m1.setPower(0.5);
         m3.setPower(1.0);
-        s2.setPower(1.0);
-        s3.setPower(1.0);
+        s2.setPower(0.5);
+        s3.setPower(0.5);
 
         return true;
     }

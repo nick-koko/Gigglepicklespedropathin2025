@@ -15,13 +15,12 @@ import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 import dev.nextftc.ftc.components.BulkReadComponent;
 
-@Disabled
 @Configurable
 @TeleOp(name = "Shooter Tuning Teleop", group = "Comp")
 public class PicklesTuningTeleop extends NextFTCOpMode {
     public PicklesTuningTeleop() {
         addComponents(
-                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE),
                 BulkReadComponent.INSTANCE
         );
     }
@@ -48,6 +47,9 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
     private TelemetryManager telemetryM;
     double angleAllianceOffset = 0.0;
     double drivePower = 1.0;
+
+    // Edge-detect left trigger so we only start one single-ball feed per press
+    private boolean prevLeftTriggerActive = false;
 
 
     @Override
@@ -153,13 +155,18 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.stop();
         }
 
-        // Left trigger: test single-ball full-power feed when shooter is at speed
-        if (gamepad2.left_trigger > 0.1) {
-            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
+        // Left trigger: test single-ball full-power feed when shooter is at speed.
+        // Use edge detection so we only start ONE feed per press, even if held.
+        boolean leftTriggerActive = gamepad2.left_trigger > 0.1;
+        if (leftTriggerActive && !prevLeftTriggerActive) {
+            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // slightly wider window for 58-RPM resolution
                 IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower();
             }
         }
-        else if (gamepad2.right_trigger > 0.1) {
+        prevLeftTriggerActive = leftTriggerActive;
+
+        // Right trigger: existing \"dumb shoot\" test
+        if (gamepad2.right_trigger > 0.1) {
             IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
             IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0);
 
