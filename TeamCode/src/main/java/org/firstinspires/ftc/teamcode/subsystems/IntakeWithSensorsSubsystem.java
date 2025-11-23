@@ -161,23 +161,23 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     @Override
     public void periodic() {
         // Handle dedicated single-ball full-power feed, if active
-        if (singleBallFeedActive) {
-            updateSingleBallFeed();
-            return;
-        }
+//        if (singleBallFeedActive) {  //Commented out because of unknown intake issues, test and fix at some point
+//            updateSingleBallFeed();
+//            return;
+//        }
 
-        if (shootSequenceActive) {
-            updateShooting();
-            return;
-        }
+//        if (shootSequenceActive) {   //Commented out because of intake issues, and using just dumb shoot with multi-ball boost, so maybe not needed.
+//            updateShooting();
+//            return;
+//        }
         if (isIntaking) {
             currentShot = 0;
             checkSensorsAndUpdateMotors();
-            setIntakeDirection(currentDirection, shooting);
+            setIntakeDirection(currentDirection, false);
         }
-        if (singleBallActive) {
-            currentShot -= 1;
-        }
+//        if (singleBallActive) {
+//            currentShot -= 1;
+//        }
     }
 
     /**
@@ -314,6 +314,9 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * Run intake forward at configured speeds.
      */
     public void intakeForward() {
+        m1Enabled = true;   // Not quite sure why the motor enable flags set to true was added here instead of waiting until the loop? Issues, or slow response?
+        m2Enabled = true;
+        m3Enabled = true;
         isIntaking = true;
         currentDirection = 1.0;
         setIntakeDirection(1.0, false);

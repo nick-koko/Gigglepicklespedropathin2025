@@ -405,6 +405,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetryM.addData("LoopTime_ms", timer.getMs());
         telemetry.addData("rotate", rotate);
         telemetry.addData("boostActive", ShooterSubsystem.INSTANCE.boostActive);
+        telemetryM.addData("targetRPM", ShooterSubsystem.INSTANCE.getTargetRpm());
 
         if (result == null) {
             telemetry.addData("Limelight", "No result object");
@@ -423,32 +424,23 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         if (gamepad2.rightBumperWasPressed()) {
             if (!hasResults) {
-                targetRPM = 3000;
-            } else if (hasResults && yOffset > 10) {
-                targetRPM = -0.2089 * Math.pow(yOffset, 3)
-                        + 18.43 * Math.pow(yOffset, 2)
-                        - 495.97 * yOffset
-                        + 7809.06;
-            } else if (hasResults && yOffset < 10) {
-                targetRPM = 4600;
-//                targetRPM = -1.301 * Math.pow(yOffset, 3)
-//                        + 33.97 * Math.pow(yOffset, 2)
-//                        - 271.64 * yOffset
-//                        + 5263.88;
+                targetRPM = calculateShooterRPMFromDistance(this.ODODistance);
+            } else if (hasResults && yOffset > 9.5) {
+                targetRPM = calculateShooterRPM(yOffset);
+            } else if (hasResults && yOffset <= 9.5) {
+                targetRPM = 4150;
             }
             telemetry.addData("Target Shooter Speed", targetRPM);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-//            ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
         } else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();
-//            ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
         if (gamepad2.xWasPressed()) {
-//            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
+            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
         }
         if (gamepad2.yWasPressed()) {
-//            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
+            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
         }
 
         if (gamepad2.right_trigger > 0.1) {
@@ -459,8 +451,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             } else if (hasResults && yOffset < 11) {
                 delay = 700;
             }
-            //IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-            IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
+            IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+            ShooterSubsystem.INSTANCE.setBoostOn();
+//            IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
         } else if (gamepad2.aWasPressed()) {
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
             ShooterSubsystem.INSTANCE.stop();
@@ -471,23 +464,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         if (!hasResults) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
-            if (ODODistance > 40.5) {   //if yOffset <11.5deg then distance is greater than 40.5"
-                this.shooterHoodPos = 0.4;
-            } else if (ODODistance < 15.0) {  //Guessing when the limelight is too close to see, and had to default to 0.05
-                this.shooterHoodPos = 0.05;
-            } else if (ODODistance < 27.0) {  //when yOffset is > 17deg then distance is less than 27"
-                this.shooterHoodPos = 0.3;
-            } else { // default when between 27" and 40.5"
-                this.shooterHoodPos = 0.40;
-            }
-
+            this.shooterHoodPos = getHoodPositionFromDistance(this.ODODistance);
             //this.shooterHoodPos = 0.05;
-        } else if (yOffset <= 11.5) {   //11.5 deg angle is about 40.5" distance from the target
-            this.shooterHoodPos = 0.4;
-        } else if (yOffset > 11.5 && yOffset < 17) {  //17 deg angle is about 27" distance from the target
-            this.shooterHoodPos = 0.40;
-        } else {
-            this.shooterHoodPos = 0.3;
+        } else{
+            this.shooterHoodPos = getHoodPosition(yOffset);
         }
         ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
 
@@ -504,6 +484,111 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         while (angle > Math.PI) angle -= 2.0 * Math.PI;
         while (angle < -Math.PI) angle += 2.0 * Math.PI;
         return angle;
+    }
+
+    public static double calculateShooterRPM(double yOffset) {
+        if (yOffset > 17)
+            return 3350;
+        //BEST ONE TO FALL BACK TO
+//        double rpm = -13746
+//                + 6315 * yOffset
+//                - 805 * Math.pow(yOffset, 2)
+//                + 43.7 * Math.pow(yOffset, 3)
+//                - 0.867 * Math.pow(yOffset, 4);
+//        double rpm = -23381
+//                + 8582 * yOffset
+//                - 986 * Math.pow(yOffset, 2)
+//                + 49.2 * Math.pow(yOffset, 3)
+//                - 0.91 * Math.pow(yOffset, 4);
+        double rpm = 0;
+        if (yOffset >= 13.5 && yOffset < 15) {
+            rpm = 44054
+                    - 13993 * yOffset
+                    + 1830 * Math.pow(yOffset, 2)
+                    - 106 * Math.pow(yOffset, 3)
+                    + 2.28 * Math.pow(yOffset, 4);
+        }
+        else if (yOffset > 15 && yOffset < 17) {
+             rpm = -1130000
+                    + 153558 * yOffset
+                    - 2030 * Math.pow(yOffset, 2)
+                    - 436 * Math.pow(yOffset, 3)
+                    + 15 * Math.pow(yOffset, 4);
+        }
+        else if (yOffset >= 11.5 && yOffset < 13.5) {
+             rpm = 31785
+                    - 3399 * yOffset
+                    + 25.8 * Math.pow(yOffset, 2)
+                    + 2.88 * Math.pow(yOffset, 3)
+                    + 0.197 * Math.pow(yOffset, 4);
+        }
+        else if (yOffset >= 9 && yOffset < 11.5) {
+            rpm = -164294
+                    + 52950 * yOffset
+                    - 5985 * Math.pow(yOffset, 2)
+                    + 281 * Math.pow(yOffset, 3)
+                    - 4.42 * Math.pow(yOffset, 4);
+        }
+        else{
+            rpm = -9090000
+                    + 2200000 * yOffset
+                    - 199077 * Math.pow(yOffset, 2)
+                    + 7999 * Math.pow(yOffset, 3)
+                    - 120 * Math.pow(yOffset, 4);
+        }
+
+        return rpm;
+    }
+
+    public static double calculateShooterRPMFromDistance(double distanceIn) {
+        double distanceMm = distanceIn * 25.4;
+        return 1616
+                + 1.34 * distanceMm
+                - 0.000168 * distanceMm * distanceMm;
+    }
+
+    public static double getHoodPosition(double yOffset) {
+        // Default hood position if yOffset is out of known range
+        double hoodPos = 0.35;
+
+        if (yOffset >= 18) {          // ty 16–17.15
+            hoodPos = 0.3;
+        } else if (yOffset >= 14 && yOffset < 18) {  // ty 14–14.56
+            hoodPos = 0.4;
+        } else if (yOffset >= 12 && yOffset < 14) {  // ty 12–12.3
+            hoodPos = 0.4;
+        } else if (yOffset >= 11 && yOffset < 12) {  // ty 11.2–11.88
+            hoodPos = 0.4;
+        } else if (yOffset > 9.5 && yOffset < 11) {   // ty 8.77–10.66
+            hoodPos = 0.4;
+        } else if (yOffset >= 8 && yOffset <= 9.5) {   // ty 8.77–10.66
+            hoodPos = 0.5;
+        }
+
+        return hoodPos;
+    }
+
+    public static double getHoodPositionFromDistance(double distanceIn) {
+
+        double distanceMm = distanceIn * 25.4;
+        // Default hood position if distance is outside known range
+        double hoodPos = 0.35;
+
+        if (distanceMm <= 1379) {          // 1282–1379 mm
+            hoodPos = 0.2;
+        } else if (distanceMm <= 1637) {   // 1626–1637 mm
+            hoodPos = 0.3;
+        } else if (distanceMm <= 1910) {   // 1850–1910 mm
+            hoodPos = 0.4;
+        } else if (distanceMm <= 2299) {   // 2105–2299 mm
+            hoodPos = 0.3;
+        } else if (distanceMm <= 2552) {   // 2552 mm
+            hoodPos = 0.4;
+        } else if (distanceMm > 2552) {    // 2945 mm
+            hoodPos = 0.5;
+        }
+
+        return hoodPos;
     }
 }
 
