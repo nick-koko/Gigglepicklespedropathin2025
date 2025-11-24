@@ -25,9 +25,11 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
-    public static double kP = 0.01;
-    public static double kI = 0.0001;
-    public static double kD = 0.0005;
+//    public static double kP = 0.15;
+    public static double kP = 0.1;
+    //public static double kI = 0.0001;
+    public static double kI = 0.000;
+    public static double kD = 0.01;
 
     public static double kS = .1431;
     public static double kV = 0.000126;
@@ -43,7 +45,7 @@ public class ShooterSubsystem implements Subsystem {
     // TIME BASED BOOST SETTINGS
     // =============================================
     public static double BOOST_AMOUNT = 0.20; // 20% extra power
-    public static long BOOST_DELAY_MS = 4;   // boost activates after spinUp()
+    public static long BOOST_DELAY_MS = 7;   // boost activates after spinUp()
 
     // =============================================
     // CONSTANTS
@@ -53,6 +55,9 @@ public class ShooterSubsystem implements Subsystem {
     private static final double TICKS_PER_REV = ENCODER_TICKS_PER_MOTOR_REV * SHOOTER_GEAR_RATIO;
     private static final double INTEGRAL_MIN = -1.0;
     private static final double INTEGRAL_MAX = 1.0;
+
+    private double boost1 = 1.66;
+    private double boost2 = 2.25;
 
     // =============================================
     // HARDWARE
@@ -177,9 +182,9 @@ public class ShooterSubsystem implements Subsystem {
         } else if (boostActive) {
             output = Math.min(output * 1.66, 1.0);
         }
-     else if (secondBoostActive) {
-        output = Math.min(output * 2.25, 1.0);
-    }
+        else if (secondBoostActive) {
+            output = Math.min(output * 2.25, 1.0);
+        }
 
         double cap = Math.max(0.0, ff + HEADROOM);
         if (contactWindowActive || recoveryWindowActive) {
@@ -280,14 +285,14 @@ public class ShooterSubsystem implements Subsystem {
 
     public void increaseShooterRPMBy10() {
         if (this.targetRpm == 0)
-            this.targetRpm = 4000;
+            this.targetRpm = 3400;
         this.targetRpm = this.targetRpm + 10;
         this.enabled = true;
     }
 
     public void decreaseShooterRPMBy10() {
         if (this.targetRpm == 0)
-            this.targetRpm = 3000;
+            this.targetRpm = 3300;
         this.targetRpm = this.targetRpm - 10;
         this.enabled = true;
     }
@@ -301,9 +306,23 @@ public class ShooterSubsystem implements Subsystem {
         return enabled;
     }
 
-    public void setBoostOn() {
+    public void setBoostOn(boolean farBoost) {
+        this.boost1 = farBoost ? 2.5: 1.75;
+        this.boost2 = farBoost ? 3 : 2.3;
         boostActive = false;
         boostStartTimeMs = System.currentTimeMillis();
+    }
+
+    public void setFarPID() {
+        this.kP = 0.175;
+        this.kI = 0;
+        this.kD = 0.02;
+    }
+
+    public void setClosePID() {
+        this.kP = 0.1;
+        this.kI = 0;
+        this.kD = 0.01;
     }
 
     public void setPreBoostWindow(boolean active) {

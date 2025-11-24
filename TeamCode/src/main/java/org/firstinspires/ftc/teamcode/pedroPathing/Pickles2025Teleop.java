@@ -71,7 +71,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     double targetAngleDeg = -135.0;
     double targetAngleRad;
     double propAngleGain = -0.5;
-    public static double shooterTargetkP = 0.025;
+    public static double shooterTargetkP = 0.0185;
     double minAnglePower = 0.075;
     double maxRotate = 0.8;
     double angleAllianceOffset = 0.0;
@@ -93,6 +93,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private double shooterHoodPos = 0;
     private boolean hasResults = false;
     private boolean selectAllianceSide = false;
+
+    private boolean shoot = false;
 
 
     @Override
@@ -214,7 +216,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         double angletangent = 0;
         double shootingangle = 0;
-		// Add location based shooting angle here eventually
+        // Add location based shooting angle here eventually
         //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue)
         if (gamepad1.y) {
             PedroComponent.follower().setPose(new Pose(71, 8, Math.toRadians(270)));
@@ -230,8 +232,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     if (!tag24Results.isEmpty()) {
                         hasResults = true;
                         double targetX = tag24Results.get(0).getTargetXDegrees();
-                        if (targetX != 0) {
-                            rotate = -targetX * shooterTargetkP;
+                        if (targetX != 3. && tag24Results.get(0).getTargetYDegrees() > 10) {
+                            rotate = (-targetX + 2.25) * shooterTargetkP;
+                            goToTargetAngle = false;
+                        }
+                        else if(targetX != 0){
+                            rotate = (-targetX) * shooterTargetkP;
                             goToTargetAngle = false;
                         }
                     } else {
@@ -245,8 +251,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     if (!tag20Results.isEmpty()) {
                         hasResults = true;
                         double targetX = tag20Results.get(0).getTargetXDegrees();
-                        if (targetX != 0) {
-                            rotate = -targetX * shooterTargetkP;
+                        if (targetX != -3. && tag20Results.get(0).getTargetYDegrees() > 10) {
+                            rotate = (-targetX) * shooterTargetkP;
+                            goToTargetAngle = false;
+                        }
+                        else if(targetX != 0) {
+                            rotate = (-targetX) * shooterTargetkP;
                             goToTargetAngle = false;
                         }
                     } else {
@@ -256,6 +266,16 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
                 if (hasResults) {
                     LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.WHITE);
+                    if (shoot) {
+                        if (hasResults && yOffset > 9.) {
+                            ShooterSubsystem.INSTANCE.setClosePID();
+                            targetRPM = calculateShooterRPM(yOffset);
+                        } else if (hasResults && yOffset <= 9.) {
+                            ShooterSubsystem.INSTANCE.setFarPID();
+                            targetRPM = 4330;
+                        }
+                        ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+                    }
                 } else {
                     LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
                 }
@@ -423,17 +443,24 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         //Start Ian's control
 
         if (gamepad2.rightBumperWasPressed()) {
+            this.shoot = true;
             if (!hasResults) {
-                targetRPM = calculateShooterRPMFromDistance(this.ODODistance);
-            } else if (hasResults && yOffset > 9.5) {
+                ShooterSubsystem.INSTANCE.setClosePID();
+//                targetRPM = calculateShooterRPMFromDistance(this.ODODistance);
+                targetRPM = 3150;
+            } else if (hasResults && yOffset > 9.) {
+                ShooterSubsystem.INSTANCE.setClosePID();
                 targetRPM = calculateShooterRPM(yOffset);
-            } else if (hasResults && yOffset <= 9.5) {
-                targetRPM = 4150;
+            } else if (hasResults && yOffset <= 9.) {
+                ShooterSubsystem.INSTANCE.setFarPID();
+                targetRPM = 4330;
             }
+            //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
             telemetry.addData("Target Shooter Speed", targetRPM);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
         } else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();
+            //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
         if (gamepad2.xWasPressed()) {
@@ -446,15 +473,27 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (gamepad2.right_trigger > 0.1) {
             long delay = 0;
             long shotTime = 250;
-            if (hasResults && yOffset >= 11) {
-                delay = 100;
-            } else if (hasResults && yOffset < 11) {
-                delay = 700;
+//            if (hasResults && yOffset >= 10) {
+//                delay = 100;
+//                IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+//                ShooterSubsystem.INSTANCE.setBoostOn();
+//            } else if (hasResults && yOffset < 11) {
+//                delay = 700;
+//                IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
+//                ShooterSubsystem.INSTANCE.setBoostOn();
+//            }
+            if (yOffset < 11){
+                IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+                ShooterSubsystem.INSTANCE.setBoostOn(true);
             }
-            IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-            ShooterSubsystem.INSTANCE.setBoostOn();
-//            IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
+            else{
+                IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+                ShooterSubsystem.INSTANCE.setBoostOn(false);
+
+            }
+            //IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
         } else if (gamepad2.aWasPressed()) {
+            this.shoot = false;
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
             ShooterSubsystem.INSTANCE.stop();
             this.hasResults = false;
@@ -463,12 +502,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
 
-        if (!hasResults) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
-            this.shooterHoodPos = getHoodPositionFromDistance(this.ODODistance);
+        if (hasResults) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
+            //this.shooterHoodPos = getHoodPositionFromDistance(this.ODODistance);
             //this.shooterHoodPos = 0.05;
-        } else{
+//        } else{
             this.shooterHoodPos = getHoodPosition(yOffset);
+
         }
+//        }
         ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
 
 
@@ -495,46 +536,66 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //                - 805 * Math.pow(yOffset, 2)
 //                + 43.7 * Math.pow(yOffset, 3)
 //                - 0.867 * Math.pow(yOffset, 4);
-//        double rpm = -23381
-//                + 8582 * yOffset
-//                - 986 * Math.pow(yOffset, 2)
-//                + 49.2 * Math.pow(yOffset, 3)
-//                - 0.91 * Math.pow(yOffset, 4);
+
         double rpm = 0;
-        if (yOffset >= 13.5 && yOffset < 15) {
-            rpm = 44054
-                    - 13993 * yOffset
-                    + 1830 * Math.pow(yOffset, 2)
-                    - 106 * Math.pow(yOffset, 3)
-                    + 2.28 * Math.pow(yOffset, 4);
+        if (yOffset >= 17 && yOffset < 18) {
+            //3350
+            rpm = -117.65 * yOffset + 5385.3;
         }
-        else if (yOffset > 15 && yOffset < 17) {
-             rpm = -1130000
-                    + 153558 * yOffset
-                    - 2030 * Math.pow(yOffset, 2)
-                    - 436 * Math.pow(yOffset, 3)
-                    + 15 * Math.pow(yOffset, 4);
+        else if (yOffset >= 16 && yOffset < 17) {
+            //rpm = -140.85 * yOffset + 5823.3;
+//            rpm = -111.06 * yOffset + 5236.4;
+//            rpm = -110.23 * Math.pow(yOffset, 2) +
+//                    3562.9 * yOffset - 25383;
+            rpm = 23.685 * yOffset + 3022.5;
         }
-        else if (yOffset >= 11.5 && yOffset < 13.5) {
-             rpm = 31785
-                    - 3399 * yOffset
-                    + 25.8 * Math.pow(yOffset, 2)
-                    + 2.88 * Math.pow(yOffset, 3)
-                    + 0.197 * Math.pow(yOffset, 4);
+        else if (yOffset >= 15 && yOffset < 16) {
+            //rpm = -87.719 * yOffset + 4883.3;
+//            rpm = -24.878 * Math.pow(yOffset, 2) +
+//                    671.77 * yOffset - 917.08;
+//            rpm = -94.202 * yOffset + 4905.1;
+            rpm = 26.838 * Math.pow(yOffset, 2) -
+                    871.7 * yOffset + 10466;
         }
-        else if (yOffset >= 9 && yOffset < 11.5) {
-            rpm = -164294
-                    + 52950 * yOffset
-                    - 5985 * Math.pow(yOffset, 2)
-                    + 281 * Math.pow(yOffset, 3)
-                    - 4.42 * Math.pow(yOffset, 4);
+        else if (yOffset >= 14 && yOffset < 15) {
+//            rpm = 551.15 * Math.pow(yOffset, 2) -
+//                    15981 * yOffset + 119441;
+//            rpm = 325.12 * Math.pow(yOffset, 3) - 13857 * Math.pow(yOffset, 2) +
+//                    196702 * yOffset - 926207;
+//            rpm = -31.719 * Math.pow(yOffset, 2) +
+//                    789.01 * yOffset - 1158;
+            rpm = -127.72 * yOffset + 5433.5;
+
+        }
+        else if (yOffset >= 13 && yOffset < 14) {
+//            rpm = -68.493 * yOffset + 4597.9;
+//            rpm = -86.153 * yOffset + 4847;
+//            rpm = -20.44 * yOffset + 3954.2;
+            rpm = -152.89 * yOffset + 5697.3;
+        }
+        else if (yOffset >= 12 && yOffset < 13) {
+//            rpm = 196.87 * Math.pow(yOffset, 2) -
+//                    5160.3 * yOffset + 37487;
+//            rpm = 237.83 * Math.pow(yOffset, 2) -
+//                    6155.5 * yOffset + 43528;
+            rpm = -167.96 * yOffset + 5830.5;
+        }
+        else if (yOffset >= 11 && yOffset < 12) {
+//            rpm = 288.35 * Math.pow(yOffset, 2) -
+//                    6679.9 * yOffset + 42487;
+//            rpm = 291.25 * Math.pow(yOffset, 2) -
+//                    6746.5 * yOffset + 42869;
+            rpm = -14.425 * yOffset + 3956.9;
+        }
+        else if (yOffset >= 10 && yOffset < 11) {
+//            rpm = 3870;
+            rpm = -89.495 * yOffset + 4836.9;
+        }
+        else if (yOffset >= 9 && yOffset < 10) {
+            rpm = 4000;
         }
         else{
-            rpm = -9090000
-                    + 2200000 * yOffset
-                    - 199077 * Math.pow(yOffset, 2)
-                    + 7999 * Math.pow(yOffset, 3)
-                    - 120 * Math.pow(yOffset, 4);
+            rpm = 4250;
         }
 
         return rpm;
@@ -549,23 +610,44 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     public static double getHoodPosition(double yOffset) {
         // Default hood position if yOffset is out of known range
-        double hoodPos = 0.35;
-
-        if (yOffset >= 18) {          // ty 16–17.15
-            hoodPos = 0.3;
-        } else if (yOffset >= 14 && yOffset < 18) {  // ty 14–14.56
-            hoodPos = 0.4;
-        } else if (yOffset >= 12 && yOffset < 14) {  // ty 12–12.3
-            hoodPos = 0.4;
-        } else if (yOffset >= 11 && yOffset < 12) {  // ty 11.2–11.88
-            hoodPos = 0.4;
-        } else if (yOffset > 9.5 && yOffset < 11) {   // ty 8.77–10.66
-            hoodPos = 0.4;
-        } else if (yOffset >= 8 && yOffset <= 9.5) {   // ty 8.77–10.66
-            hoodPos = 0.5;
+        if (yOffset >= 17.08) {
+            return 0.3;
         }
 
-        return hoodPos;
+        // Small 0.3 dip around 16.14
+        if (yOffset >= 16.3 && yOffset <= 16.) {
+            return 0.3;
+        }
+
+        // Small 0.3 dip around 14.18
+        if (yOffset >= 14.3 && yOffset <= 14.) {
+            return 0.3;
+        }
+
+        // --- 0.5 region (12.3 → 12.0 generalized) ---
+        if (yOffset > 12.0 && yOffset < 12.9) {
+            return 0.5;
+        }
+
+        // --- Main 0.4 region (everything else inside your measured range) ---
+        if (yOffset >= 9.6) {
+            return 0.4;
+        }
+
+        if (yOffset >= 10 && yOffset < 11) {
+            return 0.5;
+        }
+
+        if (yOffset >= 11 && yOffset < 12) {
+            return 0.5;
+        }
+
+        if (yOffset <= 10) {
+            return 0.5;
+        }
+
+        // --- Below recorded range, assume last known ---
+        return 0.4;
     }
 
     public static double getHoodPositionFromDistance(double distanceIn) {

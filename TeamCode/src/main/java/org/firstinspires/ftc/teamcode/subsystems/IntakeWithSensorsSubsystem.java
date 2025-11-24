@@ -98,7 +98,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private boolean singleBallActive = false;
 
     private long SHOT_DELAY_MS = 300;
-    private long SHOT_TIME = 300; // wait time between shots
+    private long SHOT_TIME = 10; // wait time between shots
     private boolean shotInProgress = false;
 
     // =============================================
