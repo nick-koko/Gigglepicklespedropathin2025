@@ -5,6 +5,7 @@ import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.bylazar.utils.LoopTimer;
 import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.BezierPoint;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.HeadingInterpolator;
 import com.pedropathing.paths.Path;
@@ -41,12 +42,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         );
     }
 
-    public static Pose startingPose = new Pose(71, 8, Math.toRadians(270)); //See ExampleAuto to understand how to use this
+    public static Pose startingPose = new Pose(32.5, 134.375, Math.toRadians(180)); //See ExampleAuto to understand how to use this
 
-    public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
+    //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
+    public static Pose redShootingTarget = new Pose(144, 144, Math.toRadians(36));
     public static Pose blueShootingTarget = redShootingTarget.mirror();
 
     // Adjust these from Panels at runtime
+    public static boolean hold = false;
     public static boolean SHOW_SMOOTHED = true;
     public static int SMOOTH_WINDOW = 8;           // samples for moving average
     private final LoopTimer timer = new LoopTimer();
@@ -88,9 +91,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private double yDesired = 17;
 
     private double areaOffset;
-
-    private double targetRPM = 0;
-    private double shooterHoodPos = 0;
+    public static boolean testShooter = false;
+    public static double targetRPM = 0;
+    public static double shooterHoodPos = 0;
     private boolean hasResults = false;
     private boolean selectAllianceSide = false;
 
@@ -327,13 +330,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             //Make the last parameter false for field-centric
 
             //This is the normal version to use in the TeleOp
-
-            PedroComponent.follower().setTeleOpDrive(
-                    driving,
-                    strafe,
-                    rotate,
-                    false // field Centric
-            );
+            if (!hold) {
+                PedroComponent.follower().setTeleOpDrive(
+                        driving,
+                        strafe,
+                        rotate,
+                        false // field Centric
+                );
+            }
         }
 
         //Automated PathFollowing
@@ -342,6 +346,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             automatedDrive = true;
         }*/
 
+        if (gamepad1.dpadDownWasPressed()) {
+            hold = !hold;
+
+            if (hold) {
+                PedroComponent.follower().holdPoint(new BezierPoint(PedroComponent.follower().getPose()), PedroComponent.follower().getHeading(), false);
+            } else {
+                PedroComponent.follower().startTeleopDrive();
+            }
+        }
 
         //Stop automated following if the follower is done
         if (automatedDrive && (gamepad1.bWasPressed() || !PedroComponent.follower().isBusy())) {
@@ -444,10 +457,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         if (gamepad2.rightBumperWasPressed()) {
             this.shoot = true;
-            if (!hasResults) {
+            if (testShooter) {
+
+            }else if (!hasResults) {
                 ShooterSubsystem.INSTANCE.setClosePID();
 //                targetRPM = calculateShooterRPMFromDistance(this.ODODistance);
-                targetRPM = 3150;
+                targetRPM = 2950;
             } else if (hasResults && yOffset > 9.) {
                 ShooterSubsystem.INSTANCE.setClosePID();
                 targetRPM = calculateShooterRPM(yOffset);
@@ -502,7 +517,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         }
 
-        if (hasResults) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
+        if (testShooter) {
+
+        } else if (hasResults) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
             //this.shooterHoodPos = getHoodPositionFromDistance(this.ODODistance);
             //this.shooterHoodPos = 0.05;
 //        } else{
@@ -513,9 +530,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
 
 
-        if (IntakeWithSensorsSubsystem.INSTANCE.getNumberOfBalls() == 3) {
+        // LED status based on number of balls
+        int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+        if (balls >= 3) {
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+        } else if (balls == 2) {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.YELLOW);
+        } else if (balls == 1) {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.ORANGE);
+        } else {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
         }
+
         telemetryM.update(telemetry);
         telemetry.update();
         timer.end();
@@ -610,6 +636,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     public static double getHoodPosition(double yOffset) {
         // Default hood position if yOffset is out of known range
+
         if (yOffset >= 17.08) {
             return 0.3;
         }
