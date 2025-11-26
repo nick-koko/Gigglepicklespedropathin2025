@@ -26,10 +26,10 @@ public class ShooterSubsystem implements Subsystem {
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
 //    public static double kP = 0.15;
-    public static double kP = 0.1;
+    public static double kP = 0.00075;
     //public static double kI = 0.0001;
     public static double kI = 0.000;
-    public static double kD = 0.01;
+    public static double kD = 0.00001;
 
     public static double kS = .1431;
     public static double kV = 0.000126;
