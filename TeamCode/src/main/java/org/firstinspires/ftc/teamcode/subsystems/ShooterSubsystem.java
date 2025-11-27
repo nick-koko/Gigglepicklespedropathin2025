@@ -86,6 +86,15 @@ public class ShooterSubsystem implements Subsystem {
     private boolean recoveryWindowActive = false;
 
     // =============================================
+    // ENCODER-DELTA RPM MEASUREMENT STATE
+    // =============================================
+    private int lastTicksShooter1 = 0;
+    private int lastTicksShooter2 = 0;
+    private double lastRpmDeltaShooter1 = 0.0;
+    private double lastRpmDeltaShooter2 = 0.0;
+    private double lastRpmDeltaAverage = 0.0;
+
+    // =============================================
     // NEXTFTC HOOKS
     // =============================================
     @Override
@@ -122,6 +131,9 @@ public class ShooterSubsystem implements Subsystem {
         if (lastTimestampNanos == 0L) {
             lastTimestampNanos = now;
             lastMeasuredRpm = measuredRpm;
+            // Initialize encoder-delta baselines (hardware is expected to be non-null)
+            lastTicksShooter1 = shooter1.getCurrentPosition();
+            lastTicksShooter2 = shooter2.getCurrentPosition();
             return;
         }
 
@@ -130,6 +142,23 @@ public class ShooterSubsystem implements Subsystem {
             lastTimestampNanos = now;
             return;
         }
+
+        // === ENCODER-DELTA RPM MEASUREMENT (uses same dt as PID) ===
+        int ticks1 = shooter1.getCurrentPosition();
+        int ticks2 = shooter2.getCurrentPosition();
+
+        int deltaTicks1 = ticks1 - lastTicksShooter1;
+        int deltaTicks2 = ticks2 - lastTicksShooter2;
+
+        lastTicksShooter1 = ticks1;
+        lastTicksShooter2 = ticks2;
+
+        double tps1 = deltaTicks1 / dt;
+        double tps2 = deltaTicks2 / dt;
+
+        lastRpmDeltaShooter1 = ticksPerSecondToRpm(tps1);
+        lastRpmDeltaShooter2 = ticksPerSecondToRpm(tps2);
+        lastRpmDeltaAverage = 0.5 * (lastRpmDeltaShooter1 + lastRpmDeltaShooter2);
 
         if (!enabled) {
             applyPower(0.0);
@@ -347,6 +376,27 @@ public class ShooterSubsystem implements Subsystem {
         double leftRpm = ticksPerSecondToRpm(shooter1.getVelocity());
         double rightRpm = ticksPerSecondToRpm(shooter2.getVelocity());
         return 0.5 * (leftRpm + rightRpm);
+    }
+
+    /**
+     * Last computed encoder-delta RPM for shooter1 (updated once per update() call).
+     */
+    public double getShooter1RpmDelta() {
+        return lastRpmDeltaShooter1;
+    }
+
+    /**
+     * Last computed encoder-delta RPM for shooter2 (updated once per update() call).
+     */
+    public double getShooter2RpmDelta() {
+        return lastRpmDeltaShooter2;
+    }
+
+    /**
+     * Last computed average encoder-delta RPM across both shooters.
+     */
+    public double getAverageRpmDelta() {
+        return lastRpmDeltaAverage;
     }
 
     private double ticksPerSecondToRpm(double ticksPerSecond) {

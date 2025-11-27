@@ -22,7 +22,23 @@ import dev.nextftc.extensions.fateweaver.FateComponent;
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
+/* notes:
+    - Start up shooter immediately
+    - (save .75) right now, first shot at 2.75 s, thinking we can reduce to 2.0s?
+    - (save 1.0) first set of shots done at about 3.35s, we don't start moving until 4.4s, so can either cut a second off here, or maybe use break beam sensor as an indication that we are done?
+    - (save 1.5) we are at back at the shooting point at about 8.0s, but don't shoot until about 9.48s, assuming we start the shooter when driving, we could shoot earlier - maybe the timers are off, or maybe need to stop path earlier?
+    - (save 1.1) done shooting at 9.82s, don't start moving until 11.0s
+    - (save ??) path to go back to shooter is wide (a bit on purpose to avoid gate) not needed if we are hitting the gate already, and can save time by going straight
+    - (save 0.7) back to shooting point about 16.1s, don't shoot until 16.9s
+    - (save 1.2) done shooting at 17.25s, don't start moving until 18.49s
+    - (??) maybe can take a less wide path to the last spike mark to possibly avoid robots that are just driving off the line?
+    - (save 1.0) back to shooting spot at 24.25, don't shoot until 25.25
+    - (save 1.0) done shooting at 25.62s, don't move until 26.7s
+    - I wonder after, if we should have the robot turned 180deg, and ready to intake as soon as teleop starts and they hit the gate?
+    - after we are done, watch time says 2s left, but match timer says 3
+    - (total possible perfect savings of 8.25s for a total of 10.25 ) Need minimum 7s
 
+ */
 @Configurable
 @Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeBlueSide extends NextFTCOpMode{
@@ -598,9 +614,9 @@ public class closeBlueSide extends NextFTCOpMode{
                         new FollowPath(firstshootpathBlue),
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                 ),
-                new Delay(1.5),  //Could replace this with shooting a ball
+                new Delay(0.75),  //Could replace this with shooting a ball
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(1.5),
+                new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new ParallelGroup(
@@ -621,9 +637,9 @@ public class closeBlueSide extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(1.5),
+                new Delay(0.2),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(1.5),
+                new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new ParallelGroup(
@@ -644,9 +660,9 @@ public class closeBlueSide extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(1.5),
+                new Delay(0.8),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(1.5),
+                new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new ParallelGroup(
@@ -667,9 +683,9 @@ public class closeBlueSide extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(1.5),
+                new Delay(0.5),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(1.5),
+                new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),

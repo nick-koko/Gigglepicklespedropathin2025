@@ -27,8 +27,8 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
 
     // Adjust these from Panels at runtime
     public static double targetRPM = 3000.0;
-    public static double shooterHoodPos = 0.5;
-    public static boolean SHOW_SMOOTHED = true;
+    public static double shooterHoodPos = 0.1;
+    public static boolean SHOW_SMOOTHED = false;
     public static int SMOOTH_WINDOW = 8;           // samples for moving average
     private final LoopTimer timer = new LoopTimer();
     private double rpmShooter1Smoothed = 0.0;
@@ -126,7 +126,10 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
 
         // Graph
         telemetryM.addData("Shooter1_RPM", rpmShooter1);
+        telemetryM.addData("Calc Shooter1_RPM", ShooterSubsystem.INSTANCE.getShooter1RpmDelta());
         telemetryM.addData("Shooter2_RPM", rpmShooter2);
+        telemetryM.addData("Calc Shooter2_RPM", ShooterSubsystem.INSTANCE.getShooter1RpmDelta());
+        telemetryM.addData("Calc Avg_RPM", ShooterSubsystem.INSTANCE.getAverageRpmDelta());
         telemetryM.addData("Outtake_RPM", rpmOuttake);
 
         if (SHOW_SMOOTHED) {
@@ -138,6 +141,16 @@ public class PicklesTuningTeleop extends NextFTCOpMode {
         boolean bb0 = IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken();
         boolean bb1 = IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken();
         boolean bb2 = IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken();
+
+        telemetry.addData("kP", ShooterSubsystem.kP);
+        telemetry.addData("kI", ShooterSubsystem.kI);
+        telemetry.addData("kD", ShooterSubsystem.kD);
+        telemetry.addData("kS", ShooterSubsystem.kS);
+        telemetry.addData("kV", ShooterSubsystem.kV);
+        telemetry.addData("kA", ShooterSubsystem.kA);
+        telemetry.addData("HEADROOM", ShooterSubsystem.HEADROOM);
+        telemetry.addData("SLEW_PER_SECOND", ShooterSubsystem.SLEW_PER_SECOND);
+        telemetry.addData("I_ZONE", ShooterSubsystem.I_ZONE);
 
         telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
         telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
