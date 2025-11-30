@@ -467,6 +467,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             telemetry.addData("LL distance", distanceLL);
         }
         telemetry.addData("ODO distance", ODODistance);
+        telemetry.addData("ODO X-Location", botxvalue);
+        telemetry.addData("ODO Y-Location", botyvalue);
+
+
 
         //Start Ian's control
 
