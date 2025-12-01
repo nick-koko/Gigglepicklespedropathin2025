@@ -45,10 +45,14 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double M1_SHOOT_RPM = 400.0;
     public static double M3_SHOOT_RPM = 900.0;
 
+    // Power levels for single-ball / multi-single-ball feeding
     public static double M1_SINGLE_SHOT_POWER = 0.5;
     public static double M3_SINGLE_SHOT_POWER = 1.0;
     public static double S2_SINGLE_SHOT_POWER = 0.5;
     public static double S3_SINGLE_SHOT_POWER = 0.5;
+
+    // Delay between shots for multi-single-shot mode (ms)
+    public static long MULTI_SINGLE_SHOT_DELAY_MS = 250;
 
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;
@@ -116,6 +120,12 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private boolean singleBallFeedActive = false;
     private boolean prevSensor2BrokenForSingleFeed = false;
 
+    // Multi-single-shot sequence state (looped single-ball feeds with delay)
+    private boolean multiSingleShotActive = false;
+    private int multiSingleShotRequested = 0;
+    private int multiSingleShotCompleted = 0;
+    private long nextMultiSingleShotStartTimeMs = 0L;
+
     // =============================================
     // INITIALIZATION
     // =============================================
@@ -165,22 +175,40 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     @Override
     public void periodic() {
-        // Handle dedicated single-ball full-power feed, if active
-
-
 //        if (shootSequenceActive) {   //Commented out because of intake issues, and using just dumb shoot with multi-ball boost, so maybe not needed.
 //            updateShooting();
 //            return;
 //        }
+
+        // 3) Normal intake behavior
         if (isIntaking) {
             currentShot = 0;
             checkSensorsAndUpdateMotors();
             setIntakeDirection(currentDirection, false);
         }
-        else if (singleBallFeedActive) {  //Commented out because of unknown intake issues, test and fix at some point
+        else if (singleBallFeedActive) {  // 1) Handle active single-ball feed (used by single-shot and multi-single-shot modes)
             updateSingleBallFeed();
-            return;
         }
+        // 2) Handle multi-single-shot sequence between feeds
+        else if (multiSingleShotActive) {
+            long now = System.currentTimeMillis();
+
+
+            // If it's time for the next shot in the sequence, start another single-ball feed
+            if (nextMultiSingleShotStartTimeMs == 0L || now >= nextMultiSingleShotStartTimeMs) {
+                boolean started = feedSingleBallFullPower();
+                if (!started) {
+                    // Could not start another shot (no balls or conflicting state) – end the sequence
+                    multiSingleShotActive = false;
+                } else {
+                    // Shot is now running; delay for the next one will be scheduled
+                    // in updateSingleBallFeed() when this shot completes.
+                    nextMultiSingleShotStartTimeMs = 0L;
+                }
+            }
+        }
+
+        // Legacy singleBallActive handling remains commented out
 //        if (singleBallActive) {
 //            currentShot -= 1;
 //        }
@@ -206,8 +234,20 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
             }
 
             singleBallFeedActive = false;
-        } else {
-            // Keep feeding at full power
+
+            // If we're in multi-single-shot mode, schedule the next shot (or finish)
+            if (multiSingleShotActive) {
+                multiSingleShotCompleted++;
+
+                if (multiSingleShotCompleted >= multiSingleShotRequested || ballCount <= 0) {
+                    // Sequence complete
+                    multiSingleShotActive = false;
+                } else {
+                    // Schedule the next shot after a delay
+                    nextMultiSingleShotStartTimeMs =
+                            System.currentTimeMillis() + MULTI_SINGLE_SHOT_DELAY_MS;
+                }
+            }
         }
 
         prevSensor2BrokenForSingleFeed = currentBroken;
@@ -412,7 +452,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      */
     public boolean feedSingleBallFullPower() {
         // Don't interfere with existing shooting sequence or another single feed
-        if (shootSequenceActive || singleBallFeedActive) {
+        if (shootSequenceActive || singleBallFeedActive || multiSingleShotActive) {
             return false;
         }
 
@@ -432,6 +472,46 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m3.setPower(M3_SINGLE_SHOT_POWER);
         s2.setPower(S2_SINGLE_SHOT_POWER);
         s3.setPower(S3_SINGLE_SHOT_POWER);
+
+        return true;
+    }
+
+    /**
+     * Begin a multi-single-shot sequence: feed up to {@code shots} balls using the
+     * same beam-break-based stop logic as {@link #feedSingleBallFullPower()}, with
+     * a configurable delay between each shot.
+     *
+     * This does NOT restart automatically once done; callers should ensure the
+     * shooter is at speed before invoking.
+     *
+     * @param shots number of balls to attempt to feed (clamped to available balls)
+     * @return true if the sequence was started, false otherwise
+     */
+    public boolean shootMultipleSingleShots(int shots) {
+        if (shots <= 0) {
+            return false;
+        }
+
+        // Don't interfere with other shooting/feeding modes
+        if (shootSequenceActive || singleBallFeedActive || multiSingleShotActive || isIntaking) {
+            return false;
+        }
+
+        if (ballCount <= 0) {
+            return false;
+        }
+
+        multiSingleShotRequested = Math.min(shots, ballCount);
+        multiSingleShotCompleted = 0;
+        multiSingleShotActive = true;
+        nextMultiSingleShotStartTimeMs = 0L;
+
+        // Kick off the first shot immediately
+        boolean started = feedSingleBallFullPower();
+        if (!started) {
+            multiSingleShotActive = false;
+            return false;
+        }
 
         return true;
     }
