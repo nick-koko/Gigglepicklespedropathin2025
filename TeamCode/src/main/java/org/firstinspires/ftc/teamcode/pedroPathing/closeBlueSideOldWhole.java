@@ -40,7 +40,6 @@ import dev.nextftc.ftc.NextFTCOpMode;
     - (total possible perfect savings of 8.25s for a total of 10.25 ) Need minimum 7s
 
  */
-@Disabled
 @Configurable
 @Autonomous(name = "closeBlueSide_OLD", group = "Comp")
 public class closeBlueSideOldWhole extends NextFTCOpMode{

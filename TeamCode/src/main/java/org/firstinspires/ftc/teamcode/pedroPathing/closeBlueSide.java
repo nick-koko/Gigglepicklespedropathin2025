@@ -6,6 +6,9 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+
+import dev.nextftc.core.commands.Command;
+import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.extensions.fateweaver.FateComponent;
 import dev.nextftc.extensions.pedro.PedroComponent;
@@ -69,7 +72,7 @@ public class closeBlueSide extends closeAutonPaths{
             }*/
 
         // If dpad Up/Down is pressed, increase or decrease ball count
-        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 12)) {
+        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 15)) {
             intAmount = intAmount + 3;
         } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
             intAmount = intAmount - 3;
@@ -94,40 +97,83 @@ public class closeBlueSide extends closeAutonPaths{
 
     }
 
+
+    public Command Close3Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseMoveOffLine()
+        );
+    }
+
+    public Command Close6Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+                CloseMoveOffLine()
+        );
+
+    }
+
+    public Command Close9Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+                CloseGoTo2ndPickupLine(),
+                ClosePickupGateLeverShoot2ndRow(),
+                CloseMoveOffLineToLever()
+        );
+
+    }
+    public Command Close12Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+                CloseGoTo2ndPickupLine(),
+                ClosePickupGateLeverShoot2ndRow(),
+                CloseGoTo3rdPickupLine(),
+                ClosePickupAndShoot3rdRow(),
+                CloseMoveOffLineToLever()
+        );
+
+    }
+    public Command Close15Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+                CloseGoTo2ndPickupLine(),
+                ClosePickupGateLeverShoot2ndRow(),
+                CloseGoTo3rdPickupLine(),
+                ClosePickupAndShoot3rdRow(),
+                CloseGoToZonePickupLine(),
+                ClosePickupAndShootZoneRow(),
+                CloseMoveOffLineToLever()
+        );
+    }
+
     /** This method is called once at the start of the OhhpMode.
      * It runs all the setup actions, including building paths and starting the path system **/
     @Override
-    public void onStartButtonPressed()
-    {
-            if (intAmount == 3){
-                CloseShootPreload().schedule();
-                //CloseShootPreload().
-                CloseMoveOffLine().schedule();
-            }
+    public void onStartButtonPressed() {
+        if (intAmount == 3) {
+            Close3Ball().schedule(); {
+        }
+    }
             else if (intAmount == 6){
-                CloseShootPreload().schedule();
-                CloseGoToFirstPickupLine().schedule();
-                ClosePickupAndShootFirstRow().schedule();
-                CloseMoveOffLine().schedule();
+                Close6Ball().schedule();
             }
             else if (intAmount == 9){
-                CloseShootPreload().schedule();
-                CloseGoToFirstPickupLine().schedule();
-                ClosePickupAndShootFirstRow().schedule();
-                CloseGoTo2ndPickupLine().schedule();
-                ClosePickupGateLeverShoot2ndRow().schedule();
-                CloseMoveOffLineToLever().schedule();
+                Close9Ball().schedule();
             }
-            else {  // 12 Ball Auton
-                CloseShootPreload().schedule();
-                CloseGoToFirstPickupLine().schedule();
-                ClosePickupAndShootFirstRow().schedule();
-                CloseGoTo2ndPickupLine().schedule();
-                ClosePickupGateLeverShoot2ndRow().schedule();
-                CloseGoTo3rdPickupLine().schedule();
-                ClosePickupAndShoot3rdRow().schedule();
-                CloseMoveOffLineToLever().schedule();
+            else if (intAmount == 12){
+                Close12Ball().schedule();
             }
+            else if (intAmount == 15){
+                Close15Ball().schedule();
+        }
 
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();

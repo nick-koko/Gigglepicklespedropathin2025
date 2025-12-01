@@ -45,6 +45,11 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double M1_SHOOT_RPM = 400.0;
     public static double M3_SHOOT_RPM = 900.0;
 
+    public static double M1_SINGLE_SHOT_POWER = 0.5;
+    public static double M3_SINGLE_SHOT_POWER = 1.0;
+    public static double S2_SINGLE_SHOT_POWER = 0.5;
+    public static double S3_SINGLE_SHOT_POWER = 0.5;
+
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;
     public static double S3_INTAKE_SPEED = 0.7;
@@ -161,10 +166,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     @Override
     public void periodic() {
         // Handle dedicated single-ball full-power feed, if active
-//        if (singleBallFeedActive) {  //Commented out because of unknown intake issues, test and fix at some point
-//            updateSingleBallFeed();
-//            return;
-//        }
+
 
 //        if (shootSequenceActive) {   //Commented out because of intake issues, and using just dumb shoot with multi-ball boost, so maybe not needed.
 //            updateShooting();
@@ -174,6 +176,10 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
             currentShot = 0;
             checkSensorsAndUpdateMotors();
             setIntakeDirection(currentDirection, false);
+        }
+        else if (singleBallFeedActive) {  //Commented out because of unknown intake issues, test and fix at some point
+            updateSingleBallFeed();
+            return;
         }
 //        if (singleBallActive) {
 //            currentShot -= 1;
@@ -422,10 +428,10 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         singleBallFeedActive = true;
         prevSensor2BrokenForSingleFeed = isSensor2Broken();
 
-        m1.setPower(0.5);
-        m3.setPower(1.0);
-        s2.setPower(0.5);
-        s3.setPower(0.5);
+        m1.setPower(M1_SINGLE_SHOT_POWER);
+        m3.setPower(M3_SINGLE_SHOT_POWER);
+        s2.setPower(S2_SINGLE_SHOT_POWER);
+        s3.setPower(S3_SINGLE_SHOT_POWER);
 
         return true;
     }

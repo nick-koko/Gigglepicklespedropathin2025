@@ -45,11 +45,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static Pose startingPose = new Pose(32.5, 134.375, Math.toRadians(180)); //See ExampleAuto to understand how to use this
 
     //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
-    public static Pose redShootingTarget = new Pose(144, 144, Math.toRadians(36));
+    public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
     public static Pose blueShootingTarget = redShootingTarget.mirror();
 
     // Adjust these from Panels at runtime
     public static boolean hold = false;
+    public static boolean prevHold = false;
     public static boolean SHOW_SMOOTHED = false;
     public static int SMOOTH_WINDOW = 8;           // samples for moving average
     private final LoopTimer timer = new LoopTimer();
@@ -93,11 +94,25 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private double areaOffset;
     public static boolean testShooter = false;
     public static double targetRPM = 0;
+    public static double targetInitialRPM = 0;
+    public static double minDisatanceForShooting = 49.0;
+
+    // Auto-stop shooter timeout after starting a dumbShoot burst (ms)
+    public static long DUMBSHOOT_SHOOTER_TIMEOUT_MS = 750;
+
     public static double shooterHoodPos = 0;
     private boolean hasResults = false;
     private boolean selectAllianceSide = false;
 
     private boolean shoot = false;
+
+    private boolean adjustLimelight = false;
+    private boolean adjustOdo = false;
+    // Edge-detect left trigger so we only start one single-ball feed per press
+    private boolean prevLeftTriggerActive = false;
+    // State for auto-stopping shooter after dumbShoot
+    private boolean dumbShootTimerActive = false;
+    private long dumbShootStartTimeMs = 0L;
 
 
     @Override
@@ -177,6 +192,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public void onUpdate() {
         //Call this once per loop
         timer.start();
+        long nowMs = System.currentTimeMillis();
+
+        // Auto-stop shooter after a dumbShoot burst has been active long enough
+        if (dumbShootTimerActive &&
+                nowMs - dumbShootStartTimeMs >= DUMBSHOOT_SHOOTER_TIMEOUT_MS) {
+            ShooterSubsystem.INSTANCE.stop();
+            dumbShootTimerActive = false;
+        }
+
         LLResult result = limelight.getLatestResult();
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
@@ -226,6 +250,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         if (gamepad1.right_bumper) {
+            adjustLimelight = true;
             if (result != null && result.isValid()) {
                 if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
                     List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
@@ -286,25 +311,54 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             }
         } else {
             // no valid result or bumper not held
+            // LED status based on number of balls
+            if (ODODistance < minDisatanceForShooting) {
+                LEDControlSubsystem.INSTANCE.startStrobe(LEDControlSubsystem.LedColor.OFF, LEDControlSubsystem.LedColor.RED,500);
+            } else {
+                int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+                double currentTargetRpm = ShooterSubsystem.INSTANCE.getTargetRpm();
+
+                if (balls >= 3) {
+                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+
+                    // Only auto spin-up based on ball count if shooter is currently "off"
+                    if (Math.abs(currentTargetRpm) < 1e-3) {
+                        ShooterSubsystem.INSTANCE.spinUp(targetInitialRPM);
+                    }
+                } else if (balls == 2) {
+                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.YELLOW);
+                } else if (balls == 1) {
+                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.ORANGE);
+                } else {
+                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
+                }
+            }
         }
 
         if (gamepad1.left_bumper) {
             rotate = angleErrorDeg * shooterTargetkP;
+            targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
+            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
             goToTargetAngle = false;
         } else if (gamepad1.right_trigger > 0.1) {
             targetAngleDeg = 180.0 + angleAllianceOffset;
             goToTargetAngle = true;
+            adjustOdo = false;
         } else if (gamepad1.left_trigger > 0.1) {
             targetAngleDeg = -90.0 + angleAllianceOffset;
             goToTargetAngle = true;
+            adjustOdo = false;
         } else if (gamepad1.dpad_left) {
             targetAngleDeg = 90.0 + angleAllianceOffset;
             goToTargetAngle = true;
+            adjustOdo = false;
         } else if (gamepad1.dpad_up) {
             targetAngleDeg = 0.0 + angleAllianceOffset;
             goToTargetAngle = true;
+            adjustOdo = false;
         } else {
             goToTargetAngle = false;
+            adjustOdo = false;
         }
 
         targetAngleRad = Math.toRadians(targetAngleDeg);
@@ -346,15 +400,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             automatedDrive = true;
         }*/
 
-        if (gamepad1.dpadDownWasPressed()) {
-            hold = !hold;
-
-            if (hold) {
-                PedroComponent.follower().holdPoint(new BezierPoint(PedroComponent.follower().getPose()), PedroComponent.follower().getHeading(), false);
-            } else {
-                PedroComponent.follower().startTeleopDrive();
-            }
-        }
 
         //Stop automated following if the follower is done
         if (automatedDrive && (gamepad1.bWasPressed() || !PedroComponent.follower().isBusy())) {
@@ -476,12 +521,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         if (gamepad2.rightBumperWasPressed()) {
             this.shoot = true;
+            // Starting a new spin-up cancels any previous dumbShoot timeout
+            dumbShootTimerActive = false;
             if (testShooter) {
 
-            }else if (!hasResults) {
-                ShooterSubsystem.INSTANCE.setClosePID();
-//                targetRPM = calculateShooterRPMFromDistance(this.ODODistance);
-                targetRPM = 2950;
+            }else if (!hasResults || this.adjustOdo) {
+                //ShooterSubsystem.INSTANCE.setClosePID();
+                targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
+                //ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+                //targetRPM = 2950;
             } else if (hasResults && yOffset > 9.) {
                 ShooterSubsystem.INSTANCE.setClosePID();
                 targetRPM = calculateShooterRPM(yOffset);
@@ -494,16 +542,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
         } else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();
+            dumbShootTimerActive = false;
             //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
-        if (gamepad2.xWasPressed()) {
-            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
-        }
-        if (gamepad2.yWasPressed()) {
-            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
-        }
+//        if (gamepad2.xWasPressed()) {
+//            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
+//        }
+//        if (gamepad2.yWasPressed()) {
+//            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
+//        }
 
+        boolean leftTriggerActive = gamepad2.left_trigger > 0.1;
         if (gamepad2.right_trigger > 0.1) {
             long delay = 0;
             long shotTime = 250;
@@ -516,50 +566,73 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //                IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
 //                ShooterSubsystem.INSTANCE.setBoostOn();
 //            }
-            if (yOffset < 11){
-                IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-                ShooterSubsystem.INSTANCE.setBoostOn(true);
-            }
-            else{
-                IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-                ShooterSubsystem.INSTANCE.setBoostOn(false);
+            hold = true;
 
+            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
+                if (yOffset < 11){
+                    IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+                    ShooterSubsystem.INSTANCE.setBoostOn(true);
+                }
+                else{
+                    IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+                    ShooterSubsystem.INSTANCE.setBoostOn(false);
+
+                }
+
+                // Start the auto-stop timer only once per dumbShoot burst
+                if (!dumbShootTimerActive) {
+                    dumbShootTimerActive = true;
+                    dumbShootStartTimeMs = nowMs;
+                }
             }
+
             //IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
+
+        }  else if (leftTriggerActive && !prevLeftTriggerActive) {
+            hold = false;
+            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // slightly wider window for 58-RPM resolution
+                IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower();
+            }
         } else if (gamepad2.aWasPressed()) {
+            hold = false;
             this.shoot = false;
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
             ShooterSubsystem.INSTANCE.stop();
             this.hasResults = false;
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
         } else if (gamepad2.b) {
+            hold = false;
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
+        } else {
+            hold = false;
         }
 
-        if (testShooter) {
+        prevLeftTriggerActive = leftTriggerActive;
 
-        } else if (hasResults) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
+
+        if (hold && !prevHold) {
+            PedroComponent.follower().holdPoint(new BezierPoint(PedroComponent.follower().getPose()), PedroComponent.follower().getHeading(), false);
+        } else if (!hold && prevHold){
+            PedroComponent.follower().startTeleopDrive();
+        }
+
+        prevHold = hold;
+
+
+        if (testShooter) {
+            // Do nothing
+        } else if (hasResults && !adjustOdo) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
             //this.shooterHoodPos = getHoodPositionFromDistance(this.ODODistance);
             //this.shooterHoodPos = 0.05;
 //        } else{
             this.shooterHoodPos = getHoodPosition(yOffset);
 
         }
+        else{
+            this.shooterHoodPos = calculateShooterHoodOdoDistance(this.ODODistance);
+        }
 //        }
         ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
-
-
-        // LED status based on number of balls
-        int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-        if (balls >= 3) {
-            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
-        } else if (balls == 2) {
-            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.YELLOW);
-        } else if (balls == 1) {
-            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.ORANGE);
-        } else {
-            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
-        }
 
         telemetryM.update(telemetry);
         telemetry.update();
@@ -572,68 +645,47 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         return angle;
     }
 
+    public static double calculateShooterRPMOdoDistance(double odoDistance) {
+        return 16.9425 * odoDistance + 1984.45;
+    }
+
+    public static double calculateShooterHoodOdoDistance(double odoDistance) {
+        double hoodPos = 0.00585 * odoDistance - 0.14165;
+
+        if (hoodPos < 0) return 0;
+        if (hoodPos > 0.53) return 0.53;
+        return hoodPos;
+    }
+    //OLD STUFF
     public static double calculateShooterRPM(double yOffset) {
         if (yOffset > 17)
             return 3350;
-        //BEST ONE TO FALL BACK TO
-//        double rpm = -13746
-//                + 6315 * yOffset
-//                - 805 * Math.pow(yOffset, 2)
-//                + 43.7 * Math.pow(yOffset, 3)
-//                - 0.867 * Math.pow(yOffset, 4);
 
         double rpm = 0;
         if (yOffset >= 17 && yOffset < 18) {
-            //3350
             rpm = -117.65 * yOffset + 5385.3;
         }
         else if (yOffset >= 16 && yOffset < 17) {
-            //rpm = -140.85 * yOffset + 5823.3;
-//            rpm = -111.06 * yOffset + 5236.4;
-//            rpm = -110.23 * Math.pow(yOffset, 2) +
-//                    3562.9 * yOffset - 25383;
             rpm = 23.685 * yOffset + 3022.5;
         }
         else if (yOffset >= 15 && yOffset < 16) {
-            //rpm = -87.719 * yOffset + 4883.3;
-//            rpm = -24.878 * Math.pow(yOffset, 2) +
-//                    671.77 * yOffset - 917.08;
-//            rpm = -94.202 * yOffset + 4905.1;
             rpm = 26.838 * Math.pow(yOffset, 2) -
                     871.7 * yOffset + 10466;
         }
         else if (yOffset >= 14 && yOffset < 15) {
-//            rpm = 551.15 * Math.pow(yOffset, 2) -
-//                    15981 * yOffset + 119441;
-//            rpm = 325.12 * Math.pow(yOffset, 3) - 13857 * Math.pow(yOffset, 2) +
-//                    196702 * yOffset - 926207;
-//            rpm = -31.719 * Math.pow(yOffset, 2) +
-//                    789.01 * yOffset - 1158;
             rpm = -127.72 * yOffset + 5433.5;
 
         }
         else if (yOffset >= 13 && yOffset < 14) {
-//            rpm = -68.493 * yOffset + 4597.9;
-//            rpm = -86.153 * yOffset + 4847;
-//            rpm = -20.44 * yOffset + 3954.2;
             rpm = -152.89 * yOffset + 5697.3;
         }
         else if (yOffset >= 12 && yOffset < 13) {
-//            rpm = 196.87 * Math.pow(yOffset, 2) -
-//                    5160.3 * yOffset + 37487;
-//            rpm = 237.83 * Math.pow(yOffset, 2) -
-//                    6155.5 * yOffset + 43528;
             rpm = -167.96 * yOffset + 5830.5;
         }
         else if (yOffset >= 11 && yOffset < 12) {
-//            rpm = 288.35 * Math.pow(yOffset, 2) -
-//                    6679.9 * yOffset + 42487;
-//            rpm = 291.25 * Math.pow(yOffset, 2) -
-//                    6746.5 * yOffset + 42869;
             rpm = -14.425 * yOffset + 3956.9;
         }
         else if (yOffset >= 10 && yOffset < 11) {
-//            rpm = 3870;
             rpm = -89.495 * yOffset + 4836.9;
         }
         else if (yOffset >= 9 && yOffset < 10) {
@@ -646,15 +698,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         return rpm;
     }
 
-    public static double calculateShooterRPMFromDistance(double distanceIn) {
-        double distanceMm = distanceIn * 25.4;
-        return 1616
-                + 1.34 * distanceMm
-                - 0.000168 * distanceMm * distanceMm;
-    }
-
     public static double getHoodPosition(double yOffset) {
-        // Default hood position if yOffset is out of known range
 
         if (yOffset >= 17.08) {
             return 0.3;
