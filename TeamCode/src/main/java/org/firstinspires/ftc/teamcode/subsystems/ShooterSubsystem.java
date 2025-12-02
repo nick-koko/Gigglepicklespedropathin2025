@@ -26,10 +26,12 @@ public class ShooterSubsystem implements Subsystem {
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
 //    public static double kP = 0.15;
-    public static double kP = 0.00075;
+    public static double kP = 0.00066;
+//    public static double kP = 0.00075;
     //public static double kI = 0.0001;
     public static double kI = 0.000;
-    public static double kD = 0.00001;
+//    public static double kD = 0.00001;
+    public static double kD = 0.0000;
 
     public static double kS = .1431;
     public static double kV = 0.000126;
@@ -109,8 +111,8 @@ public class ShooterSubsystem implements Subsystem {
         shooter1.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
         shooter2.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.FLOAT);
 
-        shooter1.setDirection(DcMotorSimple.Direction.REVERSE);
-        shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
+        shooter1.setDirection(DcMotorSimple.Direction.FORWARD);
+        shooter2.setDirection(DcMotorSimple.Direction.REVERSE);
 
         resetControllerState();
     }

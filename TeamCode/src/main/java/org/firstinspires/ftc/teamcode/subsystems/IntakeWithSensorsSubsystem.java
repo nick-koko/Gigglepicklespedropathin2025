@@ -452,7 +452,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      */
     public boolean feedSingleBallFullPower() {
         // Don't interfere with existing shooting sequence or another single feed
-        if (shootSequenceActive || singleBallFeedActive || multiSingleShotActive) {
+        if (shootSequenceActive || singleBallFeedActive) {
             return false;
         }
 

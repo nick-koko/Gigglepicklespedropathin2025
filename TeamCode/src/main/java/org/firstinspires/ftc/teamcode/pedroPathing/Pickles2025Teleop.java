@@ -15,6 +15,7 @@ import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.LEDControlSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
@@ -110,6 +111,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean adjustOdo = false;
     // Edge-detect left trigger so we only start one single-ball feed per press
     private boolean prevLeftTriggerActive = false;
+    // Latches a single-shot request until shooter RPM is in range
+    private boolean singleShotPending = false;
     // State for auto-stopping shooter after dumbShoot
     private boolean dumbShootTimerActive = false;
     private long dumbShootStartTimeMs = 0L;
@@ -223,8 +226,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double botxvalue = PedroComponent.follower().getPose().getX(); //gettingxvalue :D
         double botyvalue = PedroComponent.follower().getPose().getY(); //gettingyvalue :D
 
+        limelight.updateRobotOrientation(Math.toDegrees(botHeadingRad)-90);
+
         double shootTargetX = shootingTargetLocation.getX();
-        double shootTargetY = shootingTargetLocation.getY();
+        double shootTargetY = botyvalue > 109 ? shootingTargetLocation.getY() - 1.5 : shootingTargetLocation.getY() + 0.5;
 
         // Vector from robot -> target
         double dx = shootTargetX - botxvalue;
@@ -459,7 +464,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             rpmOuttakeSmoothed = sum / wFillOuttake;
 
         }
-
         // Graph
         telemetryM.addData("Shooter1_RPM", rpmShooter1);
         telemetryM.addData("Calc Shooter1_RPM", ShooterSubsystem.INSTANCE.getShooter1RpmDelta());
@@ -510,6 +514,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             telemetry.addData("ta", result.getTa());
             telemetry.addData("ty", result.getTy());
             telemetry.addData("LL distance", distanceLL);
+            Pose3D MT2Pose = result.getBotpose_MT2();
+            telemetry.addData("MegaTag Angle", MT2Pose.getOrientation().getYaw());
+            telemetry.addData("MegaTag X", MT2Pose.getPosition().x);
+            telemetry.addData("MegaTag y", MT2Pose.getPosition().y);
         }
         telemetry.addData("ODO distance", ODODistance);
         telemetry.addData("ODO X-Location", botxvalue);
@@ -555,7 +563,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //        }
 
         boolean leftTriggerActive = gamepad2.left_trigger > 0.1;
-        if (gamepad2.right_trigger > 0.1) {
+        boolean rightTriggerActive = gamepad2.right_trigger > 0.1;
+        if (rightTriggerActive) {
             long delay = 0;
             long shotTime = 250;
 //            if (hasResults && yOffset >= 10) {
@@ -590,10 +599,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             //IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
 
         }  else if (leftTriggerActive && !prevLeftTriggerActive) {
+            // Latch a single-shot request; actual firing waits for RPM to be in range
             hold = false;
-            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // slightly wider window for 58-RPM resolution
-                IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower();
-            }
+            singleShotPending = true;
         } else if (gamepad2.aWasPressed()) {
             hold = false;
             this.shoot = false;
@@ -606,6 +614,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
         } else {
             hold = false;
+        }
+
+        // If a single shot is pending and left trigger is still held (and right trigger is not),
+        // wait for shooter RPM to be within tolerance, then fire exactly one ball.
+        if (leftTriggerActive && !rightTriggerActive && singleShotPending &&
+                ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // 75 RPM window for 58-RPM resolution
+            if (IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower()) {
+                singleShotPending = false;
+            }
+        }
+
+        // If the left trigger is released, clear any pending single-shot request so the
+        // next press is treated as a new request.
+        if (!leftTriggerActive && prevLeftTriggerActive) {
+            singleShotPending = false;
         }
 
         prevLeftTriggerActive = leftTriggerActive;
@@ -654,7 +677,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double hoodPos = 0.00585 * odoDistance - 0.14165;
 
         if (hoodPos < 0) return 0;
-        if (hoodPos > 0.53) return 0.53;
+        if (hoodPos > 0.5) return 0.5;
         return hoodPos;
     }
     //OLD STUFF
