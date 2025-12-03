@@ -155,6 +155,25 @@ public class closeBlueSide extends closeAutonPaths{
         );
     }
 
+    public Command Close15BallLeverAfter6() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                ClosePickupShootAfterGateLever2ndRow(),
+                ClosePickupAndShoot2ndRow(),
+                CloseGoTo3rdPickupLine(),
+                ClosePickupAndShoot3rdRow(),
+                CloseGoToZonePickupLine(),
+                ClosePickupZoneRow(),
+                CloseShootZoneRow(),
+                CloseMoveOffLineToLever()
+        );
+    }
+
+
     /** This method is called once at the start of the OhhpMode.
      * It runs all the setup actions, including building paths and starting the path system **/
     @Override
