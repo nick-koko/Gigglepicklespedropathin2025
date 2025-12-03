@@ -40,7 +40,7 @@ public class closeBlueSide extends closeAutonPaths{
                 FateComponent.INSTANCE
         );
     }
-    public double intAmount = 12;
+    public double intAmount = 15;
 
     private Pose finalStartPose = new Pose();
 
@@ -121,7 +121,7 @@ public class closeBlueSide extends closeAutonPaths{
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndShootFirstRow(),
                 CloseGoTo2ndPickupLine(),
-                ClosePickupGateLeverShoot2ndRow(),
+                ClosePickupAndShoot2ndRow(),
                 CloseMoveOffLineToLever()
         );
 
@@ -132,7 +132,7 @@ public class closeBlueSide extends closeAutonPaths{
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndShootFirstRow(),
                 CloseGoTo2ndPickupLine(),
-                ClosePickupGateLeverShoot2ndRow(),
+                ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
                 CloseMoveOffLineToLever()
@@ -145,11 +145,12 @@ public class closeBlueSide extends closeAutonPaths{
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndShootFirstRow(),
                 CloseGoTo2ndPickupLine(),
-                ClosePickupGateLeverShoot2ndRow(),
+                ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
                 CloseGoToZonePickupLine(),
-                ClosePickupAndShootZoneRow(),
+                ClosePickupZoneRow(),
+                CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
     }

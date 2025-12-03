@@ -46,13 +46,13 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double M3_SHOOT_RPM = 900.0;
 
     // Power levels for single-ball / multi-single-ball feeding
-    public static double M1_SINGLE_SHOT_POWER = 0.5;
+    public static double M1_SINGLE_SHOT_POWER = 0.8;
     public static double M3_SINGLE_SHOT_POWER = 1.0;
-    public static double S2_SINGLE_SHOT_POWER = 0.5;
-    public static double S3_SINGLE_SHOT_POWER = 0.5;
+    public static double S2_SINGLE_SHOT_POWER = 0.85;
+    public static double S3_SINGLE_SHOT_POWER = 0.85;
 
     // Delay between shots for multi-single-shot mode (ms)
-    public static long MULTI_SINGLE_SHOT_DELAY_MS = 250;
+    public static long MULTI_SINGLE_SHOT_DELAY_MS = 333;
 
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;
@@ -493,14 +493,14 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         }
 
         // Don't interfere with other shooting/feeding modes
-        if (shootSequenceActive || singleBallFeedActive || multiSingleShotActive || isIntaking) {
+        if (shootSequenceActive || singleBallFeedActive || multiSingleShotActive) {
             return false;
         }
 
         if (ballCount <= 0) {
             return false;
         }
-
+        isIntaking = false;
         multiSingleShotRequested = Math.min(shots, ballCount);
         multiSingleShotCompleted = 0;
         multiSingleShotActive = true;
@@ -558,6 +558,15 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public boolean isMotor1Enabled() { return m1Enabled; }
     public boolean isMotor2Enabled() { return m2Enabled; }
     public boolean isMotor3Enabled() { return m3Enabled; }
+
+    // Debug getters for state tracking
+    public boolean isIntakingActive() { return isIntaking; }
+    public boolean isSingleBallFeedActive() { return singleBallFeedActive; }
+    public boolean isMultiSingleShotActive() { return multiSingleShotActive; }
+    public boolean isShotInProgress() { return shotInProgress; }
+    public double getCurrentDirection() { return currentDirection; }
+    public int getMultiSingleShotRequested() { return multiSingleShotRequested; }
+    public int getMultiSingleShotCompleted() { return multiSingleShotCompleted; }
 
     public boolean isSensor0Broken() { return !sensor0.getState(); }
     public boolean isSensor1Broken() { return !sensor1.getState(); }

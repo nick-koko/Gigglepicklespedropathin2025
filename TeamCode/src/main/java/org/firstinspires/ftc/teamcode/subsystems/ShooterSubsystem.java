@@ -47,7 +47,7 @@ public class ShooterSubsystem implements Subsystem {
     // TIME BASED BOOST SETTINGS
     // =============================================
     public static double BOOST_AMOUNT = 0.20; // 20% extra power
-    public static long BOOST_DELAY_MS = 7;   // boost activates after spinUp()
+    public static long BOOST_DELAY_MS = 8;   // boost activates after spinUp()
 
     // =============================================
     // CONSTANTS
@@ -81,6 +81,7 @@ public class ShooterSubsystem implements Subsystem {
 
     // BOOST STATE
     public boolean boostActive = false;
+    public boolean boostOverride = false;
     public boolean secondBoostActive = false;
     private long boostStartTimeMs = 0;
     private boolean preBoostActive = false;
@@ -210,10 +211,10 @@ public class ShooterSubsystem implements Subsystem {
         // === APPLY BOOST ===
         if (preBoostActive) {
             output = Math.min(output + PRE_BOOST_AMOUNT, 1.0);
-        } else if (boostActive) {
+        } else if (boostActive && !this.boostOverride) {
             output = Math.min(output * 1.66, 1.0);
         }
-        else if (secondBoostActive) {
+        else if (secondBoostActive && !this.boostOverride) {
             output = Math.min(output * 2.25, 1.0);
         }
 

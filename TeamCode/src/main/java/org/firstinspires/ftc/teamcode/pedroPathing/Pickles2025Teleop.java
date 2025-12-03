@@ -116,6 +116,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // State for auto-stopping shooter after dumbShoot
     private boolean dumbShootTimerActive = false;
     private long dumbShootStartTimeMs = 0L;
+    // Track if we're already showing the "too close" warning strobe
+    private boolean tooCloseWarningActive = false;
 
 
     @Override
@@ -229,7 +231,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         limelight.updateRobotOrientation(Math.toDegrees(botHeadingRad)-90);
 
         double shootTargetX = shootingTargetLocation.getX();
-        double shootTargetY = botyvalue > 109 ? shootingTargetLocation.getY() - 1.5 : shootingTargetLocation.getY() + 0.5;
+        double shootTargetY = botyvalue > 106 ? shootingTargetLocation.getY() - 1 : shootingTargetLocation.getY() + 3;
 
         // Vector from robot -> target
         double dx = shootTargetX - botxvalue;
@@ -265,11 +267,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     if (!tag24Results.isEmpty()) {
                         hasResults = true;
                         double targetX = tag24Results.get(0).getTargetXDegrees();
-                        if (targetX != 3. && tag24Results.get(0).getTargetYDegrees() > 10) {
+                        if (targetX != 2.5 && tag24Results.get(0).getTargetYDegrees() > 10) {
                             rotate = (-targetX + 2.25) * shooterTargetkP;
                             goToTargetAngle = false;
                         }
-                        else if(targetX != 0){
+                        else if(targetX != 2.5){
                             rotate = (-targetX) * shooterTargetkP;
                             goToTargetAngle = false;
                         }
@@ -284,11 +286,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     if (!tag20Results.isEmpty()) {
                         hasResults = true;
                         double targetX = tag20Results.get(0).getTargetXDegrees();
-                        if (targetX != -3. && tag20Results.get(0).getTargetYDegrees() > 10) {
+                        if (targetX != -2.5 && tag20Results.get(0).getTargetYDegrees() > 10) {
                             rotate = (-targetX) * shooterTargetkP;
                             goToTargetAngle = false;
                         }
-                        else if(targetX != 0) {
+                        else if(targetX !=  -2.5) {
                             rotate = (-targetX) * shooterTargetkP;
                             goToTargetAngle = false;
                         }
@@ -299,27 +301,32 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
                 if (hasResults) {
                     LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.WHITE);
-                    if (shoot) {
-                        if (hasResults && yOffset > 9.) {
-                            ShooterSubsystem.INSTANCE.setClosePID();
-                            targetRPM = calculateShooterRPM(yOffset);
-                        } else if (hasResults && yOffset <= 9.) {
-                            ShooterSubsystem.INSTANCE.setFarPID();
-                            targetRPM = 4330;
-                        }
-                        ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+//                    if (shoot) {
+//                        if (hasResults && yOffset > 9.) {
+//                            ShooterSubsystem.INSTANCE.setClosePID();
+//                            targetRPM = calculateShooterRPM(yOffset);
+//                        } else if (hasResults && yOffset <= 9.) {
+//                            ShooterSubsystem.INSTANCE.setFarPID();
+//                            targetRPM = 4330;
+//                        }
+//                        ShooterSubsystem.INSTANCE.spinUp(targetRPM);
                     }
-                } else {
-                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
-                }
+//                } else {
+//                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+//                }
 
             }
         } else {
             // no valid result or bumper not held
             // LED status based on number of balls
             if (ODODistance < minDisatanceForShooting) {
-                LEDControlSubsystem.INSTANCE.startStrobe(LEDControlSubsystem.LedColor.OFF, LEDControlSubsystem.LedColor.RED,500);
+                // Only call startStrobe once when entering the "too close" state
+                if (!tooCloseWarningActive) {
+                    LEDControlSubsystem.INSTANCE.startStrobe(LEDControlSubsystem.LedColor.OFF, LEDControlSubsystem.LedColor.RED, 500);
+                    tooCloseWarningActive = true;
+                }
             } else {
+                tooCloseWarningActive = false;
                 int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
                 double currentTargetRpm = ShooterSubsystem.INSTANCE.getTargetRpm();
 
@@ -464,6 +471,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             rpmOuttakeSmoothed = sum / wFillOuttake;
 
         }
+
         // Graph
         telemetryM.addData("Shooter1_RPM", rpmShooter1);
         telemetryM.addData("Calc Shooter1_RPM", ShooterSubsystem.INSTANCE.getShooter1RpmDelta());
@@ -486,6 +494,22 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
         telemetryM.addData("BB_sensor1", bb1 ? 1 : 0);
         telemetryM.addData("BB_sensor2", bb2 ? 1 : 0);
+
+        // =============================================
+        // DEBUG: Intake state flags for troubleshooting
+        // =============================================
+        telemetry.addData("INT_isIntaking", IntakeWithSensorsSubsystem.INSTANCE.isIntakingActive());
+        telemetry.addData("INT_shooting", IntakeWithSensorsSubsystem.INSTANCE.isShooting());
+        telemetry.addData("INT_singleBallFeedActive", IntakeWithSensorsSubsystem.INSTANCE.isSingleBallFeedActive());
+        telemetry.addData("INT_multiSingleShotActive", IntakeWithSensorsSubsystem.INSTANCE.isMultiSingleShotActive());
+        telemetry.addData("INT_shootSeqActive", IntakeWithSensorsSubsystem.INSTANCE.isShootSequenceActive());
+        telemetry.addData("INT_shotInProgress", IntakeWithSensorsSubsystem.INSTANCE.isShotInProgress());
+        telemetry.addData("INT_m1Enabled", IntakeWithSensorsSubsystem.INSTANCE.isMotor1Enabled());
+        telemetry.addData("INT_m2Enabled", IntakeWithSensorsSubsystem.INSTANCE.isMotor2Enabled());
+        telemetry.addData("INT_m3Enabled", IntakeWithSensorsSubsystem.INSTANCE.isMotor3Enabled());
+        telemetry.addData("INT_direction", IntakeWithSensorsSubsystem.INSTANCE.getCurrentDirection());
+        telemetry.addData("INT_multiReq", IntakeWithSensorsSubsystem.INSTANCE.getMultiSingleShotRequested());
+        telemetry.addData("INT_multiDone", IntakeWithSensorsSubsystem.INSTANCE.getMultiSingleShotCompleted());
 
         telemetryM.addData("LoopTime_ms", timer.getMs());
         telemetry.addData("rotate", rotate);
@@ -578,15 +602,16 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //            }
             hold = true;
 
-            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
+            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0) && ODODistance < 100.) {
                 if (yOffset < 11){
                     IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                     ShooterSubsystem.INSTANCE.setBoostOn(true);
+                    ShooterSubsystem.INSTANCE.boostOverride = true;
                 }
                 else{
+                    ShooterSubsystem.INSTANCE.boostOverride = false;
                     IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                     ShooterSubsystem.INSTANCE.setBoostOn(false);
-
                 }
 
                 // Start the auto-stop timer only once per dumbShoot burst
@@ -595,12 +620,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     dumbShootStartTimeMs = nowMs;
                 }
             }
+            else{
+                    IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(3);
+                    ShooterSubsystem.INSTANCE.boostOverride = true;
+                    ShooterSubsystem.INSTANCE.setBoostOn(false);
+            }
 
             //IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
 
         }  else if (leftTriggerActive && !prevLeftTriggerActive) {
             // Latch a single-shot request; actual firing waits for RPM to be in range
-            hold = false;
+            hold = true;
             singleShotPending = true;
         } else if (gamepad2.aWasPressed()) {
             hold = false;
@@ -629,6 +659,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // next press is treated as a new request.
         if (!leftTriggerActive && prevLeftTriggerActive) {
             singleShotPending = false;
+            hold = false;
         }
 
         prevLeftTriggerActive = leftTriggerActive;
@@ -670,7 +701,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     }
 
     public static double calculateShooterRPMOdoDistance(double odoDistance) {
-        return 16.9425 * odoDistance + 1984.45;
+        return odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 : 16.9425 * odoDistance + 1984.45;
     }
 
     public static double calculateShooterHoodOdoDistance(double odoDistance) {

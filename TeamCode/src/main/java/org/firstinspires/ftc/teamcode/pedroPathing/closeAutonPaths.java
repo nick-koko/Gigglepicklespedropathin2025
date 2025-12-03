@@ -41,9 +41,10 @@ import dev.nextftc.ftc.NextFTCOpMode;
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeAutonPaths extends NextFTCOpMode{
 
-    public static double autonShooterRPM = 2775.0;
+    public static double autonShooterRPM = 2825.0;
     public static double autonShooterHoodServoPos = 0.0;
     public static double pickupBrakingStrength = 1.0;
+    public static double pickupCornerBrakingStrength = 0.5;
 
     public final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(180)); // Start Pose of our robot
     private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(128)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
@@ -54,26 +55,28 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     private final Pose pickup1EndPoseBlue = new Pose(24, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
-    private final Pose pickup2PoseBlue = new Pose(40, 64.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2PoseBlue = new Pose(40, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP1Blue = new Pose(47, 91.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP2Blue = new Pose( 52.5, 66, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup2EndPoseBlue = new Pose(23.5, 64.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickup2EndPoseBlue = new Pose(23.5, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup2CPPathBlue = new Pose(44, 57, Math.toRadians(180));
 
-    private final Pose pickup3PoseBlue = new Pose(40, 39.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2GateLeverEndPoseBlue = new Pose(23.5, 64.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+
+    private final Pose pickup3PoseBlue = new Pose(40, 37.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP1Blue = new Pose(37,90  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP2Blue = new Pose( 57, 39, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
     private final Pose pickup3EndPoseBlue = new Pose(20, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup3CPPathBlue = new Pose(40, 45, Math.toRadians(180));
 
-    private final Pose pickupZonePoseBlue = new Pose(12, 19, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickupZoneCP1Blue = new Pose(21,73.5, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickupZoneCP2Blue = new Pose( 9.5, 27.2, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupZonePoseBlue = new Pose(9, 18.5, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupZoneCP1Blue = new Pose(32,48, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupZoneCP2Blue = new Pose( 5.5, 66, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickupZoneEndPoseBlue = new Pose(12, 11, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
-    private final Pose getPickupZoneCPPathBlue = new Pose(40, 45, Math.toRadians(235));
+    private final Pose pickupZoneEndPoseBlue = new Pose(9, 11, Math.toRadians(270)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose getPickupZoneCPPathBlue = new Pose(44, 59, Math.toRadians(235));
 
     private final Pose offLineLeverBlue = new Pose(30, 80, Math.toRadians(270)); // Middle (Second Set) of Artifacts from the Spike Mark.
     private final Pose offLineCloseBlue = new Pose(50, 117, Math.toRadians(135));
@@ -90,6 +93,7 @@ public class closeAutonPaths extends NextFTCOpMode{
     private final Pose pickup2CP2Red = pickup2CP2Blue.mirror();
     private final Pose pickup2EndPoseRed = pickup2EndPoseBlue.mirror();
     private final Pose getPickup2CPPathRed = getPickup2CPPathBlue.mirror();
+    private final Pose pickup2GateLeverEndPoseRed = pickup2GateLeverEndPoseBlue.mirror();
     private final Pose pickup3PoseRed = pickup3PoseBlue.mirror();
     private final Pose pickup3CP1Red = pickup3CP1Blue.mirror();
     private final Pose pickup3CP2Red = pickup3CP2Blue.mirror();
@@ -121,6 +125,8 @@ public class closeAutonPaths extends NextFTCOpMode{
     public Pose pickup2EndPose;
     public Pose getPickup2CPPath;
 
+    public Pose pickup2GateLeverEndPose;
+
     public Pose pickup3Pose;
     public Pose pickup3CP1;
     public Pose pickup3CP2;
@@ -138,7 +144,7 @@ public class closeAutonPaths extends NextFTCOpMode{
     public Pose offLineLever;
     public Pose offLineClose;
 
-    private PathChain firstshootpath, firstPickup,firstPickupEnd, secondPickup, secondPickupEnd, thirdPickup, thirdPickupEnd, zonePickup, zonePickupEnd, moveOffLineLever, moveOffLineClose;
+    private PathChain firstshootpath, firstPickup,firstPickupEnd, secondPickup, secondPickupEnd, secondPickupGateLeverEnd, thirdPickup, thirdPickupEnd, zonePickup, zonePickupEnd, zonePickupShoot, moveOffLineLever, moveOffLineClose;
 
         public void buildPaths() {
 
@@ -153,6 +159,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                 pickup2CP1 = pickup2CP1Blue;
                 pickup2CP2 = pickup2CP2Blue;
                 pickup2EndPose = pickup2EndPoseBlue;
+                pickup2GateLeverEndPose = pickup2GateLeverEndPoseBlue;
                 getPickup2CPPath = getPickup2CPPathBlue;
                 pickup3Pose = pickup3PoseBlue;
                 pickup3CP1 = pickup3CP1Blue;
@@ -177,6 +184,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                 pickup2CP1 = pickup2CP1Red;
                 pickup2CP2 = pickup2CP2Red;
                 pickup2EndPose = pickup2EndPoseRed;
+                pickup2GateLeverEndPose = pickup2GateLeverEndPoseRed;
                 getPickup2CPPath = getPickup2CPPathRed;
                 pickup3Pose = pickup3PoseRed;
                 pickup3CP1 = pickup3CP1Red;
@@ -246,6 +254,15 @@ public class closeAutonPaths extends NextFTCOpMode{
                     .setBrakingStrength(pickupBrakingStrength)
                     .build();
 
+            secondPickupGateLeverEnd = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierLine(pickup2Pose, pickup2GateLeverEndPose))
+                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2GateLeverEndPose.getHeading())
+
+                    .addPath(new BezierCurve(pickup2GateLeverEndPose, getPickup2CPPath, scorePoseClose))
+                    .setLinearHeadingInterpolation(pickup2GateLeverEndPose.getHeading(), scorePoseClose.getHeading())
+                    .setBrakingStrength(pickupBrakingStrength)
+                    .build();
+
             thirdPickup= PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierCurve(
@@ -284,7 +301,10 @@ public class closeAutonPaths extends NextFTCOpMode{
             zonePickupEnd = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierLine(pickupZonePose, pickupZoneEndPose))
                     .setLinearHeadingInterpolation(pickupZonePose.getHeading(), pickupZoneEndPose.getHeading())
+                    .setBrakingStrength(pickupCornerBrakingStrength)
+                    .build();
 
+            zonePickupShoot = PedroComponent.follower().pathBuilder()
                     .addPath(new BezierCurve(pickupZoneEndPose, getPickupZoneCPPath, scorePoseClose))
                     .setLinearHeadingInterpolation(pickupZoneEndPose.getHeading(), scorePoseClose.getHeading())
                     .setBrakingStrength(pickupBrakingStrength)
@@ -370,10 +390,30 @@ public class closeAutonPaths extends NextFTCOpMode{
             );
     }
 
+    public Command ClosePickupAndShoot2ndRow() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new FollowPath(secondPickupEnd),
+                        new SequentialGroup(
+                                new Delay(0.5),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
+                                new Delay(1.5),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(0.8),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                new Delay(0.50),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+        );
+    }
+
     public Command ClosePickupGateLeverShoot2ndRow() {
         return new SequentialGroup(
                     new ParallelGroup(
-                        new FollowPath(secondPickupEnd),
+                        new FollowPath(secondPickupGateLeverEnd),
                         new SequentialGroup(
                                 new Delay(0.5),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
@@ -416,7 +456,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.5),
+                new Delay(0.7),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -439,14 +479,19 @@ public class closeAutonPaths extends NextFTCOpMode{
     }
 
 
-    public Command ClosePickupAndShootZoneRow() {
+    public Command ClosePickupZoneRow() {
+        return new SequentialGroup(
+                new FollowPath(zonePickupEnd)
+        );
+    }
+
+    public Command CloseShootZoneRow() {
         return new SequentialGroup(
                 new ParallelGroup(
-                        new FollowPath(zonePickupEnd),
+                        new FollowPath(zonePickupShoot),
                         new SequentialGroup(
-                                new Delay(0.5),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
-                                new Delay(1.5),
+                                new Delay(0.5),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
                         )
                 ),
