@@ -13,8 +13,10 @@ import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
 import dev.nextftc.core.commands.groups.ParallelGroup;
+import dev.nextftc.core.commands.groups.ParallelRaceGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.commands.utility.InstantCommand;
+import dev.nextftc.core.commands.utility.LambdaCommand;
 
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
@@ -478,11 +480,35 @@ public class closeAutonPaths extends NextFTCOpMode{
         );
     }
 
-
+    /**
+     * Follows the zonePickupEnd path and terminates when EITHER:
+     * - The path completes, OR
+     * - The intake has collected 3 balls
+     *
+     * Uses ParallelRaceGroup which stops when the first command finishes.
+     */
     public Command ClosePickupZoneRow() {
-        return new SequentialGroup(
-                new FollowPath(zonePickupEnd)
+        return new ParallelRaceGroup(
+                new FollowPath(zonePickupEnd),
+                IntakeUntilFull()
         );
+    }
+
+    /**
+     * Command that monitors ball count and finishes when intake has 3 balls.
+     * Use this with ParallelRaceGroup to end a path early when full.
+     *
+     * Example usage:
+     *   new ParallelRaceGroup(
+     *       new FollowPath(somePath),
+     *       IntakeUntilFull()
+     *   )
+     */
+    public Command IntakeUntilFull() {
+        return new LambdaCommand()
+                .setIsDone(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                .setInterruptible(true)
+                .named("IntakeUntilFull");
     }
 
     public Command CloseShootZoneRow() {

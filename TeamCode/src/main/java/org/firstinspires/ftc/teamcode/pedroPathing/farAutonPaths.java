@@ -15,6 +15,7 @@ import dev.nextftc.core.commands.delays.Delay;
 import dev.nextftc.core.commands.groups.ParallelGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.commands.utility.InstantCommand;
+import dev.nextftc.core.commands.utility.LambdaCommand;
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
@@ -283,6 +284,39 @@ public class farAutonPaths extends NextFTCOpMode{
 
         }
     // if you want to reduce power for a path, use FollowPath(pathchain, holdend, maxpower)
+
+    /**
+     * Command that monitors ball count and finishes when intake has 3 balls.
+     * Use this with ParallelRaceGroup to end a path early when full.
+     *
+     * Example usage:
+     *   new ParallelRaceGroup(
+     *       new FollowPath(somePath),
+     *       IntakeUntilFull()
+     *   )
+     */
+    public Command IntakeUntilFull() {
+        return new LambdaCommand()
+                .setIsDone(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                .setInterruptible(true)
+                .named("IntakeUntilFull");
+    }
+
+    /**
+     * Command that shoots all balls currently in the robot using shootMultipleSingleShots.
+     * Starts shooting on command start and finishes when ballCount reaches 0.
+     * This allows dynamic shooting without needing a fixed delay.
+     *
+     * Note: Make sure the shooter is spun up before calling this command!
+     */
+    public Command ShootAllBalls() {
+        return new LambdaCommand()
+                .setStart(() -> IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(
+                        IntakeWithSensorsSubsystem.INSTANCE.getBallCount()))
+                .setIsDone(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() <= 0)
+                .setInterruptible(true)
+                .named("ShootAllBalls");
+    }
 
     public Command CloseShootPreload() {
         return new SequentialGroup(

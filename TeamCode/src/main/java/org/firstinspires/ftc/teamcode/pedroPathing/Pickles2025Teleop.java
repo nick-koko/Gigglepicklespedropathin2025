@@ -621,7 +621,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 }
             }
             else{
-                    IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(3);
+                    IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
                     ShooterSubsystem.INSTANCE.boostOverride = true;
                     ShooterSubsystem.INSTANCE.setBoostOn(false);
             }
