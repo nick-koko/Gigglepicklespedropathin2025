@@ -76,7 +76,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     double targetAngleDeg = -135.0;
     double targetAngleRad;
     double propAngleGain = -0.5;
-    public static double shooterTargetkP = 0.0185;
+    public static double shooterTargetkP = 0.0165;
     double minAnglePower = 0.075;
     double maxRotate = 0.8;
     double angleAllianceOffset = 0.0;
@@ -352,28 +352,33 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
             goToTargetAngle = false;
-        } else if (gamepad1.right_trigger > 0.1) {
-            targetAngleDeg = 180.0 + angleAllianceOffset;
-            goToTargetAngle = true;
-            adjustOdo = false;
-        } else if (gamepad1.left_trigger > 0.1) {
-            targetAngleDeg = -90.0 + angleAllianceOffset;
-            goToTargetAngle = true;
-            adjustOdo = false;
-        } else if (gamepad1.dpad_left) {
-            targetAngleDeg = 90.0 + angleAllianceOffset;
-            goToTargetAngle = true;
-            adjustOdo = false;
-        } else if (gamepad1.dpad_up) {
-            targetAngleDeg = 0.0 + angleAllianceOffset;
-            goToTargetAngle = true;
-            adjustOdo = false;
+//        } else if (gamepad1.right_trigger > 0.1) {
+//            targetAngleDeg = 180.0 + angleAllianceOffset;
+//            goToTargetAngle = true;
+//            adjustOdo = false;
+//        } else if (gamepad1.left_trigger > 0.1) {
+//            targetAngleDeg = -90.0 + angleAllianceOffset;
+//            goToTargetAngle = true;
+//            adjustOdo = false;
+//        } else if (gamepad1.dpad_left) {
+//            targetAngleDeg = 90.0 + angleAllianceOffset;
+//            goToTargetAngle = true;
+//            adjustOdo = false;
+//        } else if (gamepad1.dpad_up) {
+//            targetAngleDeg = 0.0 + angleAllianceOffset;
+//            goToTargetAngle = true;
+            //adjustOdo = false;
         } else {
             goToTargetAngle = false;
             adjustOdo = false;
         }
 
         targetAngleRad = Math.toRadians(targetAngleDeg);
+
+        if (targetRPM == 0 && IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3) {
+            targetRPM = 3000;
+            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+        }
 
 
         //mR. TODONE 😎👌👌
@@ -587,8 +592,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //        }
 
         boolean leftTriggerActive = gamepad2.left_trigger > 0.1;
-        boolean rightTriggerActive = gamepad2.right_trigger > 0.1;
-        if (rightTriggerActive) {
+        boolean rightTriggerActive = gamepad1.right_trigger > 0.1;
+        if (rightTriggerActive && !tooCloseWarningActive) {
             long delay = 0;
             long shotTime = 250;
 //            if (hasResults && yOffset >= 10) {
@@ -602,7 +607,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //            }
             hold = true;
 
-            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0) && ODODistance < 100.) {
+            if (ShooterSubsystem.INSTANCE.isAtSpeed(75.0) && ODODistance < 120.) {
                 if (yOffset < 11){
                     IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                     ShooterSubsystem.INSTANCE.setBoostOn(true);
@@ -635,7 +640,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         } else if (gamepad2.aWasPressed()) {
             hold = false;
             this.shoot = false;
-            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();  //Hoping Forward is Intake (maybe change the method name)
+            targetRPM = 1000;
+            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();//Hoping Forward is Intake (maybe change the method name)
             ShooterSubsystem.INSTANCE.stop();
             this.hasResults = false;
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);

@@ -52,7 +52,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double S3_SINGLE_SHOT_POWER = 0.85;
 
     // Delay between shots for multi-single-shot mode (ms)
-    public static long MULTI_SINGLE_SHOT_DELAY_MS = 333;
+    public static long MULTI_SINGLE_SHOT_DELAY_MS = 150;
 
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;

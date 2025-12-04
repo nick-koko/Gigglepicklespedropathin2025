@@ -41,6 +41,7 @@ public class closeBlueSide extends closeAutonPaths{
         );
     }
     public double intAmount = 15;
+    public double pushLever = 3;
 
     private Pose finalStartPose = new Pose();
 
@@ -77,6 +78,12 @@ public class closeBlueSide extends closeAutonPaths{
         } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
             intAmount = intAmount - 3;
         }
+        // If dpad left/right is pressed add or subtract a row until push lever
+        if ((gamepad1.dpadRightWasPressed()) && (pushLever < 3)) {
+            pushLever = pushLever + 1;
+        } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 0)) {
+            pushLever = pushLever - 1;
+        }
 
         //TODO Add dpad Left/Right to set when to hit gate lever (after 1st pickup, second pickup, or both)
 
@@ -90,6 +97,7 @@ public class closeBlueSide extends closeAutonPaths{
         }
         telemetry.addLine();
         telemetry.addData("Eating this number of balls: ", intAmount);
+        telemetry.addData("Opening basket at: ", pushLever);
 
         telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
 
@@ -149,7 +157,26 @@ public class closeBlueSide extends closeAutonPaths{
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
                 CloseGoToZonePickupLine(),
-                ClosePickupZoneRow(),
+                //ClosePickupZoneRow(),
+                IntakeUntilFull(),
+                CloseShootZoneRow(),
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close15BallLeverAfter3() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndGateLeverFirstRow(),
+                ClosePickupShootAfterGateLever1stRow(),
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndShoot2ndRow(),
+                CloseGoTo3rdPickupLine(),
+                ClosePickupAndShoot3rdRow(),
+                CloseGoToZonePickupLine(),
+                //ClosePickupZoneRow(),
+                IntakeUntilFull(),
                 CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
@@ -163,11 +190,30 @@ public class closeBlueSide extends closeAutonPaths{
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndGateLever2ndRow(),
                 ClosePickupShootAfterGateLever2ndRow(),
-                ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
                 CloseGoToZonePickupLine(),
-                ClosePickupZoneRow(),
+                //ClosePickupZoneRow(),
+                IntakeUntilFull(),
+                CloseShootZoneRow(),
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close15BallLeverBoth() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndGateLeverFirstRow(),
+                ClosePickupShootAfterGateLever1stRow(),
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                ClosePickupShootAfterGateLever2ndRow(),
+                CloseGoTo3rdPickupLine(),
+                ClosePickupAndShoot3rdRow(),
+                CloseGoToZonePickupLine(),
+                //ClosePickupZoneRow(),
+                IntakeUntilFull(),
                 CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
@@ -179,9 +225,8 @@ public class closeBlueSide extends closeAutonPaths{
     @Override
     public void onStartButtonPressed() {
         if (intAmount == 3) {
-            Close3Ball().schedule(); {
-        }
-    }
+                Close3Ball().schedule();
+            }
             else if (intAmount == 6){
                 Close6Ball().schedule();
             }
@@ -192,7 +237,15 @@ public class closeBlueSide extends closeAutonPaths{
                 Close12Ball().schedule();
             }
             else if (intAmount == 15){
-                Close15Ball().schedule();
+                if (pushLever == 0) {
+                    Close15Ball().schedule();
+                } else if (pushLever == 1){
+                    Close15BallLeverAfter3().schedule();
+                }  else if (pushLever == 2){
+                    Close15BallLeverAfter6().schedule();
+                }  else if (pushLever == 3){
+                    Close15BallLeverBoth().schedule();
+                }
         }
 
         // Persist ball count (and optionally pose) for TeleOp

@@ -32,14 +32,14 @@ public class farBlueSide extends NextFTCOpMode{
                 FateComponent.INSTANCE
         );
     }
-    public static double autonShooterRPM = 4600.0;
-    public static double autonShooterHoodServoPos = 0.4;
+    public static double autonShooterRPM = 4050.0;
+    public static double autonShooterHoodServoPos = 0.5;
 
     public double intAmount = 12;
 
     private Pose finalStartPose = new Pose();
     private final Pose startPoseBlue = new Pose(64, 8.5, Math.toRadians(90)); // Start Pose of our robot
-    private final Pose scorePoseCloseBlue = new Pose(60.5, 23, Math.toRadians(117)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    private final Pose scorePoseCloseBlue = new Pose(60.5, 23, Math.toRadians(112)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     //our robot is peak :D
     private final Pose pickup1PoseBlue = new Pose(20, 36, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP1Blue = new Pose(51, 40, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
