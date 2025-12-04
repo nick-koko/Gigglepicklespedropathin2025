@@ -180,19 +180,15 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 //            return;
 //        }
 
-        // 3) Normal intake behavior
-        if (isIntaking) {
-            currentShot = 0;
-            checkSensorsAndUpdateMotors();
-            setIntakeDirection(currentDirection, false);
-        }
-        else if (singleBallFeedActive) {  // 1) Handle active single-ball feed (used by single-shot and multi-single-shot modes)
+        // 1) Handle active single-ball feed (highest priority - used by single-shot and multi-single-shot modes)
+        if (singleBallFeedActive) {
             updateSingleBallFeed();
+            return;
         }
+        
         // 2) Handle multi-single-shot sequence between feeds
-        else if (multiSingleShotActive) {
+        if (multiSingleShotActive) {
             long now = System.currentTimeMillis();
-
 
             // If it's time for the next shot in the sequence, start another single-ball feed
             if (nextMultiSingleShotStartTimeMs == 0L || now >= nextMultiSingleShotStartTimeMs) {
@@ -206,6 +202,32 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
                     nextMultiSingleShotStartTimeMs = 0L;
                 }
             }
+            return;
+        }
+
+        // 3) Normal intake behavior
+        if (isIntaking) {
+            currentShot = 0;
+            
+            // First, detect new balls via transitions
+            checkSensorsAndUpdateMotors();
+            
+            // SAFETY: Enforce motor enables match ball count
+            // This catches stuck states where a motor is on but shouldn't be
+            // Key insight: if ballCount >= N, motor for position N must be OFF
+            // This is safer - thinking we have MORE balls means motors stay off (safe)
+            // vs thinking we have FEWER balls means motors push ball into flywheel (dangerous)
+            if (ballCount >= 1 && m3Enabled) {
+                m3Enabled = false;
+            }
+            if (ballCount >= 2 && m2Enabled) {
+                m2Enabled = false;
+            }
+            if (ballCount >= 3 && m1Enabled) {
+                m1Enabled = false;
+            }
+            
+            setIntakeDirection(currentDirection, false);
         }
 
         // Legacy singleBallActive handling remains commented out
@@ -358,11 +380,30 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     /**
      * Run intake forward at configured speeds.
+     * Motors are enabled based on current ballCount to prevent re-enabling
+     * motors for positions where balls already exist.
      */
     public void intakeForward() {
-        m1Enabled = true;   // Not quite sure why the motor enable flags set to true was added here instead of waiting until the loop? Issues, or slow response?
-        m2Enabled = true;
-        m3Enabled = true;
+        // Cancel any shooting states
+        singleBallFeedActive = false;
+        multiSingleShotActive = false;
+        shooting = false;
+        shootSequenceActive = false;
+        shotInProgress = false;
+        
+        // CRITICAL: Reset prevSensor states to "clear" (true)
+        // This allows us to detect balls that are ALREADY present
+        // (e.g., a ball that slipped in during shooting while isIntaking was false)
+        prevSensor0 = true;
+        prevSensor1 = true;
+        prevSensor2 = true;
+        
+        // Enable motors ONLY for positions where we don't expect balls
+        // This prevents re-enabling a motor that should be off
+        m3Enabled = ballCount < 1;  // Only enable if 0 balls
+        m2Enabled = ballCount < 2;  // Only enable if 0-1 balls
+        m1Enabled = ballCount < 3;  // Only enable if 0-2 balls
+        
         isIntaking = true;
         currentDirection = 1.0;
         setIntakeDirection(1.0, false);
@@ -374,23 +415,50 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     /**
      * Run intake in reverse at configured speeds.
+     * Does NOT enable all motors - only spins motors the robot thinks are empty.
+     * This allows ejecting untracked balls while keeping tracked balls in place.
      */
     public void intakeReverse() {
+        // Cancel shooting states but DON'T enable all motors
+        singleBallFeedActive = false;
+        multiSingleShotActive = false;
+        shooting = false;
+        
+        // DON'T reset m*Enabled flags - we want to keep balls where we think they are
+        // Only motors that are enabled will spin (where we think there's no ball)
+        
         isIntaking = true;
         currentDirection = -1.0;
         setIntakeDirection(-1.0, false);
     }
 
     /**
-     * Just run all motors/servos at shoot speed, ignoring ball counts or time limits
+     * Just run all motors/servos at shoot speed, ignoring ball counts or time limits.
+     * Resets ball count and motor enables so next intakeForward() starts clean.
      */
     public void dumbShoot() {
         isIntaking = false;
+        singleBallFeedActive = false;
+        multiSingleShotActive = false;
+        shooting = false;
+        
         m1.setPower(1.0);
         m3.setPower(1.0);
         s2.setPower(1.0);
         s3.setPower(1.0);
+        
         ballCount = 0;
+        
+        // Reset motor enables so next intakeForward() starts clean
+        // (These will be properly set based on ballCount=0 in intakeForward)
+        m1Enabled = true;
+        m2Enabled = true;
+        m3Enabled = true;
+        
+        // Reset prev sensor states so next intake detects any stuck balls
+        prevSensor0 = true;
+        prevSensor1 = true;
+        prevSensor2 = true;
     }
 
     /**
@@ -402,6 +470,46 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m3.setPower(0.0);
         s2.setPower(0.0);
         s3.setPower(0.0);
+    }
+
+    /**
+     * Call this after shooting is complete and motors are stopped.
+     * Checks if any balls are still present that we didn't track.
+     * Only INCREASES ball count (safe direction) - never decreases.
+     * Safe because thinking we have more balls = motors stay off.
+     */
+    public void validateBallCountAfterShoot() {
+        // Only run when we're truly idle
+        if (isIntaking || singleBallFeedActive || multiSingleShotActive || shooting) {
+            return;
+        }
+        
+        // If sensors show more balls than we're tracking, trust the sensors
+        // (It's safe to think we have more balls than we do)
+        boolean s0 = isSensor0Broken();
+        boolean s1 = isSensor1Broken();
+        boolean s2 = isSensor2Broken();
+        
+        // Sensor2 broken but ballCount is 0? We have at least 1 ball
+        if (s2 && ballCount < 1) {
+            ballCount = 1;
+            m3Enabled = false;
+        }
+        
+        // Sensor1 broken but ballCount is < 2? We have at least 2 balls
+        if (s1 && ballCount < 2) {
+            ballCount = 2;
+            m3Enabled = false;
+            m2Enabled = false;
+        }
+        
+        // Sensor0 broken but ballCount is < 3? We have 3 balls
+        if (s0 && ballCount < 3) {
+            ballCount = 3;
+            m3Enabled = false;
+            m2Enabled = false;
+            m1Enabled = false;
+        }
     }
 
     /**

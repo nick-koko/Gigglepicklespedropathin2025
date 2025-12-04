@@ -199,10 +199,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         timer.start();
         long nowMs = System.currentTimeMillis();
 
-        // Auto-stop shooter after a dumbShoot burst has been active long enough
+        // Auto-stop shooter and intake after a dumbShoot burst has been active long enough
         if (dumbShootTimerActive &&
                 nowMs - dumbShootStartTimeMs >= DUMBSHOOT_SHOOTER_TIMEOUT_MS) {
             ShooterSubsystem.INSTANCE.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.stop();
+            IntakeWithSensorsSubsystem.INSTANCE.validateBallCountAfterShoot();
             dumbShootTimerActive = false;
         }
 
@@ -618,7 +620,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                     ShooterSubsystem.INSTANCE.setBoostOn(false);
                 }
-
                 // Start the auto-stop timer only once per dumbShoot burst
                 if (!dumbShootTimerActive) {
                     dumbShootTimerActive = true;
@@ -669,7 +670,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         prevLeftTriggerActive = leftTriggerActive;
-
 
         if (hold && !prevHold) {
             PedroComponent.follower().holdPoint(new BezierPoint(PedroComponent.follower().getPose()), PedroComponent.follower().getHeading(), false);
