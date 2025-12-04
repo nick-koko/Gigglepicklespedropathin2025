@@ -474,9 +474,17 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     /**
      * Call this after shooting is complete and motors are stopped.
-     * Checks if any balls are still present that we didn't track.
+     * Checks if balls are present in the CORRECT stacked positions.
      * Only INCREASES ball count (safe direction) - never decreases.
-     * Safe because thinking we have more balls = motors stay off.
+     * 
+     * Requires proper stacking order to detect:
+     * - 1 ball: sensor2 broken (position 1)
+     * - 2 balls: sensor2 AND sensor1 broken (positions 1 and 2)
+     * - 3 balls: all three sensors broken
+     * 
+     * If a ball is in the wrong position (e.g., sensor1 only), it won't be
+     * detected here. When intake starts, all motors will enable and push
+     * the ball to the correct position for normal detection to work.
      */
     public void validateBallCountAfterShoot() {
         // Only run when we're truly idle
@@ -484,32 +492,30 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
             return;
         }
         
-        // If sensors show more balls than we're tracking, trust the sensors
-        // (It's safe to think we have more balls than we do)
         boolean s0 = isSensor0Broken();
         boolean s1 = isSensor1Broken();
         boolean s2 = isSensor2Broken();
         
-        // Sensor2 broken but ballCount is 0? We have at least 1 ball
-        if (s2 && ballCount < 1) {
+        // Check for 3 balls in correct positions (all sensors broken)
+        if (s0 && s1 && s2 && ballCount < 3) {
+            ballCount = 3;
+            m1Enabled = false;
+            m2Enabled = false;
+            m3Enabled = false;
+        }
+        // Check for 2 balls in correct positions (sensor2 AND sensor1 broken)
+        else if (s1 && s2 && ballCount < 2) {
+            ballCount = 2;
+            m2Enabled = false;
+            m3Enabled = false;
+        }
+        // Check for 1 ball in correct position (sensor2 broken)
+        else if (s2 && ballCount < 1) {
             ballCount = 1;
             m3Enabled = false;
         }
-        
-        // Sensor1 broken but ballCount is < 2? We have at least 2 balls
-        if (s1 && ballCount < 2) {
-            ballCount = 2;
-            m3Enabled = false;
-            m2Enabled = false;
-        }
-        
-        // Sensor0 broken but ballCount is < 3? We have 3 balls
-        if (s0 && ballCount < 3) {
-            ballCount = 3;
-            m3Enabled = false;
-            m2Enabled = false;
-            m1Enabled = false;
-        }
+        // If balls are in wrong positions (e.g., s1 only, or s0 only),
+        // don't update ballCount - let intake push them to correct spots
     }
 
     /**
