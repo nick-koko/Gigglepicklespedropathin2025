@@ -597,7 +597,7 @@ public class closeAutonPaths extends NextFTCOpMode{
      *
      * Uses ParallelRaceGroup which stops when the first command finishes.
      */
-    public Command ClosePickupZoneRow() {
+    /*public Command ClosePickupZoneRow() {
         return new SequentialGroup(
              new ParallelRaceGroup(
                      //new FollowPath(zonePickupEnd).raceWith(new Delay(2.0))'
@@ -605,24 +605,32 @@ public class closeAutonPaths extends NextFTCOpMode{
                     IntakeUntilFull()
             )
         );
-    }
+    } */ // Parallel Race Group was not working as expected, so we are using the IntakeUntilFull command instead
 
     /**
-     * Command that monitors ball count and finishes when intake has 3 balls.
-     * Use this with ParallelRaceGroup to end a path early when full.
-     *
-     * Example usage:
-     *   new ParallelRaceGroup(
-     *       new FollowPath(somePath),
-     *       IntakeUntilFull()
-     *   )
+     * Follows zonePickupEnd path and finishes when EITHER:
+     * - The path completes, OR
+     * - The intake has collected 3 balls
      */
-    public Command IntakeUntilFull() {
+    public Command FollowZonePickupEndUntilFull() {
         return new LambdaCommand()
                 .setStart(() -> PedroComponent.follower().followPath(zonePickupEnd))
                 .setIsDone(() -> (IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3) || (!PedroComponent.follower().isBusy()))
                 .setInterruptible(true)
-                .named("IntakeUntilFull");
+                .named("FollowZonePickupEndUntilFull");
+    }
+
+    /**
+     * Follows zonePickup path and finishes when EITHER:
+     * - The path completes, OR
+     * - The intake has collected 3 balls
+     */
+    public Command FollowZonePickupUntilFull() {
+        return new LambdaCommand()
+                .setStart(() -> PedroComponent.follower().followPath(zonePickup))
+                .setIsDone(() -> (IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3) || (!PedroComponent.follower().isBusy()))
+                .setInterruptible(true)
+                .named("FollowZonePickupUntilFull");
     }
 
     public Command CloseShootZoneRow() {

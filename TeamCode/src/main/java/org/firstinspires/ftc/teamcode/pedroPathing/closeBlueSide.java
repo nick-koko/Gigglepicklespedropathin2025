@@ -156,9 +156,8 @@ public class closeBlueSide extends closeAutonPaths{
                 ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
-                CloseGoToZonePickupLine(),
-                //ClosePickupZoneRow(),
-                IntakeUntilFull(),
+                FollowZonePickupUntilFull(),
+                FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
@@ -174,9 +173,8 @@ public class closeBlueSide extends closeAutonPaths{
                 ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
-                CloseGoToZonePickupLine(),
-                //ClosePickupZoneRow(),
-                IntakeUntilFull(),
+                FollowZonePickupUntilFull(),
+                FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
@@ -192,9 +190,8 @@ public class closeBlueSide extends closeAutonPaths{
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
-                CloseGoToZonePickupLine(),
-                //ClosePickupZoneRow(),
-                IntakeUntilFull(),
+                FollowZonePickupUntilFull(),
+                FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
@@ -211,9 +208,8 @@ public class closeBlueSide extends closeAutonPaths{
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
-                CloseGoToZonePickupLine(),
-                //ClosePickupZoneRow(),
-                IntakeUntilFull(),
+                FollowZonePickupUntilFull(),
+                FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
