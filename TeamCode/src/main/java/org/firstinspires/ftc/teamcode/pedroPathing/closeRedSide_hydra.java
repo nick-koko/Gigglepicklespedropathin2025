@@ -249,19 +249,19 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
                 CloseShootPreload(),
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndGateLeverFirstRow(),
-                new Delay(.5),
+                new Delay(firstGatePushDelay),
                 ClosePickupShootAfterGateLever1stRow(),
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndGateLever2ndRow(),
-                new Delay(1.5),
+                new Delay(secondGatePushDelay),
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
-                //CloseGoToExtraLine(),
+                //CloseGoToExtraLine(),  //Use these "extra" commands if we want to try to pick up near the 3rd spike line
                 //ClosePickupAndStopWithExtra(),
-                CloseGoToZonePickupLine(),
+                CloseGoToZonePickupLine(),    //Use these "zone" commands to pickup along the wall into the human player zone
                 FollowZonePickupEndUntilFull(),
-                CloseShootZoneRow()
+                CloseShootZoneRow()  //Changed to not include shooting, and just stop since we run out of time
                 //CloseMoveOffLineAfterPickup()
         );
     }

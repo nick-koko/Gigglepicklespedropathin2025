@@ -44,6 +44,8 @@ public class closeAutonPaths_hydra extends NextFTCOpMode{
     public static double autonShooterHoodServoPos = 0.0;
     public static double pickupBrakingStrength = 1.0;
     public static double pickupCornerBrakingStrength = 0.5;
+    public static double firstGatePushDelay = 0.5;
+    public static double secondGatePushDelay = 1.5;
 
     public final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(180)); // Start Pose of our robot
     private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(128)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
@@ -59,7 +61,7 @@ public class closeAutonPaths_hydra extends NextFTCOpMode{
     private final Pose pickup1GateLeverPushCP1Blue = new Pose(30.5, 82, Math.toRadians(180));
     private final Pose pickup1GateLeverPushCP2Blue = new Pose( 27, 76, Math.toRadians(180));
 
-    private final Pose pickup1GateLeverPushHoldPoseBlue = new Pose(14, 70.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickup1GateLeverPushHoldPoseBlue = new Pose(15, 70.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
     private final Pose pickup2PoseBlue = new Pose(40, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP1Blue = new Pose(47, 91.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -74,7 +76,7 @@ public class closeAutonPaths_hydra extends NextFTCOpMode{
     private final Pose pickup2GateLeverPushCP1Blue = new Pose(22.5, 57, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2GateLeverPushCP2Blue = new Pose(28.5, 69.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup2GateLeverPushHoldPoseBlue = new Pose(14, 76.0, Math.toRadians(180));
+    private final Pose pickup2GateLeverPushHoldPoseBlue = new Pose(15, 76.0, Math.toRadians(180));
 
     private final Pose pickup3PoseBlue = new Pose(40, 37.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP1Blue = new Pose(37,90  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
