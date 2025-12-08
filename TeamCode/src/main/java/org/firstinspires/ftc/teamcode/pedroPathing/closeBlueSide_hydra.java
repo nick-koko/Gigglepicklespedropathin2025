@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
@@ -32,9 +33,9 @@ import dev.nextftc.extensions.pedro.PedroComponent;
 
  */
 @Configurable
-@Autonomous(name = "closeBlueSide", group = "Comp")
-public class closeBlueSide extends closeAutonPaths{
-    public closeBlueSide() {
+@Autonomous(name = "closeBlueSide_hydra", group = "Comp")
+public class closeBlueSide_hydra extends closeAutonPaths_hydra{
+    public closeBlueSide_hydra() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
@@ -256,10 +257,12 @@ public class closeBlueSide extends closeAutonPaths{
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
+                //CloseGoToExtraLine(),
+                //ClosePickupAndStopWithExtra(),
                 CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),
-                CloseShootZoneRow(),
-                CloseMoveOffLineToLever()
+                CloseShootZoneRow()
+                //CloseMoveOffLineAfterPickup()
         );
     }
 

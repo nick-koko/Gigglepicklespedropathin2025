@@ -23,12 +23,11 @@ import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 
-
 @Disabled
 @Configurable
-@Autonomous(name = "closeBlueSide_OLD", group = "Comp")
-public class closeBlueSideOldWhole extends NextFTCOpMode{
-    public closeBlueSideOldWhole() {
+@Autonomous(name = "closeRedSide_OLD", group = "Comp")
+public class closeRedSideOldWhole extends NextFTCOpMode{
+    public closeRedSideOldWhole() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
@@ -87,197 +86,196 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
     private final Pose getPickup3CPPathRed = getPickup3CPPathBlue.mirror();
 
 
-
     private final Pose offLineLeverRed = offLineLeverBlue.mirror();
     private final Pose offLineCloseRed = offLineCloseBlue.mirror();
 
     private PathChain firstshootpathBlue, firstPickupBlue,firstPickupEndBlue, secondPickupBlue, secondPickupEndBlue, thirdPickupBlue, thirdPickupEndBlue, moveOffLineLeverBlue, moveOffLineCloseBlue;
     private PathChain firstshootpathRed, firstPickupRed, firstPickupEndRed, secondPickupRed, secondPickupEndRed, thirdPickupRed, thirdPickupEndRed, moveOffLineLeverRed, moveOffLineCloseRed;
 
-        public void buildPaths() {
+    public void buildPaths() {
 
-            // if we want to change braking for a pathchain, then use .setNoDeceleration() or .setBrakingStrength(double set) after a path is added
-            firstshootpathBlue=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(startPoseBlue,scorePoseCloseBlue)
+        // if we want to change braking for a pathchain, then use .setNoDeceleration() or .setBrakingStrength(double set) after a path is added
+        firstshootpathBlue=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(startPoseBlue,scorePoseCloseBlue)
 
-                    )
-                    .setLinearHeadingInterpolation(startPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
-                    .build();
+                )
+                .setLinearHeadingInterpolation(startPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
+                .build();
 
-            firstPickupBlue= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseCloseBlue,
-                                    pickup1CP1Blue,
-                                    pickup1CP2Blue,
-                                    pickup1PoseBlue
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), pickup1PoseBlue.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
+        firstPickupBlue= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseCloseBlue,
+                                pickup1CP1Blue,
+                                pickup1CP2Blue,
+                                pickup1PoseBlue
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), pickup1PoseBlue.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
 
-            firstPickupEndBlue = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup1PoseBlue, pickup1EndPoseBlue))
-                    .setLinearHeadingInterpolation(pickup1PoseBlue.getHeading(), pickup1EndPoseBlue.getHeading())
+        firstPickupEndBlue = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup1PoseBlue, pickup1EndPoseBlue))
+                .setLinearHeadingInterpolation(pickup1PoseBlue.getHeading(), pickup1EndPoseBlue.getHeading())
 
-                    .addPath(new BezierLine(pickup1EndPoseBlue, scorePoseCloseBlue))
-                    .setLinearHeadingInterpolation(pickup1EndPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
+                .addPath(new BezierLine(pickup1EndPoseBlue, scorePoseCloseBlue))
+                .setLinearHeadingInterpolation(pickup1EndPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
 
-            secondPickupBlue= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseCloseBlue,
-                                    pickup2CP1Blue,
-                                    pickup2CP2Blue,
-                                    pickup2PoseBlue
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), pickup2PoseBlue.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
+        secondPickupBlue= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseCloseBlue,
+                                pickup2CP1Blue,
+                                pickup2CP2Blue,
+                                pickup2PoseBlue
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), pickup2PoseBlue.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
 
-            secondPickupEndBlue = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2PoseBlue, pickup2EndPoseBlue))
-                    .setLinearHeadingInterpolation(pickup2PoseBlue.getHeading(), pickup2EndPoseBlue.getHeading())
+        secondPickupEndBlue = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup2PoseBlue, pickup2EndPoseBlue))
+                .setLinearHeadingInterpolation(pickup2PoseBlue.getHeading(), pickup2EndPoseBlue.getHeading())
 
-                    .addPath(new BezierCurve(pickup2EndPoseBlue, getPickup2CPPathBlue, scorePoseCloseBlue))
-                    .setLinearHeadingInterpolation(pickup2EndPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
+                .addPath(new BezierCurve(pickup2EndPoseBlue, getPickup2CPPathBlue, scorePoseCloseBlue))
+                .setLinearHeadingInterpolation(pickup2EndPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
 
-            thirdPickupBlue= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseCloseBlue,
-                                    pickup3CP1Blue,
-                                    pickup3CP2Blue,
-                                    pickup3PoseBlue
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), pickup3PoseBlue.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
+        thirdPickupBlue= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseCloseBlue,
+                                pickup3CP1Blue,
+                                pickup3CP2Blue,
+                                pickup3PoseBlue
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), pickup3PoseBlue.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
 
-            thirdPickupEndBlue = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup3PoseBlue, pickup3EndPoseBlue))
-                    .setLinearHeadingInterpolation(pickup2PoseBlue.getHeading(), pickup3EndPoseBlue.getHeading())
+        thirdPickupEndBlue = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup3PoseBlue, pickup3EndPoseBlue))
+                .setLinearHeadingInterpolation(pickup2PoseBlue.getHeading(), pickup3EndPoseBlue.getHeading())
 
-                    .addPath(new BezierCurve(pickup3EndPoseBlue, getPickup3CPPathBlue, scorePoseCloseBlue))
-                    .setLinearHeadingInterpolation(pickup3EndPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
+                .addPath(new BezierCurve(pickup3EndPoseBlue, getPickup3CPPathBlue, scorePoseCloseBlue))
+                .setLinearHeadingInterpolation(pickup3EndPoseBlue.getHeading(), scorePoseCloseBlue.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
 
-            moveOffLineLeverBlue=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(scorePoseCloseBlue,offLineLeverBlue)
+        moveOffLineLeverBlue=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(scorePoseCloseBlue,offLineLeverBlue)
 
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), offLineLeverBlue.getHeading())
-                    .build();
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), offLineLeverBlue.getHeading())
+                .build();
 
-            moveOffLineCloseBlue=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(scorePoseCloseBlue,offLineCloseBlue)
+        moveOffLineCloseBlue=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(scorePoseCloseBlue,offLineCloseBlue)
 
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), offLineCloseBlue.getHeading())
-                    .build();
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseBlue.getHeading(), offLineCloseBlue.getHeading())
+                .build();
 
-            firstshootpathRed=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(startPoseRed,scorePoseCloseRed)
+        firstshootpathRed=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(startPoseRed,scorePoseCloseRed)
 
-                    )
-                    .setLinearHeadingInterpolation(startPoseRed.getHeading(), scorePoseCloseRed.getHeading())
-                    .build();
+                )
+                .setLinearHeadingInterpolation(startPoseRed.getHeading(), scorePoseCloseRed.getHeading())
+                .build();
 
-            firstPickupRed= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseCloseRed,
-                                    pickup1CP1Red,
-                                    pickup1CP2Red,
-                                    pickup1PoseRed
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), pickup1PoseRed.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
+        firstPickupRed= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseCloseRed,
+                                pickup1CP1Red,
+                                pickup1CP2Red,
+                                pickup1PoseRed
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), pickup1PoseRed.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
 
-            firstPickupEndRed = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup1PoseRed, pickup1EndPoseRed))
-                    .setLinearHeadingInterpolation(pickup1PoseRed.getHeading(), pickup1EndPoseRed.getHeading())
+        firstPickupEndRed = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup1PoseRed, pickup1EndPoseRed))
+                .setLinearHeadingInterpolation(pickup1PoseRed.getHeading(), pickup1EndPoseRed.getHeading())
 
-                    .addPath(new BezierLine(pickup1EndPoseRed, scorePoseCloseRed))
-                    .setLinearHeadingInterpolation(pickup1EndPoseRed.getHeading(), scorePoseCloseRed.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
+                .addPath(new BezierLine(pickup1EndPoseRed, scorePoseCloseRed))
+                .setLinearHeadingInterpolation(pickup1EndPoseRed.getHeading(), scorePoseCloseRed.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
 
-            secondPickupRed= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseCloseRed,
-                                    pickup2CP1Red,
-                                    pickup2CP2Red,
-                                    pickup2PoseRed
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), pickup2PoseRed.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
+        secondPickupRed= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseCloseRed,
+                                pickup2CP1Red,
+                                pickup2CP2Red,
+                                pickup2PoseRed
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), pickup2PoseRed.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
 
-            secondPickupEndRed = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2PoseRed, pickup2EndPoseRed))
-                    .setLinearHeadingInterpolation(pickup2PoseRed.getHeading(), pickup2EndPoseRed.getHeading())
+        secondPickupEndRed = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup2PoseRed, pickup2EndPoseRed))
+                .setLinearHeadingInterpolation(pickup2PoseRed.getHeading(), pickup2EndPoseRed.getHeading())
 
-                    .addPath(new BezierCurve(pickup2EndPoseRed, getPickup2CPPathRed, scorePoseCloseRed))
-                    .setLinearHeadingInterpolation(pickup2EndPoseRed.getHeading(), scorePoseCloseRed.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
+                .addPath(new BezierCurve(pickup2EndPoseRed, getPickup2CPPathRed, scorePoseCloseRed))
+                .setLinearHeadingInterpolation(pickup2EndPoseRed.getHeading(), scorePoseCloseRed.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
 
-            thirdPickupRed= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseCloseRed,
-                                    pickup3CP1Red,
-                                    pickup3CP2Red,
-                                    pickup3PoseRed
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), pickup3PoseRed.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
+        thirdPickupRed= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseCloseRed,
+                                pickup3CP1Red,
+                                pickup3CP2Red,
+                                pickup3PoseRed
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), pickup3PoseRed.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
 
-            thirdPickupEndRed = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup3PoseRed, pickup3EndPoseRed))
-                    .setLinearHeadingInterpolation(pickup2PoseRed.getHeading(), pickup3EndPoseRed.getHeading())
+        thirdPickupEndRed = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup3PoseRed, pickup3EndPoseRed))
+                .setLinearHeadingInterpolation(pickup2PoseRed.getHeading(), pickup3EndPoseRed.getHeading())
 
-                    .addPath(new BezierCurve(pickup3EndPoseRed, getPickup3CPPathRed, scorePoseCloseRed))
-                    .setLinearHeadingInterpolation(pickup3EndPoseRed.getHeading(), scorePoseCloseRed.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
+                .addPath(new BezierCurve(pickup3EndPoseRed, getPickup3CPPathRed, scorePoseCloseRed))
+                .setLinearHeadingInterpolation(pickup3EndPoseRed.getHeading(), scorePoseCloseRed.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
 
-            moveOffLineLeverRed=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(scorePoseCloseRed,offLineLeverRed)
+        moveOffLineLeverRed=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(scorePoseCloseRed,offLineLeverRed)
 
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), offLineLeverRed.getHeading())
-                    .build();
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), offLineLeverRed.getHeading())
+                .build();
 
-            moveOffLineCloseRed=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(scorePoseCloseRed,offLineCloseRed)
+        moveOffLineCloseRed=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(scorePoseCloseRed,offLineCloseRed)
 
-                    )
-                    .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), offLineCloseRed.getHeading())
-                    .build();
+                )
+                .setLinearHeadingInterpolation(scorePoseCloseRed.getHeading(), offLineCloseRed.getHeading())
+                .build();
 
-        }
+    }
     // if you want to reduce power for a path, use FollowPath(pathchain, holdend, maxpower)
     private Command CloseRed3BallAuto() {
         return new SequentialGroup(
@@ -476,8 +474,8 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
                 new FollowPath(moveOffLineLeverRed)
-            );
-        }
+        );
+    }
 
     private Command CloseBlue3BallAuto() {
         return new SequentialGroup(
@@ -600,9 +598,9 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
                         new FollowPath(firstshootpathBlue),
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                 ),
-                new Delay(0.75),  //Could replace this with shooting a ball
+                new Delay(1.5),  //Could replace this with shooting a ball
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(0.5),
+                new Delay(1.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new ParallelGroup(
@@ -623,9 +621,9 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.2),
+                new Delay(1.5),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(0.5),
+                new Delay(1.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new ParallelGroup(
@@ -646,9 +644,9 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.8),
+                new Delay(1.5),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(0.5),
+                new Delay(1.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new ParallelGroup(
@@ -669,9 +667,9 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.5),
+                new Delay(1.5),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(0.5),
+                new Delay(1.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
@@ -683,46 +681,46 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
 
 
 
-        /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
-        @Override
-        public void onUpdate() {
+    /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
+    @Override
+    public void onUpdate() {
 
-            // These loop the movements of the robot, these must be called continuously in order to work
+        // These loop the movements of the robot, these must be called continuously in order to work
 
-            // Feedback to Driver Hub for debugging
-            telemetry.addData("x", PedroComponent.follower().getPose().getX());
-            telemetry.addData("y", PedroComponent.follower().getPose().getY());
-            telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
-            telemetry.addData("shooter 1 power", ShooterSubsystem.INSTANCE.getShooter1Power());
-            telemetry.addData("shooter 2 power", ShooterSubsystem.INSTANCE.getShooter2Power());
-            telemetry.update();
-        }
+        // Feedback to Driver Hub for debugging
+        telemetry.addData("x", PedroComponent.follower().getPose().getX());
+        telemetry.addData("y", PedroComponent.follower().getPose().getY());
+        telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
+        telemetry.addData("shooter 1 power", ShooterSubsystem.INSTANCE.getShooter1Power());
+        telemetry.addData("shooter 2 power", ShooterSubsystem.INSTANCE.getShooter2Power());
+        telemetry.update();
+    }
 
-        /** This method is called once at the init of the OpMode. **/
-        @Override
-        public void onInit() {
-            ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
-            ShooterSubsystem.INSTANCE.stop();
+    /** This method is called once at the init of the OpMode. **/
+    @Override
+    public void onInit() {
+        ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
+        ShooterSubsystem.INSTANCE.stop();
 
-            //ShooterSubsystem.INSTANCE.initialize(hardwareMap);
-            //IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
+        //ShooterSubsystem.INSTANCE.initialize(hardwareMap);
+        //IntakeWithSensorsSubsystem.INSTANCE.initialize(hardwareMap);
 
-            GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
-            PedroComponent.follower().setStartingPose(startPoseBlue);
+        GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
+        PedroComponent.follower().setStartingPose(startPoseRed);
 
-            // Seed ball count for auton: assume robot starts loaded with 3
-            IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
+        // Seed ball count for auton: assume robot starts loaded with 3
+        IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
 
-            // Build Pedro paths and set starting pose during init per docs
-            //buildPaths();
-            //PedroComponent.follower().setStartingPose(startPoseBlue);
-            buildPaths();
+        // Build Pedro paths and set starting pose during init per docs
+        //buildPaths();
+        //PedroComponent.follower().setStartingPose(startPoseBlue);
+        buildPaths();
 
-        }
+    }
 
-        /** This method is called continuously after Init while waiting for "play". **/
-        @Override
-        public void onWaitForStart() {
+    /** This method is called continuously after Init while waiting for "play". **/
+    @Override
+    public void onWaitForStart() {
 
             /*if (gamepad1.x) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
@@ -732,86 +730,86 @@ public class closeBlueSideOldWhole extends NextFTCOpMode{
                 finalStartPose = startPoseRed.copy();
             }*/
 
-            if ((gamepad1.dpadUpWasPressed()) && (intAmount < 12)) {
-              intAmount = intAmount + 3;
-            } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
-                intAmount = intAmount - 3;
-            }
-
-            //if up on dpad
-            //Go back an option
-            //int option goes up by 1
-            //if down on dpad
-            //Go forward option
-            //int option goes down by 1
-
-            telemetry.addLine("Hello Pickle of the robot");
-            telemetry.addLine("This is an Mr. Todone Speaking,");
-            telemetry.addLine("----------------------------------------------");
-            if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
-                telemetry.addLine("Favorite fruit: Blueberries!!! (Blue)");
-            } else {
-                telemetry.addLine("Favorite fruit: Raspberries!!! (Red)");
-            }
-            telemetry.addLine();
-            telemetry.addData("Eating this number of balls: ", intAmount);
-
-            telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
-
-            telemetry.update();
-
-        }// dont know what to do here
-
-        /** We do not use this because everything should automatically disable **/
-        @Override
-        public void onStop() {
-            // Persist ball count (and optionally pose) for TeleOp
-            ShooterSubsystem.INSTANCE.stop();
-            GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-            GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-            GlobalRobotData.hasAutonRun = true;
+        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 12)) {
+            intAmount = intAmount + 3;
+        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
+            intAmount = intAmount - 3;
         }
 
-        /** This method is called once at the start of the OhhpMode.
-         * It runs all the setup actions, including building paths and starting the path system **/
-        @Override
-        public void onStartButtonPressed()
-        {
-            if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
-                if (intAmount == 3){
-                    CloseBlue3BallAuto().schedule();
-                }
-                else if (intAmount == 6){
-                    CloseBlue6BallAuto().schedule();
-                }
-                else if (intAmount == 9){
-                    CloseBlue9BallAuto().schedule();
-                }
-                else {
-                    CloseBlue12BallAuto().schedule();
-                }
+        //if up on dpad
+        //Go back an option
+        //int option goes up by 1
+        //if down on dpad
+        //Go forward option
+        //int option goes down by 1
 
-
-            } else {
-                if (intAmount == 3){
-                    CloseRed3BallAuto().schedule();
-                }
-                else if (intAmount == 6){
-                    CloseRed6BallAuto().schedule();
-                }
-                else if (intAmount == 9){
-                    CloseRed9BallAuto().schedule();
-                }
-                else {
-                    CloseRed12BallAuto().schedule();
-                }
-            }
-
-            // Persist ball count (and optionally pose) for TeleOp
-            GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-            GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-            GlobalRobotData.hasAutonRun = true;
+        telemetry.addLine("Hello Pickle of the robot");
+        telemetry.addLine("This is an Mr. Todone Speaking,");
+        telemetry.addLine("----------------------------------------------");
+        if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+            telemetry.addLine("Favorite fruit: Blueberries!!! (Blue)");
+        } else {
+            telemetry.addLine("Favorite fruit: Raspberries!!! (Red)");
         }
+        telemetry.addLine();
+        telemetry.addData("Eating this number of balls: ", intAmount);
 
+        telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
+
+        telemetry.update();
+
+    }// dont know what to do here
+
+    /** We do not use this because everything should automatically disable **/
+    @Override
+    public void onStop() {
+        // Persist ball count (and optionally pose) for TeleOp
+        ShooterSubsystem.INSTANCE.stop();
+        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.hasAutonRun = true;
     }
+
+    /** This method is called once at the start of the OhhpMode.
+     * It runs all the setup actions, including building paths and starting the path system **/
+    @Override
+    public void onStartButtonPressed()
+    {
+        if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+            if (intAmount == 3){
+                CloseBlue3BallAuto().schedule();
+            }
+            else if (intAmount == 6){
+                CloseBlue6BallAuto().schedule();
+            }
+            else if (intAmount == 9){
+                CloseBlue9BallAuto().schedule();
+            }
+            else {
+                CloseBlue12BallAuto().schedule();
+            }
+
+
+        } else {
+            if (intAmount == 3){
+                CloseRed3BallAuto().schedule();
+            }
+            else if (intAmount == 6){
+                CloseRed6BallAuto().schedule();
+            }
+            else if (intAmount == 9){
+                CloseRed9BallAuto().schedule();
+            }
+            else {
+                CloseRed12BallAuto().schedule();
+            }
+        }
+
+        // Persist ball count (and optionally pose) for TeleOp
+        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.hasAutonRun = true;
+    }
+
+}
 

@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
@@ -32,9 +33,9 @@ import dev.nextftc.extensions.pedro.PedroComponent;
 
  */
 @Configurable
-@Autonomous(name = "closeBlueSide", group = "Comp")
-public class closeBlueSide extends closeAutonPaths{
-    public closeBlueSide() {
+@Autonomous(name = "closeRedSide_hydra", group = "Comp")
+public class closeRedSide_hydra extends closeAutonPaths_hydra{
+    public closeRedSide_hydra() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
@@ -52,8 +53,8 @@ public class closeBlueSide extends closeAutonPaths{
         ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
         ShooterSubsystem.INSTANCE.stop();
 
-        GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
-        PedroComponent.follower().setStartingPose(startPoseBlue);
+        GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
+        PedroComponent.follower().setStartingPose(startPoseRed);
 
         // Seed ball count for auton: assume robot starts loaded with 3
         IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
@@ -256,10 +257,12 @@ public class closeBlueSide extends closeAutonPaths{
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
+                //CloseGoToExtraLine(),
+                //ClosePickupAndStopWithExtra(),
                 CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),
-                CloseShootZoneRow(),
-                CloseMoveOffLineToLever()
+                CloseShootZoneRow()
+                //CloseMoveOffLineAfterPickup()
         );
     }
 

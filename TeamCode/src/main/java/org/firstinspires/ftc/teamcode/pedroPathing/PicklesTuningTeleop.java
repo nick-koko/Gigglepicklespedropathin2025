@@ -15,6 +15,7 @@ import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
 import dev.nextftc.ftc.components.BulkReadComponent;
 
+@Disabled
 @Configurable
 @TeleOp(name = "Shooter Tuning Teleop", group = "Comp")
 public class PicklesTuningTeleop extends NextFTCOpMode {

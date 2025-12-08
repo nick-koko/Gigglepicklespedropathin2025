@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.bylazar.configurables.annotations.Configurable;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
@@ -29,6 +30,7 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
  * - X/Y/B: manually toggle motors m1/m2/m3 on/off
  * - A: Shoot (spin all motors for 2 seconds, reset ball count)
  */
+@Disabled
 @Configurable
 @TeleOp(name = "TeleOp Sensor Test", group = "Test")
 public class TeleOpSensorTest extends LinearOpMode {

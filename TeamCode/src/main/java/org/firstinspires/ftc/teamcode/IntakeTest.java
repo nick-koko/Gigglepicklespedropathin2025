@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.bylazar.configurables.annotations.Configurable;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -15,6 +16,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
  * - Uses RUN_USING_ENCODER velocity control with DcMotorEx
  * - Left bumper spins forward, Right bumper spins backward
  */
+@Disabled
 @Configurable
 @TeleOp(name = "Intake Test", group = "Test")
 public class IntakeTest extends LinearOpMode {

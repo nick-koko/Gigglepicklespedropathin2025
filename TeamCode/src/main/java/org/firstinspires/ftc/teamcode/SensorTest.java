@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
@@ -14,6 +15,7 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
  * - false when the beam is BROKEN (object present)
  * - true when the beam is NOT BROKEN (clear)
  */
+@Disabled
 @TeleOp(name = "Sensor Test", group = "Test")
 public class SensorTest extends LinearOpMode {
 
