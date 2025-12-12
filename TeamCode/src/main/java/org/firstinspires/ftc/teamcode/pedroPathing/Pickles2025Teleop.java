@@ -4,8 +4,11 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
 import com.bylazar.utils.LoopTimer;
+import com.pedropathing.ftc.InvertedFTCCoordinates;
+import com.pedropathing.ftc.PoseConverter;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.BezierPoint;
+import com.pedropathing.geometry.PedroCoordinates;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.HeadingInterpolator;
 import com.pedropathing.paths.Path;
@@ -15,6 +18,9 @@ import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.LEDControlSubsystem;
@@ -51,6 +57,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
     public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
     public static Pose blueShootingTarget = redShootingTarget.mirror();
+    Pose MT1PedroPose = new Pose();
 
     // Adjust these from Panels at runtime
     public static boolean hold = false;
@@ -232,12 +239,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             driving *= -1;
             strafe *= -1;
         }
+        Pose currentBotPose = PedroComponent.follower().getPose();
+        double botHeadingRad = currentBotPose.getHeading();
+        double botxvalue = currentBotPose.getX(); //gettingxvalue :D
+        double botyvalue = currentBotPose.getY(); //gettingyvalue :D
 
-        double botHeadingRad = PedroComponent.follower().getPose().getHeading();
-        double botxvalue = PedroComponent.follower().getPose().getX(); //gettingxvalue :D
-        double botyvalue = PedroComponent.follower().getPose().getY(); //gettingyvalue :D
-
-        limelight.updateRobotOrientation(Math.toDegrees(botHeadingRad)-90);
+        Pose ftcCoordPose   = currentBotPose.getAsCoordinateSystem(InvertedFTCCoordinates.INSTANCE);
+        limelight.updateRobotOrientation(Math.toDegrees(ftcCoordPose.getHeading()));
 
         double shootTargetX = shootingTargetLocation.getX();
         double shootTargetY = botyvalue > 106 ? shootingTargetLocation.getY() - 1 : shootingTargetLocation.getY() + 3;
@@ -268,6 +276,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (gamepad1.right_bumper) {
             adjustLimelight = true;
             if (result != null && result.isValid()) {
+                Pose3D MT1Pose = result.getBotpose();
+                double MT1xInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().x);
+                double MT1yInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().y);
+                Pose2D MT1Pose2d = new Pose2D(DistanceUnit.INCH, MT1xInches, MT1yInches, AngleUnit.DEGREES, MT1Pose.getOrientation().getYaw());
+                Pose MT1FTCStandardPose = PoseConverter.pose2DToPose(MT1Pose2d, InvertedFTCCoordinates.INSTANCE);
+                MT1PedroPose = new Pose((MT1FTCStandardPose.getY() + 72), (-(MT1FTCStandardPose.getX()) +72), MT1FTCStandardPose.getHeading() - Math.toRadians(90));
+
+                PedroComponent.follower().setPose(MT1PedroPose);
+
                 if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
                     List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
                             .filter(r -> r.getFiducialId() == 24)
@@ -554,13 +571,40 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             telemetry.addData("ty", result.getTy());
             telemetry.addData("LL distance", distanceLL);
             Pose3D MT2Pose = result.getBotpose_MT2();
-            telemetry.addData("MegaTag Angle", MT2Pose.getOrientation().getYaw());
-            telemetry.addData("MegaTag X", MT2Pose.getPosition().x);
-            telemetry.addData("MegaTag y", MT2Pose.getPosition().y);
+            //telemetry.addData("MegaTag 2 Raw Angle", MT2Pose.getOrientation().getYaw());
+            //telemetry.addData("MegaTag 2 Raw X", MT2Pose.getPosition().x);
+            //telemetry.addData("MegaTag 2 Raw y", MT2Pose.getPosition().y);
+//            telemetry.addData("MegaTag 1 Raw Angle", MT2Pose.getOrientation().getYaw());
+//            telemetry.addData("MegaTag 1 Raw X", MT1Pose.getPosition().x);
+//            telemetry.addData("MegaTag 1 Raw y", MT1Pose.getPosition().y);
+
+            //double MT2xInches = DistanceUnit.METER.toInches(MT2Pose.getPosition().x);
+            //double MT2yInches = DistanceUnit.METER.toInches(MT2Pose.getPosition().y);
+
+            //Pose MT2FTCStandardPose = PoseConverter.pose2DToPose(MT2Pose2d, InvertedFTCCoordinates.INSTANCE);
+
+            //Pose MT2PedroPose = MT2FTCStandardPose.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
+            //MT1FTCStandardPose.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
+
+            //telemetry.addData("MegaTag 2 Angle", Math.toDegrees(MT2PedroPose.getPose().getHeading()));
+            //telemetry.addData("MegaTag 2 X", MT2PedroPose.getPose().getX());
+            //telemetry.addData("MegaTag 2 y", MT2PedroPose.getPose().getY());
+            //telemetry.addData("STD MegaTag 1 Angle", Math.toDegrees(MT1FTCStandardPose.getPose().getHeading()));
+            //telemetry.addData("STD MegaTag 1 X", MT1FTCStandardPose.getPose().getX());
+            //telemetry.addData("STD MegaTag 1 y", MT1FTCStandardPose.getPose().getY());
+
+            //telemetry.addData("MegaTag 2 Angle", Math.toDegrees(MT2PedroPose.getPose().getHeading()));
+            //telemetry.addData("MegaTag 2 X", MT2PedroPose.getPose().getX());
+            //telemetry.addData("MegaTag 2 y", MT2PedroPose.getPose().getY());
+            telemetry.addData("Pedro MegaTag 1 Angle", Math.toDegrees(MT1PedroPose.getPose().getHeading()));
+            telemetry.addData("Pedro MegaTag 1 X", MT1PedroPose.getPose().getX());
+            telemetry.addData("Pedro MegaTag 1 y", MT1PedroPose.getPose().getY());
+
         }
         telemetry.addData("ODO distance", ODODistance);
         telemetry.addData("ODO X-Location", botxvalue);
         telemetry.addData("ODO Y-Location", botyvalue);
+        telemetry.addData("ODO Angle", Math.toDegrees(botHeadingRad));
 
 
 

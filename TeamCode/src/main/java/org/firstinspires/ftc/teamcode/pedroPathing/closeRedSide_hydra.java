@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
@@ -32,6 +33,7 @@ import dev.nextftc.extensions.pedro.PedroComponent;
     - (total possible perfect savings of 8.25s for a total of 10.25 ) Need minimum 7s
 
  */
+@Disabled
 @Configurable
 @Autonomous(name = "closeRedSide_hydra", group = "Comp")
 public class closeRedSide_hydra extends closeAutonPaths_hydra{
@@ -247,21 +249,22 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
     public Command Close15BallLeverBoth() {
         return new SequentialGroup(
                 CloseShootPreload(),
-                CloseGoToFirstPickupLine(),
-                ClosePickupAndGateLeverFirstRow(),
-                new Delay(firstGatePushDelay),
-                ClosePickupShootAfterGateLever1stRow(),
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndGateLever2ndRow(),
-                new Delay(secondGatePushDelay),
+                new Delay(firstGatePushDelay),
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndGateLever3rdRow(),
+                new Delay(secondGatePushDelay),
+                ClosePickupShootAfterGateLever3rdRow(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
                 //CloseGoToExtraLine(),  //Use these "extra" commands if we want to try to pick up near the 3rd spike line
                 //ClosePickupAndStopWithExtra(),
-                CloseGoToZonePickupLine(),    //Use these "zone" commands to pickup along the wall into the human player zone
-                FollowZonePickupEndUntilFull(),
-                CloseShootZoneRow()  //Changed to not include shooting, and just stop since we run out of time
+//                CloseGoToZonePickupLine(),    //Use these "zone" commands to pickup along the wall into the human player zone
+//                FollowZonePickupEndUntilFull(),
+                CloseMoveOffLineToLever()
+                //CloseShootZoneRow()  //Changed to not include shooting, and just stop since we run out of time
                 //CloseMoveOffLineAfterPickup()
         );
     }

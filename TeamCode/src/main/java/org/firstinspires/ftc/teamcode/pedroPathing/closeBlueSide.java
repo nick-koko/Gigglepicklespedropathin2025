@@ -80,7 +80,7 @@ public class closeBlueSide extends closeAutonPaths{
             intAmount = intAmount - 3;
         }
         // If dpad left/right is pressed add or subtract a row until push lever
-        if ((gamepad1.dpadRightWasPressed()) && (pushLever < 3)) {
+        if ((gamepad1.dpadRightWasPressed()) && (pushLever < 4)) {
             pushLever = pushLever + 1;
         } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 0)) {
             pushLever = pushLever - 1;
@@ -263,6 +263,30 @@ public class closeBlueSide extends closeAutonPaths{
         );
     }
 
+    public Command Close15BallLeverTriple() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndGateLeverFirstRow(),
+                new Delay(firstGatePushDelay),
+                ClosePickupShootAfterGateLever1stRow(),
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                new Delay(secondGatePushDelay),
+                ClosePickupShootAfterGateLever2ndRow(),
+
+                CloseGoToGateLeverBefore3rdPickup(),
+                new Delay(thirdGatePushDelay),
+                CloseGoTo3rdPickupAfterGateLever(),
+                ClosePickupAndShoot3rdRow(),
+                CloseMoveOffLineToLeverExtraTime()
+
+                /*CloseGoToZonePickupLine(),
+                FollowZonePickupEndUntilFull(),
+                CloseShootZoneRow(),
+                CloseMoveOffLineToLever() */
+        );
+    }
 
     /** This method is called once at the start of the OhhpMode.
      * It runs all the setup actions, including building paths and starting the path system **/
@@ -297,6 +321,8 @@ public class closeBlueSide extends closeAutonPaths{
                     Close15BallLeverAfter6().schedule();
                 }  else if (pushLever == 3){
                     Close15BallLeverBoth().schedule();
+                }  else if (pushLever == 4){
+                    Close15BallLeverTriple().schedule();
                 }
         }
 
