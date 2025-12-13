@@ -48,7 +48,8 @@ public class closeAutonPaths extends NextFTCOpMode{
     public static double pickupCornerBrakingStrength = 0.5;
     public static double firstGatePushDelay = 0.0;
     public static double secondGatePushDelay = 0.4;
-    public static double thirdGatePushDelay = 3.00;
+    public static double thirdGatePushDelay = 2.00;
+    public static double threeGatePushDelayBeforeLastShot = 1.5;
 
     public final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(180)); // Start Pose of our robot
     private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(128)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
@@ -770,6 +771,27 @@ public class closeAutonPaths extends NextFTCOpMode{
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.7),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                new Delay(0.5),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0))
+        );
+    }
+
+    public Command ClosePickupAndShootAfter3rdRowWithDelay() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new FollowPath(thirdPickupEnd),
+                        new SequentialGroup(
+                                new Delay(0.5),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
+                                new Delay(1.5),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(threeGatePushDelayBeforeLastShot),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),

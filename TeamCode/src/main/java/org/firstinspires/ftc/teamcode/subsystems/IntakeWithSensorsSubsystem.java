@@ -53,6 +53,10 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     // Delay between shots for multi-single-shot mode (ms)
     public static long MULTI_SINGLE_SHOT_DELAY_MS = 150;
+    
+    // Timeout for single-ball feed - if sensor doesn't clear within this time,
+    // assume ball has passed (handles case where 2 balls pass together undetected)
+    public static long SINGLE_BALL_FEED_TIMEOUT_MS = 1000;
 
     // Continuous servo speeds
     public static double S2_INTAKE_SPEED = 0.7;
@@ -115,10 +119,11 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // =============================================
     /**
      * True while we are advancing exactly one ball at full power using sensor2
-     * (broken -> clear) as the stop condition.
+     * (broken -> clear) as the stop condition, or timeout.
      */
     private boolean singleBallFeedActive = false;
     private boolean prevSensor2BrokenForSingleFeed = false;
+    private long singleBallFeedStartTimeMs = 0L;
 
     // Multi-single-shot sequence state (looped single-ball feeds with delay)
     private boolean multiSingleShotActive = false;
@@ -239,15 +244,22 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     /**
      * Updates state for a single-ball full-power feed.
      * Stops the intake once sensor2 transitions from broken -> clear,
-     * and decrements ballCount by 1 (clamped to >= 0).
+     * OR if the timeout expires (handles case where 2 balls pass together).
+     * Decrements ballCount by 1 (clamped to >= 0).
      */
     private void updateSingleBallFeed() {
+        long now = System.currentTimeMillis();
         boolean currentBroken = isSensor2Broken();
+        
+        // Check for timeout - if ball hasn't cleared sensor within timeout,
+        // assume it passed (handles 2 balls going through together undetected)
+        boolean timedOut = (now - singleBallFeedStartTimeMs) >= SINGLE_BALL_FEED_TIMEOUT_MS;
 
         // We want: sensor2.getState() false (broken) -> true (clear)
         // isSensor2Broken() is !sensor2.getState(), so that becomes true -> false.
-        if (prevSensor2BrokenForSingleFeed && !currentBroken) {
-            // Ball has just cleared sensor2 – stop everything
+        // OR timeout has elapsed
+        if ((prevSensor2BrokenForSingleFeed && !currentBroken) || timedOut) {
+            // Ball has cleared sensor2 (or timed out) – stop everything
             stop();
 
             // Safely decrement ball count
@@ -266,8 +278,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
                     multiSingleShotActive = false;
                 } else {
                     // Schedule the next shot after a delay
-                    nextMultiSingleShotStartTimeMs =
-                            System.currentTimeMillis() + MULTI_SINGLE_SHOT_DELAY_MS;
+                    nextMultiSingleShotStartTimeMs = now + MULTI_SINGLE_SHOT_DELAY_MS;
                 }
             }
         }
@@ -580,6 +591,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
         // Start full-power feed
         singleBallFeedActive = true;
+        singleBallFeedStartTimeMs = System.currentTimeMillis();  // Record start time for timeout
         prevSensor2BrokenForSingleFeed = isSensor2Broken();
 
         m1.setPower(M1_SINGLE_SHOT_POWER);

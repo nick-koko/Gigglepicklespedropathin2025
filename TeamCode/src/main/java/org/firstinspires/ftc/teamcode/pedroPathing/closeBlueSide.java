@@ -255,7 +255,7 @@ public class closeBlueSide extends closeAutonPaths{
                 new Delay(1.5),
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShootAfter3rdRowWithDelay(),
                 CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),

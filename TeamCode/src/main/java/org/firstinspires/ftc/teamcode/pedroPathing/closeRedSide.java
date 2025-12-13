@@ -256,7 +256,7 @@ public class closeRedSide extends closeAutonPaths{
                 new Delay(1.5),
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShootAfter3rdRowWithDelay(),
                 CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
@@ -276,11 +276,11 @@ public class closeRedSide extends closeAutonPaths{
                 new Delay(secondGatePushDelay),
                 ClosePickupShootAfterGateLever2ndRow(),
 
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndGateLever3rdRow(),
+                CloseGoToGateLeverBefore3rdPickup(),
                 new Delay(thirdGatePushDelay),
-                ClosePickupShootAfterGateLever3rdRow(),
-                CloseMoveOffLineToLever()
+                CloseGoTo3rdPickupAfterGateLever(),
+                ClosePickupAndShoot3rdRow(),
+                CloseMoveOffLineToLeverExtraTime()
 
                 /*CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),

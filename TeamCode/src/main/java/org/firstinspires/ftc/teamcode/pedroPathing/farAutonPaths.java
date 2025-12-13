@@ -23,14 +23,14 @@ import dev.nextftc.ftc.NextFTCOpMode;
 @Configurable
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class farAutonPaths extends NextFTCOpMode{
-    public static double autonShooterRPM = 4050;
-    public static double autonShooterHoodServoPos = 0.5;
+    public static double autonShooterRPM = 4270;
+    public static double autonShooterHoodServoPos = 0.48;
     public static double pickupBrakingStrength = 1.0;
-	public static double pickupCornerBrakingStrength = 0.5;
+	public static double pickupCornerBrakingStrength = 0.1;
 
 
     public final Pose startPoseBlue = new Pose(64, 8.5, Math.toRadians(90)); // Start Pose of our robot
-    private final Pose scorePoseCloseBlue = new Pose(60.5, 23, Math.toRadians(114)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    private final Pose scorePoseCloseBlue = new Pose(56.5, 20.5, Math.toRadians(109.5)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
     private final Pose pickup1PoseBlue = new Pose(40, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1CP1Blue = new Pose(52, 34, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -366,7 +366,7 @@ public class farAutonPaths extends NextFTCOpMode{
 
                     .addPath(new BezierLine(pickupBZoneEndPose, scorePoseClose))
                     .setLinearHeadingInterpolation(pickupBZoneEndPose.getHeading(), scorePoseClose.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
+                    .setBrakingStrength(pickupCornerBrakingStrength)
                     .build();
 
             TZonePickup= PedroComponent.follower().pathBuilder()

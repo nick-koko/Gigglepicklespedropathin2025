@@ -6,12 +6,8 @@ import com.bylazar.telemetry.TelemetryManager;
 import com.bylazar.utils.LoopTimer;
 import com.pedropathing.ftc.InvertedFTCCoordinates;
 import com.pedropathing.ftc.PoseConverter;
-import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.BezierPoint;
-import com.pedropathing.geometry.PedroCoordinates;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.HeadingInterpolator;
-import com.pedropathing.paths.Path;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
@@ -276,14 +272,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (gamepad1.right_bumper) {
             adjustLimelight = true;
             if (result != null && result.isValid()) {
-                Pose3D MT1Pose = result.getBotpose();
-                double MT1xInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().x);
-                double MT1yInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().y);
-                Pose2D MT1Pose2d = new Pose2D(DistanceUnit.INCH, MT1xInches, MT1yInches, AngleUnit.DEGREES, MT1Pose.getOrientation().getYaw());
-                Pose MT1FTCStandardPose = PoseConverter.pose2DToPose(MT1Pose2d, InvertedFTCCoordinates.INSTANCE);
-                MT1PedroPose = new Pose((MT1FTCStandardPose.getY() + 72), (-(MT1FTCStandardPose.getX()) +72), MT1FTCStandardPose.getHeading() - Math.toRadians(90));
+                if (ODODistance < 100) {
+                    Pose3D MT1Pose = result.getBotpose();
+                    double MT1xInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().x);
+                    double MT1yInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().y);
+                    Pose2D MT1Pose2d = new Pose2D(DistanceUnit.INCH, MT1xInches, MT1yInches, AngleUnit.DEGREES, MT1Pose.getOrientation().getYaw());
+                    Pose MT1FTCStandardPose = PoseConverter.pose2DToPose(MT1Pose2d, InvertedFTCCoordinates.INSTANCE);
+                    MT1PedroPose = new Pose((MT1FTCStandardPose.getY() + 72), (-(MT1FTCStandardPose.getX()) +72), MT1FTCStandardPose.getHeading() - Math.toRadians(90));
 
-                PedroComponent.follower().setPose(MT1PedroPose);
+                    PedroComponent.follower().setPose(MT1PedroPose);
+                }
+                targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
 
                 if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
                     List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
@@ -293,12 +292,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     if (!tag24Results.isEmpty()) {
                         hasResults = true;
                         double targetX = tag24Results.get(0).getTargetXDegrees();
-                        if (targetX != 1.5 && tag24Results.get(0).getTargetYDegrees() > 10) {
-                            rotate = (-targetX + 2.25) * (shooterTargetkP + 0.005);
+                        if (targetX != 0.5 && tag24Results.get(0).getTargetYDegrees() > 10) {
+                            rotate = (-targetX) * (shooterTargetkP + 0.01);
                             goToTargetAngle = false;
                         }
-                        else if(targetX != 1.5){
-                            rotate = (-targetX) * shooterTargetkP + 0.1;
+                        else if(targetX != 0.5){
+                            rotate = (-targetX) * (shooterTargetkP + 0.01);
                             goToTargetAngle = false;
                         }
                     } else {
@@ -312,12 +311,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     if (!tag20Results.isEmpty()) {
                         hasResults = true;
                         double targetX = tag20Results.get(0).getTargetXDegrees();
-                        if (targetX != -1.5 && tag20Results.get(0).getTargetYDegrees() > 10) {
-                            rotate = (-targetX) * (shooterTargetkP + 0.005);
+                        if (targetX != -0.5 && tag20Results.get(0).getTargetYDegrees() > 10) {
+                            rotate = (-targetX) * (shooterTargetkP + 0.01);
                             goToTargetAngle = false;
                         }
-                        else if(targetX !=  -1.5) {
-                            rotate = (-targetX) * shooterTargetkP;
+                        else if(targetX !=  -0.5) {
+                            rotate = (-targetX) * (shooterTargetkP + 0.01);
                             goToTargetAngle = false;
                         }
                     } else {
