@@ -45,8 +45,8 @@ public class Constants {
             .useBrakeModeInTeleOp(true);
 
     public static PinpointConstants localizerConstants = new PinpointConstants()
-            .forwardPodY(-2.75)
-            .strafePodX(-6.75)
+            .forwardPodY(-2.75)  //Based on CAD, looks like -3.15 inches
+            .strafePodX(-6.75)  //Based on CAD, looks like -6.85 inches
             .distanceUnit(DistanceUnit.INCH)
             .hardwareMapName("pinpoint")
             .encoderResolution(

@@ -29,6 +29,7 @@ import json
 import pathlib
 import re
 import sys
+import uuid
 from typing import Dict, List, Tuple, Optional
 
 # Regexes for parsing
@@ -83,6 +84,20 @@ def strip_comments(text: str) -> str:
     # Remove // to end of line
     text = re.sub(r"//.*?$", "", text, flags=re.M)
     return text
+
+
+def parse_constants(constants_path: pathlib.Path):
+    if not constants_path.exists():
+        return {}
+    text = strip_comments(constants_path.read_text())
+    vals = {}
+    m = re.search(r"\.xVelocity\(\s*([-\d.]+)\s*\)", text)
+    if m:
+        vals["xVelocity"] = float(m.group(1))
+    m = re.search(r"\.yVelocity\(\s*([-\d.]+)\s*\)", text)
+    if m:
+        vals["yVelocity"] = float(m.group(1))
+    return vals
 
 
 def extract_method_body(text: str, method_name: str) -> Optional[str]:
@@ -262,7 +277,7 @@ def expand_follow_paths(cmd_name: str, commands: Dict[str, str], cache: Dict[str
     return result
 
 
-def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias, color_cycle):
+def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias, color_cycle, settings_override=None):
     lines = []
     for chain_idx, chain_name in enumerate(chain_names):
         if chain_name not in chains:
@@ -270,22 +285,30 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
             continue
         segments = chains[chain_name]
         for seg_type, args in segments:
+            line_id = f"line-{uuid.uuid4().hex[:12]}"
             if seg_type == "line":
                 a, b = args
                 _, (ax, ay, adeg) = resolve_pose(a, poses, alias)
                 final_name, (bx, by, bdeg) = resolve_pose(b, poses, alias)
                 lines.append(
                     {
+                        "id": line_id,
                         "name": f"{chain_name}_{b}",
                         "endPoint": {
                             "x": bx,
                             "y": by,
                             "heading": "linear",
+                            "reverse": False,
                             "startDeg": adeg,
                             "endDeg": bdeg,
                         },
                         "controlPoints": [],
                         "color": color_cycle[(len(lines)) % len(color_cycle)],
+                        "locked": False,
+                        "waitBeforeMs": 0,
+                        "waitAfterMs": 0,
+                        "waitBeforeName": "",
+                        "waitAfterName": "",
                     }
                 )
             elif seg_type == "curve4":
@@ -296,11 +319,13 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                 _, (bx, by, bdeg) = resolve_pose(b, poses, alias)
                 lines.append(
                     {
+                        "id": line_id,
                         "name": f"{chain_name}_{b}",
                         "endPoint": {
                             "x": bx,
                             "y": by,
                             "heading": "linear",
+                            "reverse": False,
                             "startDeg": adeg,
                             "endDeg": bdeg,
                         },
@@ -309,6 +334,11 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                             {"x": c2x, "y": c2y},
                         ],
                         "color": color_cycle[(len(lines)) % len(color_cycle)],
+                        "locked": False,
+                        "waitBeforeMs": 0,
+                        "waitAfterMs": 0,
+                        "waitBeforeName": "",
+                        "waitAfterName": "",
                     }
                 )
             else:  # curve3 quadratic; duplicate control point for viewer
@@ -318,11 +348,13 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                 _, (bx, by, bdeg) = resolve_pose(b, poses, alias)
                 lines.append(
                     {
+                        "id": line_id,
                         "name": f"{chain_name}_{b}",
                         "endPoint": {
                             "x": bx,
                             "y": by,
                             "heading": "linear",
+                            "reverse": False,
                             "startDeg": adeg,
                             "endDeg": bdeg,
                         },
@@ -331,6 +363,11 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                             {"x": c1x, "y": c1y},
                         ],
                         "color": color_cycle[(len(lines)) % len(color_cycle)],
+                        "locked": False,
+                        "waitBeforeMs": 0,
+                        "waitAfterMs": 0,
+                        "waitBeforeName": "",
+                        "waitAfterName": "",
                     }
                 )
     # start point derived from first line start pose
@@ -344,10 +381,36 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
             "heading": "linear",
             "startDeg": sdeg,
             "endDeg": sdeg,
+            "locked": False,
         },
         "lines": lines,
         "shapes": [],
+        "sequence": [{"kind": "path", "lineId": line["id"]} for line in lines],
+        "settings": {
+            "xVelocity": 75,
+            "yVelocity": 65,
+            "aVelocity": 3.141592653589793,
+            "kFriction": 0.1,
+            "rWidth": 16,
+            "rHeight": 16,
+            "safetyMargin": 1,
+            "maxVelocity": 40,
+            "maxAcceleration": 30,
+            "maxDeceleration": 30,
+            "fieldMap": "decode.webp",
+            "robotImage": "/robot.png",
+            "theme": "auto",
+            "showGhostPaths": False,
+            "showOnionLayers": False,
+            "onionLayerSpacing": 3,
+            "onionColor": "#dc2626",
+            "onionNextPointOnly": False,
+        },
+        "version": "1.2.1",
+        "timestamp": datetime.datetime.utcnow().isoformat(timespec="milliseconds") + "Z",
     }
+    if settings_override:
+        pp["settings"].update(settings_override)
     return pp
 
 
@@ -356,6 +419,8 @@ def main():
     parser.add_argument("--java", required=True, help="Path to close*.java")
     parser.add_argument("--color", choices=["blue", "red"], default="blue", help="Which alias mapping to use")
     parser.add_argument("--outdir", default="exports", help="Directory for output .pp files")
+    parser.add_argument("--constants", default=str(pathlib.Path("..") / "TeamCode" / "src" / "main" / "java" / "org" / "firstinspires" / "ftc" / "teamcode" / "pedroPathing" / "Constants.java"),
+                        help="Path to Constants.java for velocity settings")
     args = parser.parse_args()
 
     main_path = pathlib.Path(args.java)
@@ -373,6 +438,7 @@ def main():
     combined_text = "\n".join(combined_texts)
     combined_text_clean = strip_comments(combined_text)
     poses = parse_poses(combined_text)
+    constants_vals = parse_constants(pathlib.Path(args.constants))
 
     build_paths_body = extract_method_body(combined_text_clean, "buildPaths")
     if not build_paths_body:
@@ -424,7 +490,7 @@ def main():
         first_segment = chains[first_chain][0]
         start_pose_name = first_segment[1][0]  # first argument of segment
 
-        pp = build_pp(start_pose_name, chain_usage, chains, poses, alias, colors)
+        pp = build_pp(start_pose_name, chain_usage, chains, poses, alias, colors, settings_override=constants_vals)
         fname = f"{java_base}__{cmd}__{timestamp}.pp"
         out_path = outdir / fname
         out_path.write_text(json.dumps(pp, indent=2))
