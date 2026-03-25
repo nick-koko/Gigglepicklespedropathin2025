@@ -17,7 +17,6 @@ public class TurretServoTest extends LinearOpMode {
 
 	private static final double SERVO_CENTER_POSITION = 0.5;
 	private static final double TURRET_TRAVEL_DEGREES = 355.0; // Change this to calibrate real turret travel.
-	private static final double TURRET_ZERO_OFFSET_DEGREES = -3.0; // Calibrate so physical zero aligns with 0 deg.
 	private static final double INITIAL_ANGLE_DEGREES = 0.0;
 	private static final double POSITIVE_LIMIT_ANGLE_DEGREES = 0.5 * TURRET_TRAVEL_DEGREES;
 	private static final double NEGATIVE_LIMIT_ANGLE_DEGREES = -0.5 * TURRET_TRAVEL_DEGREES;
@@ -25,13 +24,16 @@ public class TurretServoTest extends LinearOpMode {
 	private static final double QUARTER_NEGATIVE_ANGLE_DEGREES = -0.25 * TURRET_TRAVEL_DEGREES;
 	private static final double MIN_SERVO_POSITION = 0.0;
 	private static final double MAX_SERVO_POSITION = 1.0;
-    private static final double MIN_SERVO_ROTATION_DEGREES = -160.0;
-    private static final double MAX_SERVO_ROTATION_DEGREES = 160.0;
+    private static final double MIN_SERVO_ROTATION_DEGREES = -130.0;
+    private static final double MAX_SERVO_ROTATION_DEGREES = 130.0;
     private static final double MIN_RATE_DEG_PER_SEC = 0.01 * TURRET_TRAVEL_DEGREES;
 	private static final double MAX_RATE_DEG_PER_SEC = 2.0 * TURRET_TRAVEL_DEGREES;
 	private static final double RATE_STEP_DEG_PER_LOOP = 0.0005 * TURRET_TRAVEL_DEGREES;
 	private static final double OUTER_LOOP_KP = 0.12;
 	private static final double OUTER_LOOP_MAX_TRIM_DEGREES = 8.0;
+	private static final double POSITIVE_TARGET_BIAS_DEGREES = 0.0;
+	private static final double NEGATIVE_TARGET_BIAS_DEGREES = 0.0;
+	private static final double TARGET_BIAS_APPLY_THRESHOLD_DEGREES = 1.0;
 	private static final double READY_TOLERANCE_DEGREES = 2.0;
 	private static final double READY_VELOCITY_TOLERANCE_DEG_PER_SEC = 15.0;
 	private static final int READY_LOOPS_REQUIRED = 3;
@@ -49,7 +51,7 @@ public class TurretServoTest extends LinearOpMode {
 			TURRET_ENCODER_COUNTS_PER_REV / 360.0; // ~54.6 counts/deg
 	private static final String ABSOLUTE_TURRET_ENCODER_NAME = "analog_turret_encoder";
 	private static final double ABSOLUTE_TURRET_ENCODER_MAX_VOLTAGE = 3.255;
-	private static final double ABSOLUTE_ENCODER_TURRET_OFFSET_DEGREES = -14.9;
+	private static final double ABSOLUTE_ENCODER_TURRET_OFFSET_DEGREES = 0.0;
 
 	@Override
 	public void runOpMode() throws InterruptedException {
@@ -68,18 +70,18 @@ public class TurretServoTest extends LinearOpMode {
 		rurret.setDirection(Servo.Direction.FORWARD);
         hurret.setDirection(Servo.Direction.FORWARD);
 
-		lurret.setPosition(angleDegreesToServoPosition(INITIAL_ANGLE_DEGREES));
-		rurret.setPosition(angleDegreesToServoPosition(INITIAL_ANGLE_DEGREES));
+		double learnedServoCommandOffsetDegrees = 0.0;
+		lurret.setPosition(angleDegreesToServoPosition(INITIAL_ANGLE_DEGREES, learnedServoCommandOffsetDegrees));
+		rurret.setPosition(angleDegreesToServoPosition(INITIAL_ANGLE_DEGREES, learnedServoCommandOffsetDegrees));
         hurret.setPosition(0.0);
 
 		double targetAngleDegrees = INITIAL_ANGLE_DEGREES;
 		double commandedAngleDegrees = INITIAL_ANGLE_DEGREES;
-		double rateLimitDegPerSec = 0.5 * TURRET_TRAVEL_DEGREES;
+		double rateLimitDegPerSec = 1.5 * TURRET_TRAVEL_DEGREES;
 		double lastTime = 0.0;
 		int previousEncoderTicks = turretEncoder.getCurrentPosition();
 		double previousAbsoluteEncoderRawDegrees = 0.0;
 		double unwrappedAbsoluteEncoderDegrees = 0.0;
-		boolean absoluteEncoderInitialized = false;
 		boolean servosEnabled = true;
 		boolean aWasPressed = false;
 		int readyLoops = 0;
@@ -91,14 +93,13 @@ public class TurretServoTest extends LinearOpMode {
 		telemetry.addLine("X=0, Y=0.5, B=1, LB=0.25, RB=0.75");
 		telemetry.addLine("Left stick: lurret=speed up rate, rurret=slow down rate");
 		telemetry.addData("Turret travel (deg)", "%.1f", TURRET_TRAVEL_DEGREES);
-		telemetry.addData("Turret zero offset (deg)", "%.1f", TURRET_ZERO_OFFSET_DEGREES);
 		telemetry.addData("Outer-loop kP", "%.2f", OUTER_LOOP_KP);
 		telemetry.addData("Outer-loop max trim (deg)", "%.1f", OUTER_LOOP_MAX_TRIM_DEGREES);
 		telemetry.addLine("Init: holding turret at 0 deg and checking stillness");
 		telemetry.addLine("Press Start to capture quad offset from absolute encoder");
 		telemetry.update();
 
-		double initHoldPosition = angleDegreesToServoPosition(STARTUP_EXPECTED_TURRET_ANGLE_DEGREES);
+		double initHoldPosition = angleDegreesToServoPosition(STARTUP_EXPECTED_TURRET_ANGLE_DEGREES, learnedServoCommandOffsetDegrees);
 		double initLastTime = getRuntime();
 		int initPreviousQuadTicks = turretEncoder.getCurrentPosition();
 		double initPreviousAbsoluteRawDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
@@ -157,7 +158,17 @@ public class TurretServoTest extends LinearOpMode {
 				absoluteRawAtStartDegrees,
 				STARTUP_EXPECTED_TURRET_ANGLE_DEGREES
 		);
-		double quadratureOffsetDegrees = quadRawAtStartDegrees - absoluteTurretAtStartDegrees;
+		double absoluteStartupErrorDegrees =
+				absoluteTurretAtStartDegrees - STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+		double suggestedAbsoluteOffsetDegrees =
+				ABSOLUTE_ENCODER_TURRET_OFFSET_DEGREES - absoluteStartupErrorDegrees;
+		double absoluteTurretReferenceAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+		learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
+		double quadratureOffsetDegrees = quadRawAtStartDegrees - absoluteTurretReferenceAtStartDegrees;
+
+		// Start absolute encoder unwrapping from the startup sample so telemetry is in the same frame.
+		previousAbsoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
+		unwrappedAbsoluteEncoderDegrees = absoluteRawAtStartDegrees;
 
 		lastTime = getRuntime();
 
@@ -180,6 +191,13 @@ public class TurretServoTest extends LinearOpMode {
 			}
 			aWasPressed = gamepad1.a;
 
+			double correctedTargetAngleDegrees = targetAngleDegrees;
+			if (targetAngleDegrees > TARGET_BIAS_APPLY_THRESHOLD_DEGREES) {
+				correctedTargetAngleDegrees += POSITIVE_TARGET_BIAS_DEGREES;
+			} else if (targetAngleDegrees < -TARGET_BIAS_APPLY_THRESHOLD_DEGREES) {
+				correctedTargetAngleDegrees += NEGATIVE_TARGET_BIAS_DEGREES;
+			}
+
 			// Left stick X: lurret = speed up rate, rurret = slow down rate
 			float stickX = gamepad1.left_stick_x;
 			if (stickX < -0.2) {
@@ -190,9 +208,9 @@ public class TurretServoTest extends LinearOpMode {
 
 			// Rate-limited command move toward target (this is the nominal servo target angle).
 			double maxMove = rateLimitDegPerSec * dt;
-			double commandDiff = targetAngleDegrees - commandedAngleDegrees;
+			double commandDiff = correctedTargetAngleDegrees - commandedAngleDegrees;
 			if (Math.abs(commandDiff) <= maxMove) {
-				commandedAngleDegrees = targetAngleDegrees;
+				commandedAngleDegrees = correctedTargetAngleDegrees;
 			} else {
 				commandedAngleDegrees += Math.signum(commandDiff) * maxMove;
 			}
@@ -205,11 +223,6 @@ public class TurretServoTest extends LinearOpMode {
 			double encoderVelocityDegPerSec = dt > 1e-6 ? (encoderDeltaDegrees / dt) : 0.0;
 			double absoluteEncoderVoltage = absoluteTurretEncoder.getVoltage();
 			double absoluteEncoderRawDegrees = absoluteVoltageToRawDegrees(absoluteEncoderVoltage);
-			if (!absoluteEncoderInitialized) {
-				previousAbsoluteEncoderRawDegrees = absoluteEncoderRawDegrees;
-				unwrappedAbsoluteEncoderDegrees = absoluteEncoderRawDegrees;
-				absoluteEncoderInitialized = true;
-			}
 			double absoluteEncoderDeltaRawDegrees = smallestWrappedDeltaDegrees(
 					absoluteEncoderRawDegrees,
 					previousAbsoluteEncoderRawDegrees
@@ -217,7 +230,8 @@ public class TurretServoTest extends LinearOpMode {
 			unwrappedAbsoluteEncoderDegrees += absoluteEncoderDeltaRawDegrees;
 			previousAbsoluteEncoderRawDegrees = absoluteEncoderRawDegrees;
 			double absoluteEncoderTurretAngleDegrees =
-					(unwrappedAbsoluteEncoderDegrees / ENCODER_TO_TURRET_RATIO) + ABSOLUTE_ENCODER_TURRET_OFFSET_DEGREES;
+					((unwrappedAbsoluteEncoderDegrees - absoluteRawAtStartDegrees) / ENCODER_TO_TURRET_RATIO)
+							+ absoluteTurretReferenceAtStartDegrees;
 			double absoluteEncoderTurretDeltaDegrees = absoluteEncoderDeltaRawDegrees / ENCODER_TO_TURRET_RATIO;
 			previousEncoderTicks = encoderTicks;
 
@@ -233,7 +247,7 @@ public class TurretServoTest extends LinearOpMode {
 					MIN_SERVO_ROTATION_DEGREES,
 					MAX_SERVO_ROTATION_DEGREES
 			);
-			double currentPosition = angleDegreesToServoPosition(servoCommandAngleDegrees);
+			double currentPosition = angleDegreesToServoPosition(servoCommandAngleDegrees, learnedServoCommandOffsetDegrees);
 
 			boolean inTolerance =
 					Math.abs(angleErrorDegrees) <= READY_TOLERANCE_DEGREES &&
@@ -254,9 +268,10 @@ public class TurretServoTest extends LinearOpMode {
 				rurret.setPosition(currentPosition);
 			}
 
-			telemetry.addData("Target servo pos", "%.3f", angleDegreesToServoPosition(targetAngleDegrees));
+			telemetry.addData("Target servo pos", "%.3f", angleDegreesToServoPosition(targetAngleDegrees, learnedServoCommandOffsetDegrees));
 			telemetry.addData("Current servo pos", "%.3f", currentPosition);
 			telemetry.addData("Target angle (deg)", "%.1f", targetAngleDegrees);
+			telemetry.addData("Corrected target (deg)", "%.1f", correctedTargetAngleDegrees);
 			telemetry.addData("Commanded angle (deg)", "%.1f", commandedAngleDegrees);
 			telemetry.addData("Servo cmd angle (deg)", "%.1f", servoCommandAngleDegrees);
 			telemetry.addData("Turret angle (deg)", "%.1f", measuredAngleDegrees);
@@ -270,6 +285,12 @@ public class TurretServoTest extends LinearOpMode {
 			telemetry.addData("Absolute encoder (V)", "%.3f", absoluteEncoderVoltage);
 			telemetry.addData("Absolute encoder raw angle (deg)", "%.2f", absoluteEncoderRawDegrees);
 			telemetry.addData("Absolute encoder turret angle (deg)", "%.2f", absoluteEncoderTurretAngleDegrees);
+			telemetry.addData("Abs turret ref @start (deg)", "%.2f", absoluteTurretReferenceAtStartDegrees);
+			telemetry.addData("Abs turret est @start (deg)", "%.2f", absoluteTurretAtStartDegrees);
+			telemetry.addData("Abs startup error (deg)", "%.2f", absoluteStartupErrorDegrees);
+			telemetry.addData("Suggested abs offset (deg)", "%.2f", suggestedAbsoluteOffsetDegrees);
+			telemetry.addData("Learned servo cmd offset (deg)", "%.2f", learnedServoCommandOffsetDegrees);
+			telemetry.addData("Target +bias / -bias (deg)", "%.1f / %.1f", POSITIVE_TARGET_BIAS_DEGREES, NEGATIVE_TARGET_BIAS_DEGREES);
 			telemetry.addData("Abs encoder turret offset (deg)", "%.1f", ABSOLUTE_ENCODER_TURRET_OFFSET_DEGREES);
 			telemetry.addData("Encoder delta/loop", encoderDelta);
 			telemetry.addData("Encoder delta/loop (deg)", "%.2f", encoderDeltaDegrees);
@@ -287,9 +308,9 @@ public class TurretServoTest extends LinearOpMode {
 		}
 	}
 
-	private static double angleDegreesToServoPosition(double angleDegrees) {
-		// Apply zero offset here so callers can always command logical angles directly.
-		double correctedAngleDegrees = angleDegrees - TURRET_ZERO_OFFSET_DEGREES;
+	private static double angleDegreesToServoPosition(double angleDegrees, double servoCommandOffsetDegrees) {
+		// Learned runtime offset keeps servo command frame aligned to the absolute-based turret frame.
+		double correctedAngleDegrees = angleDegrees - servoCommandOffsetDegrees;
 		double unclippedPosition = SERVO_CENTER_POSITION - (correctedAngleDegrees / TURRET_TRAVEL_DEGREES);
 		return clamp(unclippedPosition, MIN_SERVO_POSITION, MAX_SERVO_POSITION);
 	}

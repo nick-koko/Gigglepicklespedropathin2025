@@ -22,6 +22,7 @@ import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.LEDControlSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -39,7 +40,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public Pickles2025Teleop() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
-                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, LEDControlSubsystem.INSTANCE),
+                new SubsystemComponent(
+                        ShooterSubsystem.INSTANCE,
+                        IntakeWithSensorsSubsystem.INSTANCE,
+                        LEDControlSubsystem.INSTANCE,
+                        TurretSubsystem.INSTANCE
+                ),
                 BulkReadComponent.INSTANCE
                 //FateComponent.INSTANCE
         );
@@ -201,6 +207,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             shootingTargetLocation = blueShootingTarget;
         }
 
+        TurretSubsystem.INSTANCE.center();
+
     }
 
     @Override
@@ -259,6 +267,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double angleErrorRad = normalizeRadians(fieldAngleRad - botHeadingRad);
         // - angleErrorDeg  -> "how many degrees left/right from current heading"
         double angleErrorDeg = Math.toDegrees(angleErrorRad);
+
+        // Always track the goal with the turret. Left bumper now only enables
+        // shoot-related behavior (spin-up, future drive limiting/assist, etc.).
+        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(angleErrorDeg);
 
 
         double angletangent = 0;
@@ -373,7 +385,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         if (gamepad1.left_bumper) {
-            rotate = angleErrorDeg * shooterTargetkP;
             targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
             goToTargetAngle = false;
@@ -544,6 +555,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         telemetryM.addData("LoopTime_ms", timer.getMs());
         telemetry.addData("rotate", rotate);
+        telemetry.addData("turretTargetDeg", TurretSubsystem.INSTANCE.getTargetAngleDegrees());
+        telemetry.addData("turretMeasuredDeg", TurretSubsystem.INSTANCE.getMeasuredAngleDegrees());
+        telemetry.addData("turretReady", TurretSubsystem.INSTANCE.isTurretReady());
         telemetry.addData("boostActive", ShooterSubsystem.INSTANCE.boostActive);
         telemetryM.addData("targetRPM", ShooterSubsystem.INSTANCE.getTargetRpm());
 
