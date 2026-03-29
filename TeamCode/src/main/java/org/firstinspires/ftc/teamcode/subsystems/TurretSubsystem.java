@@ -40,6 +40,9 @@ public class TurretSubsystem implements Subsystem {
     public static double RATE_LIMIT_DEG_PER_SEC = 1.5 * TURRET_TRAVEL_DEGREES;
     public static double OUTER_LOOP_KP = 0.12;
     public static double OUTER_LOOP_MAX_TRIM_DEGREES = 8.0;
+    // Split commanded turret angle across servos to add slight opposing preload.
+    // Set to 0.0 to disable this behavior.
+    public static double SERVO_DIFFERENTIAL_DEGREES = 1.0;
 
     public static double POSITIVE_TARGET_BIAS_DEGREES = 0.0;
     public static double NEGATIVE_TARGET_BIAS_DEGREES = 0.0;
@@ -59,7 +62,11 @@ public class TurretSubsystem implements Subsystem {
     public static double TURRET_ENCODER_CPR = 4096.0;
     public static double TURRET_ENCODER_COUNTS_PER_REV = TURRET_ENCODER_CPR * ENCODER_TO_TURRET_RATIO;
     public static double TURRET_ENCODER_COUNTS_PER_DEGREE = TURRET_ENCODER_COUNTS_PER_REV / 360.0;
+    // Set to -1.0 if quadrature angle moves opposite commanded turret-angle sign.
+    public static double QUAD_DIRECTION_SIGN = -1.0;
     public static double ABSOLUTE_ENCODER_TURRET_OFFSET_DEGREES = 0.0;
+    // Disable periodic analog reads unless explicitly needed for diagnostics/logging.
+    public static boolean READ_ABSOLUTE_ENCODER_IN_PERIODIC = false;
 
     // =========================
     // Hardware
@@ -73,6 +80,7 @@ public class TurretSubsystem implements Subsystem {
     // Runtime state
     // =========================
     private double targetAngleDegrees = INITIAL_ANGLE_DEGREES;
+    private double correctedTargetAngleDegrees = INITIAL_ANGLE_DEGREES;
     private double commandedAngleDegrees = INITIAL_ANGLE_DEGREES;
     private double measuredAngleDegrees = INITIAL_ANGLE_DEGREES;
     private double measuredVelocityDegPerSec = 0.0;
@@ -80,17 +88,29 @@ public class TurretSubsystem implements Subsystem {
     private double quadRawAngleDegrees = 0.0;
     private int currentEncoderTicks = 0;
     private double currentServoPosition = SERVO_CENTER_POSITION;
+    private double currentLeftServoPosition = SERVO_CENTER_POSITION;
+    private double currentRightServoPosition = SERVO_CENTER_POSITION;
+    private double lastServoCommandAngleDegrees = INITIAL_ANGLE_DEGREES;
+    private double lastOuterLoopTrimDegrees = 0.0;
+    private double lastCommandDiffDegrees = 0.0;
+    private double lastRateLimitedStepDegrees = 0.0;
+    private double lastLeftTurretAngleDegrees = INITIAL_ANGLE_DEGREES;
+    private double lastRightTurretAngleDegrees = INITIAL_ANGLE_DEGREES;
 
     private double learnedServoCommandOffsetDegrees = 0.0;
+    private double absoluteStartupErrorDegrees = 0.0;
     private double lastLoopTimeSeconds = 0.0;
     private int previousEncoderTicks = 0;
 
     private double previousAbsoluteEncoderRawDegrees = 0.0;
+    private double absoluteEncoderRawDegrees = 0.0;
     private double unwrappedAbsoluteEncoderDegrees = 0.0;
     private double absoluteRawAtStartDegrees = 0.0;
     private double absoluteTurretReferenceAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
     private double absoluteEncoderTurretAngleDegrees = 0.0;
     private double absoluteEncoderTurretDeltaDegrees = 0.0;
+    private boolean periodicAbsoluteEncoderReadEnabled = READ_ABSOLUTE_ENCODER_IN_PERIODIC;
+    private boolean wasPeriodicAbsoluteReadEnabled = false;
 
     private int readyLoops = 0;
     private int notReadyLoops = 0;
@@ -108,14 +128,25 @@ public class TurretSubsystem implements Subsystem {
         absoluteTurretEncoder = ActiveOpMode.hardwareMap().get(AnalogInput.class, ABSOLUTE_TURRET_ENCODER_NAME);
 
         targetAngleDegrees = INITIAL_ANGLE_DEGREES;
+        correctedTargetAngleDegrees = INITIAL_ANGLE_DEGREES;
         commandedAngleDegrees = INITIAL_ANGLE_DEGREES;
         measuredAngleDegrees = INITIAL_ANGLE_DEGREES;
         measuredVelocityDegPerSec = 0.0;
         quadratureOffsetDegrees = 0.0;
         quadRawAngleDegrees = 0.0;
+        lastServoCommandAngleDegrees = INITIAL_ANGLE_DEGREES;
+        lastOuterLoopTrimDegrees = 0.0;
+        lastCommandDiffDegrees = 0.0;
+        lastRateLimitedStepDegrees = 0.0;
+        lastLeftTurretAngleDegrees = INITIAL_ANGLE_DEGREES;
+        lastRightTurretAngleDegrees = INITIAL_ANGLE_DEGREES;
+        learnedServoCommandOffsetDegrees = 0.0;
+        absoluteStartupErrorDegrees = 0.0;
         readyLoops = 0;
         notReadyLoops = 0;
         turretReady = false;
+        periodicAbsoluteEncoderReadEnabled = READ_ABSOLUTE_ENCODER_IN_PERIODIC;
+        wasPeriodicAbsoluteReadEnabled = false;
 
         // Force the turret to mechanical "center" first so startup references
         // are captured in a consistent sector even if drivers forgot to pre-center.
@@ -134,10 +165,11 @@ public class TurretSubsystem implements Subsystem {
         currentEncoderTicks = turretEncoder.getCurrentPosition();
         previousEncoderTicks = currentEncoderTicks;
 
-        double quadRawAtStartDegrees = currentEncoderTicks / turretCountsPerDegree();
+        double quadRawAtStartDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
         double absoluteTurretAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteTurretReferenceAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteRawAtStartDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
+        absoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         previousAbsoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         unwrappedAbsoluteEncoderDegrees = absoluteRawAtStartDegrees;
 
@@ -146,7 +178,7 @@ public class TurretSubsystem implements Subsystem {
                 STARTUP_EXPECTED_TURRET_ANGLE_DEGREES
         );
 
-        double absoluteStartupErrorDegrees =
+        absoluteStartupErrorDegrees =
                 absoluteTurretAtStartDegrees - STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
 
@@ -175,15 +207,18 @@ public class TurretSubsystem implements Subsystem {
 
         updateMeasuredAngle(dt);
 
-        double correctedTargetAngleDegrees = applyTargetBias(targetAngleDegrees);
+        correctedTargetAngleDegrees = applyTargetBias(targetAngleDegrees);
 
         double maxMoveDegrees = Math.max(0.0, RATE_LIMIT_DEG_PER_SEC) * dt;
+        double previousCommandedAngleDegrees = commandedAngleDegrees;
         double commandDiff = correctedTargetAngleDegrees - commandedAngleDegrees;
+        lastCommandDiffDegrees = commandDiff;
         if (Math.abs(commandDiff) <= maxMoveDegrees) {
             commandedAngleDegrees = correctedTargetAngleDegrees;
         } else {
             commandedAngleDegrees += Math.signum(commandDiff) * maxMoveDegrees;
         }
+        lastRateLimitedStepDegrees = commandedAngleDegrees - previousCommandedAngleDegrees;
 
         double angleErrorDegrees = targetAngleDegrees - measuredAngleDegrees;
         double outerLoopTrimDegrees = Range.clip(
@@ -191,12 +226,14 @@ public class TurretSubsystem implements Subsystem {
                 -OUTER_LOOP_MAX_TRIM_DEGREES,
                 OUTER_LOOP_MAX_TRIM_DEGREES
         );
+        lastOuterLoopTrimDegrees = outerLoopTrimDegrees;
 
         double servoCommandAngleDegrees = Range.clip(
                 commandedAngleDegrees + outerLoopTrimDegrees,
                 MIN_SERVO_ROTATION_DEGREES,
                 MAX_SERVO_ROTATION_DEGREES
         );
+        lastServoCommandAngleDegrees = servoCommandAngleDegrees;
 
         applyServoAngle(servoCommandAngleDegrees);
         updateReadyState(angleErrorDegrees);
@@ -219,11 +256,18 @@ public class TurretSubsystem implements Subsystem {
      * In this robot, turret 0 deg points to the rear, so front-relative 0 deg maps to 180 deg.
      */
     public double convertRobotFrontRelativeToTurretDegrees(double robotFrontRelativeDegrees) {
-        double converted = wrapDegrees(
+        double unwrappedTurretTarget =
                 (ROBOT_FRONT_RELATIVE_SIGN * robotFrontRelativeDegrees) +
-                ROBOT_FRONT_TO_TURRET_ZERO_OFFSET_DEGREES
+                ROBOT_FRONT_TO_TURRET_ZERO_OFFSET_DEGREES;
+
+        // Choose the equivalent target nearest the previous target, but only from values that are
+        // already inside the legal turret range. This avoids wrap+clip sign flips near 180 deg.
+        return chooseNearestEquivalentInRangeDegrees(
+                unwrappedTurretTarget,
+                targetAngleDegrees,
+                MIN_SERVO_ROTATION_DEGREES,
+                MAX_SERVO_ROTATION_DEGREES
         );
-        return Range.clip(converted, MIN_SERVO_ROTATION_DEGREES, MAX_SERVO_ROTATION_DEGREES);
     }
 
     public void setTargetAngleFromRobotFrontRelativeDegrees(double robotFrontRelativeDegrees) {
@@ -231,11 +275,35 @@ public class TurretSubsystem implements Subsystem {
     }
 
     public double getTargetAngleDegrees() {
-        return targetAngleDegrees;
+        return Range.clip(targetAngleDegrees, MIN_SERVO_ROTATION_DEGREES, MAX_SERVO_ROTATION_DEGREES);
+    }
+
+    public double getCorrectedTargetAngleDegrees() {
+        return Range.clip(correctedTargetAngleDegrees, MIN_SERVO_ROTATION_DEGREES, MAX_SERVO_ROTATION_DEGREES);
     }
 
     public double getMeasuredAngleDegrees() {
-        return measuredAngleDegrees;
+        return Range.clip(measuredAngleDegrees, MIN_SERVO_ROTATION_DEGREES, MAX_SERVO_ROTATION_DEGREES);
+    }
+
+    public double getCommandedAngleDegrees() {
+        return Range.clip(commandedAngleDegrees, MIN_SERVO_ROTATION_DEGREES, MAX_SERVO_ROTATION_DEGREES);
+    }
+
+    public double getServoCommandAngleDegrees() {
+        return Range.clip(lastServoCommandAngleDegrees, MIN_SERVO_ROTATION_DEGREES, MAX_SERVO_ROTATION_DEGREES);
+    }
+
+    public double getOuterLoopTrimDegrees() {
+        return lastOuterLoopTrimDegrees;
+    }
+
+    public double getCommandDiffDegrees() {
+        return lastCommandDiffDegrees;
+    }
+
+    public double getRateLimitedStepDegrees() {
+        return lastRateLimitedStepDegrees;
     }
 
     public double getMeasuredVelocityDegPerSec() {
@@ -244,6 +312,22 @@ public class TurretSubsystem implements Subsystem {
 
     public double getCurrentServoPosition() {
         return currentServoPosition;
+    }
+
+    public double getCurrentLeftServoPosition() {
+        return currentLeftServoPosition;
+    }
+
+    public double getCurrentRightServoPosition() {
+        return currentRightServoPosition;
+    }
+
+    public double getLeftTurretAngleCommandDegrees() {
+        return lastLeftTurretAngleDegrees;
+    }
+
+    public double getRightTurretAngleCommandDegrees() {
+        return lastRightTurretAngleDegrees;
     }
 
     public int getCurrentEncoderTicks() {
@@ -262,8 +346,20 @@ public class TurretSubsystem implements Subsystem {
         return absoluteEncoderTurretAngleDegrees;
     }
 
+    public double getAbsoluteEncoderRawDegrees() {
+        return absoluteEncoderRawDegrees;
+    }
+
     public double getAbsoluteEncoderTurretDeltaDegrees() {
         return absoluteEncoderTurretDeltaDegrees;
+    }
+
+    public double getLearnedServoCommandOffsetDegrees() {
+        return learnedServoCommandOffsetDegrees;
+    }
+
+    public double getAbsoluteStartupErrorDegrees() {
+        return absoluteStartupErrorDegrees;
     }
 
     public boolean isTurretReady() {
@@ -274,30 +370,57 @@ public class TurretSubsystem implements Subsystem {
         return true;
     }
 
+    public void setPeriodicAbsoluteEncoderReadEnabled(boolean enabled) {
+        periodicAbsoluteEncoderReadEnabled = enabled;
+    }
+
+    public boolean isPeriodicAbsoluteEncoderReadEnabled() {
+        return periodicAbsoluteEncoderReadEnabled;
+    }
+
     private void updateMeasuredAngle(double dt) {
         currentEncoderTicks = turretEncoder.getCurrentPosition();
         int encoderDeltaTicks = currentEncoderTicks - previousEncoderTicks;
         previousEncoderTicks = currentEncoderTicks;
 
         double countsPerDegree = turretCountsPerDegree();
-        quadRawAngleDegrees = currentEncoderTicks / countsPerDegree;
+        quadRawAngleDegrees = (currentEncoderTicks / countsPerDegree) * QUAD_DIRECTION_SIGN;
         measuredAngleDegrees = quadRawAngleDegrees - quadratureOffsetDegrees;
-        double encoderDeltaDegrees = encoderDeltaTicks / countsPerDegree;
+        double encoderDeltaDegrees = (encoderDeltaTicks / countsPerDegree) * QUAD_DIRECTION_SIGN;
         measuredVelocityDegPerSec = encoderDeltaDegrees / dt;
 
-        double absoluteEncoderRawDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
-        double absoluteEncoderDeltaRawDegrees = smallestWrappedDeltaDegrees(
-            absoluteEncoderRawDegrees,
-            previousAbsoluteEncoderRawDegrees
-        );
+        if (periodicAbsoluteEncoderReadEnabled) {
+            double currentAbsoluteRawDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
 
-        unwrappedAbsoluteEncoderDegrees += absoluteEncoderDeltaRawDegrees;
-        previousAbsoluteEncoderRawDegrees = absoluteEncoderRawDegrees;
+            if (!wasPeriodicAbsoluteReadEnabled) {
+                // Re-prime unwrap state when periodic sampling is re-enabled.
+                previousAbsoluteEncoderRawDegrees = currentAbsoluteRawDegrees;
+                unwrappedAbsoluteEncoderDegrees = currentAbsoluteRawDegrees;
+            }
 
-        absoluteEncoderTurretAngleDegrees =
-            ((unwrappedAbsoluteEncoderDegrees - absoluteRawAtStartDegrees) / ENCODER_TO_TURRET_RATIO)
-                + absoluteTurretReferenceAtStartDegrees;
-        absoluteEncoderTurretDeltaDegrees = absoluteEncoderDeltaRawDegrees / ENCODER_TO_TURRET_RATIO;
+            absoluteEncoderRawDegrees = currentAbsoluteRawDegrees;
+            double absoluteEncoderDeltaRawDegrees = smallestWrappedDeltaDegrees(
+                    currentAbsoluteRawDegrees,
+                    previousAbsoluteEncoderRawDegrees
+            );
+            if (!wasPeriodicAbsoluteReadEnabled) {
+                absoluteEncoderDeltaRawDegrees = 0.0;
+            }
+
+            unwrappedAbsoluteEncoderDegrees += absoluteEncoderDeltaRawDegrees;
+            previousAbsoluteEncoderRawDegrees = currentAbsoluteRawDegrees;
+
+            absoluteEncoderTurretAngleDegrees =
+                    ((unwrappedAbsoluteEncoderDegrees - absoluteRawAtStartDegrees) / ENCODER_TO_TURRET_RATIO)
+                            + absoluteTurretReferenceAtStartDegrees;
+            absoluteEncoderTurretDeltaDegrees = absoluteEncoderDeltaRawDegrees / ENCODER_TO_TURRET_RATIO;
+            wasPeriodicAbsoluteReadEnabled = true;
+        } else {
+            absoluteEncoderRawDegrees = Double.NaN;
+            absoluteEncoderTurretAngleDegrees = Double.NaN;
+            absoluteEncoderTurretDeltaDegrees = 0.0;
+            wasPeriodicAbsoluteReadEnabled = false;
+        }
     }
 
     private void updateReadyState(double angleErrorDegrees) {
@@ -319,12 +442,36 @@ public class TurretSubsystem implements Subsystem {
     }
 
     private void applyServoAngle(double turretAngleDegrees) {
+        double halfDifferentialDegrees = SERVO_DIFFERENTIAL_DEGREES * 0.5;
+
+        double leftTurretAngleDegrees = Range.clip(
+                turretAngleDegrees + halfDifferentialDegrees,
+                MIN_SERVO_ROTATION_DEGREES,
+                MAX_SERVO_ROTATION_DEGREES
+        );
+        double rightTurretAngleDegrees = Range.clip(
+                turretAngleDegrees - halfDifferentialDegrees,
+                MIN_SERVO_ROTATION_DEGREES,
+                MAX_SERVO_ROTATION_DEGREES
+        );
+        lastLeftTurretAngleDegrees = leftTurretAngleDegrees;
+        lastRightTurretAngleDegrees = rightTurretAngleDegrees;
+
+        currentLeftServoPosition = angleDegreesToServoPosition(
+                leftTurretAngleDegrees,
+                learnedServoCommandOffsetDegrees
+        );
+        currentRightServoPosition = angleDegreesToServoPosition(
+                rightTurretAngleDegrees,
+                learnedServoCommandOffsetDegrees
+        );
         currentServoPosition = angleDegreesToServoPosition(
                 turretAngleDegrees,
                 learnedServoCommandOffsetDegrees
         );
-        leftTurret.setPosition(currentServoPosition);
-        rightTurret.setPosition(currentServoPosition);
+
+        leftTurret.setPosition(currentLeftServoPosition);
+        rightTurret.setPosition(currentRightServoPosition);
     }
 
     private double applyTargetBias(double targetDegrees) {
@@ -388,6 +535,48 @@ public class TurretSubsystem implements Subsystem {
         while (wrapped > 180.0) wrapped -= 360.0;
         while (wrapped < -180.0) wrapped += 360.0;
         return wrapped;
+    }
+
+    private static double chooseNearestEquivalentDegrees(double baseAngleDegrees, double referenceAngleDegrees) {
+        double bestCandidate = baseAngleDegrees;
+        double bestDistance = Math.abs(baseAngleDegrees - referenceAngleDegrees);
+        for (int turns = -2; turns <= 2; turns++) {
+            double candidate = baseAngleDegrees + (360.0 * turns);
+            double distance = Math.abs(candidate - referenceAngleDegrees);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestCandidate = candidate;
+            }
+        }
+        return bestCandidate;
+    }
+
+    private static double chooseNearestEquivalentInRangeDegrees(
+            double baseAngleDegrees,
+            double referenceAngleDegrees,
+            double minDegrees,
+            double maxDegrees
+    ) {
+        double bestCandidate = Double.NaN;
+        double bestDistance = Double.MAX_VALUE;
+
+        for (int turns = -3; turns <= 3; turns++) {
+            double candidate = baseAngleDegrees + (360.0 * turns);
+            if (candidate < minDegrees || candidate > maxDegrees) continue;
+            double distance = Math.abs(candidate - referenceAngleDegrees);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestCandidate = candidate;
+            }
+        }
+
+        // If no wrapped candidate lands in range, fall back to normal clamp.
+        if (Double.isNaN(bestCandidate)) {
+            double minDistance = Math.abs(minDegrees - referenceAngleDegrees);
+            double maxDistance = Math.abs(maxDegrees - referenceAngleDegrees);
+            return (minDistance <= maxDistance) ? minDegrees : maxDegrees;
+        }
+        return bestCandidate;
     }
 }
 

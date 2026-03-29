@@ -1,5 +1,9 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
+import com.qualcomm.robotcore.util.RobotLog;
+import org.firstinspires.ftc.teamcode.util.CsvLogger;
+import java.io.File;
+
 import com.bylazar.configurables.annotations.Configurable;
 import com.bylazar.telemetry.PanelsTelemetry;
 import com.bylazar.telemetry.TelemetryManager;
@@ -55,6 +59,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static Pose startingPoseRed = startingPoseBlue.mirror();
     public static Pose startingPose = startingPoseBlue;
 
+    // logging variables
+    private CsvLogger turretLogger;
+    private long lastTurretLogMs = 0L;
+    public static boolean ENABLE_TURRET_LOGGING = true;
+    public static long TURRET_LOG_PERIOD_MS = 25;
+    private long logStartMs = 0L;
 
     //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
     public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
@@ -130,6 +140,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private long dumbShootStartTimeMs = 0L;
     // Track if we're already showing the "too close" warning strobe
     private boolean tooCloseWarningActive = false;
+    // Latches flywheel tracking mode so RPM keeps following location without holding a button.
+    private boolean shooterFollowEnabled = false;
+    private boolean prevGamepad1LeftBumper = false;
 
 
     @Override
@@ -153,6 +166,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         windowOuttake = new double[Math.max(1, SMOOTH_WINDOW)];
 
         LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+        TurretSubsystem.INSTANCE.setPeriodicAbsoluteEncoderReadEnabled(ENABLE_TURRET_LOGGING);
 
         // Carry over ball count from auton if available
         if (GlobalRobotData.endAutonBallCount >= 0) {
@@ -163,6 +177,53 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 .addPath(new Path(new BezierLine(PedroComponent.follower()::getPose, new Pose(45, 98))))
                 .setHeadingInterpolation(HeadingInterpolator.linearFromPoint(PedroComponent.follower()::getHeading, Math.toRadians(45), 0.8))
                 .build(); */
+
+
+            turretLogger = new CsvLogger("pickles2025_turret");
+            turretLogger.start(
+                    "t_ms," +
+                            "match_t_ms," +
+                            "bot_x," +
+                            "bot_y," +
+                            "bot_heading_deg," +
+                            "shoot_target_x," +
+                            "shoot_target_y," +
+                            "field_angle_deg," +
+                            "angle_error_deg," +
+                            "turret_target_deg," +
+                            "turret_target_corrected_deg," +
+                            "turret_commanded_deg," +
+                            "turret_servo_command_deg," +
+                            "turret_measured_deg," +
+                            "turret_error_deg," +
+                            "turret_outer_trim_deg," +
+                            "turret_command_diff_deg," +
+                            "turret_rate_step_deg," +
+                            "turret_left_cmd_deg," +
+                            "turret_right_cmd_deg," +
+                            "turret_servo_pos," +
+                            "turret_left_servo_pos," +
+                            "turret_right_servo_pos," +
+                            "turret_quad_raw_deg," +
+                            "turret_quad_offset_deg," +
+                            "turret_encoder_vel_deg_s," +
+                            "turret_abs_raw_deg," +
+                            "turret_abs_deg," +
+                            "turret_abs_delta_deg," +
+                            "turret_learned_servo_offset_deg," +
+                            "turret_abs_startup_error_deg," +
+                            "turret_ready," +
+                            "driving_cmd," +
+                            "strafe_cmd," +
+                            "rotate_cmd," +
+                            "ododistance," +
+                            "x_offset," +
+                            "y_offset," +
+                            "has_results"
+            );
+
+            logStartMs = 0L;
+
     }
 
     /** This method is called continuously after Init while waiting for "play". **/
@@ -209,6 +270,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         TurretSubsystem.INSTANCE.center();
 
+        logStartMs = System.currentTimeMillis();
     }
 
     @Override
@@ -216,6 +278,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         //Call this once per loop
         timer.start();
         long nowMs = System.currentTimeMillis();
+        TurretSubsystem.INSTANCE.setPeriodicAbsoluteEncoderReadEnabled(ENABLE_TURRET_LOGGING);
 
         // Auto-stop shooter and intake after a dumbShoot burst has been active long enough
         if (dumbShootTimerActive &&
@@ -224,6 +287,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.stop();
             IntakeWithSensorsSubsystem.INSTANCE.validateBallCountAfterShoot();
             dumbShootTimerActive = false;
+            shooterFollowEnabled = false;
         }
 
         LLResult result = limelight.getLatestResult();
@@ -365,15 +429,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             } else {
                 tooCloseWarningActive = false;
                 int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-                double currentTargetRpm = ShooterSubsystem.INSTANCE.getTargetRpm();
 
                 if (balls >= 3) {
                     LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
-
-                    // Only auto spin-up based on ball count if shooter is currently "off"
-                    if (Math.abs(currentTargetRpm) < 1e-3) {
-                        ShooterSubsystem.INSTANCE.spinUp(targetInitialRPM);
-                    }
                 } else if (balls == 2) {
                     LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.YELLOW);
                 } else if (balls == 1) {
@@ -384,11 +442,23 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             }
         }
 
-        if (gamepad1.left_bumper) {
+        boolean leftBumperPressedNow = gamepad1.left_bumper;
+        boolean leftBumperRisingEdge = leftBumperPressedNow && !prevGamepad1LeftBumper;
+        if (leftBumperRisingEdge) {
+            shooterFollowEnabled = true;
+        }
+        if (IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3) {
+            shooterFollowEnabled = true;
+        }
+
+        if (shooterFollowEnabled) {
             targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-            goToTargetAngle = false;
             adjustOdo = true;
+        }
+
+        if (leftBumperPressedNow || shooterFollowEnabled) {
+            goToTargetAngle = false;
 //        } else if (gamepad1.right_trigger > 0.1) {
 //            targetAngleDeg = 180.0 + angleAllianceOffset;
 //            goToTargetAngle = true;
@@ -557,9 +627,90 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("rotate", rotate);
         telemetry.addData("turretTargetDeg", TurretSubsystem.INSTANCE.getTargetAngleDegrees());
         telemetry.addData("turretMeasuredDeg", TurretSubsystem.INSTANCE.getMeasuredAngleDegrees());
+        telemetry.addData("fieldAngleDeg", fieldAngleDeg);
+        telemetry.addData("angleErrorDeg", angleErrorDeg);
         telemetry.addData("turretReady", TurretSubsystem.INSTANCE.isTurretReady());
         telemetry.addData("boostActive", ShooterSubsystem.INSTANCE.boostActive);
+        telemetry.addData("shooterFollowEnabled", shooterFollowEnabled);
         telemetryM.addData("targetRPM", ShooterSubsystem.INSTANCE.getTargetRpm());
+
+        if (ENABLE_TURRET_LOGGING && turretLogger != null) {
+            long nowLogMs = System.currentTimeMillis();
+
+            if (nowLogMs - lastTurretLogMs >= TURRET_LOG_PERIOD_MS) {
+                lastTurretLogMs = nowLogMs;
+
+                double turretTargetDeg = TurretSubsystem.INSTANCE.getTargetAngleDegrees();
+                double turretTargetCorrectedDeg = TurretSubsystem.INSTANCE.getCorrectedTargetAngleDegrees();
+                double turretCommandedDeg = TurretSubsystem.INSTANCE.getCommandedAngleDegrees();
+                double turretServoCommandDeg = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
+                double turretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+                double turretErrorDeg = turretTargetDeg - turretMeasuredDeg;
+                double turretOuterTrimDeg = TurretSubsystem.INSTANCE.getOuterLoopTrimDegrees();
+                double turretCommandDiffDeg = TurretSubsystem.INSTANCE.getCommandDiffDegrees();
+                double turretRateStepDeg = TurretSubsystem.INSTANCE.getRateLimitedStepDegrees();
+                double turretLeftCmdDeg = TurretSubsystem.INSTANCE.getLeftTurretAngleCommandDegrees();
+                double turretRightCmdDeg = TurretSubsystem.INSTANCE.getRightTurretAngleCommandDegrees();
+                double turretServoPos = TurretSubsystem.INSTANCE.getCurrentServoPosition();
+                double turretLeftServoPos = TurretSubsystem.INSTANCE.getCurrentLeftServoPosition();
+                double turretRightServoPos = TurretSubsystem.INSTANCE.getCurrentRightServoPosition();
+                double turretQuadRawDeg = TurretSubsystem.INSTANCE.getQuadRawAngleDegrees();
+                double turretQuadOffsetDeg = TurretSubsystem.INSTANCE.getQuadratureOffsetDegrees();
+                double turretEncoderVelDegPerSec = TurretSubsystem.INSTANCE.getMeasuredVelocityDegPerSec();
+                double turretAbsRawDeg = TurretSubsystem.INSTANCE.getAbsoluteEncoderRawDegrees();
+                double turretAbsDeg = TurretSubsystem.INSTANCE.getAbsoluteEncoderTurretAngleDegrees();
+                double turretAbsDeltaDeg = TurretSubsystem.INSTANCE.getAbsoluteEncoderTurretDeltaDegrees();
+                double turretLearnedServoOffsetDeg = TurretSubsystem.INSTANCE.getLearnedServoCommandOffsetDegrees();
+                double turretAbsStartupErrorDeg = TurretSubsystem.INSTANCE.getAbsoluteStartupErrorDegrees();
+
+                while (turretErrorDeg > 180) turretErrorDeg -= 360;
+                while (turretErrorDeg < -180) turretErrorDeg += 360;
+
+                long matchT = (logStartMs == 0L) ? 0L : (nowLogMs - logStartMs);
+
+                turretLogger.addRow(
+                        nowLogMs,
+                        matchT,
+                        botxvalue,
+                        botyvalue,
+                        Math.toDegrees(botHeadingRad),
+                        shootTargetX,
+                        shootTargetY,
+                        fieldAngleDeg,
+                        angleErrorDeg,
+                        turretTargetDeg,
+                        turretTargetCorrectedDeg,
+                        turretCommandedDeg,
+                        turretServoCommandDeg,
+                        turretMeasuredDeg,
+                        turretErrorDeg,
+                        turretOuterTrimDeg,
+                        turretCommandDiffDeg,
+                        turretRateStepDeg,
+                        turretLeftCmdDeg,
+                        turretRightCmdDeg,
+                        turretServoPos,
+                        turretLeftServoPos,
+                        turretRightServoPos,
+                        turretQuadRawDeg,
+                        turretQuadOffsetDeg,
+                        turretEncoderVelDegPerSec,
+                        turretAbsRawDeg,
+                        turretAbsDeg,
+                        turretAbsDeltaDeg,
+                        turretLearnedServoOffsetDeg,
+                        turretAbsStartupErrorDeg,
+                        TurretSubsystem.INSTANCE.isTurretReady(),
+                        driving,
+                        strafe,
+                        rotate,
+                        ODODistance,
+                        xOffset,
+                        yOffset,
+                        hasResults
+                );
+            }
+        }
 
         if (testShooter) {
             telemetry.addData("kP", ShooterSubsystem.kP);
@@ -647,6 +798,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         } else if (gamepad2.leftBumperWasPressed()) {
             ShooterSubsystem.INSTANCE.stop();
             dumbShootTimerActive = false;
+            shooterFollowEnabled = false;
             //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
         }
 
@@ -717,6 +869,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             //targetRPM = 1000;
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();//Hoping Forward is Intake (maybe change the method name)
             ShooterSubsystem.INSTANCE.stop();
+            shooterFollowEnabled = false;
             this.hasResults = false;
             LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
         } else if (gamepad2.b) {
@@ -743,6 +896,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         prevLeftTriggerActive = leftTriggerActive;
+        prevGamepad1LeftBumper = leftBumperPressedNow;
 
         if (hold && !prevHold) {
             PedroComponent.follower().holdPoint(new BezierPoint(PedroComponent.follower().getPose()), PedroComponent.follower().getHeading(), false);
@@ -771,6 +925,20 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetryM.update(telemetry);
         telemetry.update();
         timer.end();
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+
+        if (ENABLE_TURRET_LOGGING && turretLogger != null) {
+            File savedFile = turretLogger.save();
+            if (savedFile != null) {
+                RobotLog.ii("Pickles2025Teleop", "Turret CSV saved: " + savedFile.getAbsolutePath());
+            } else {
+                RobotLog.ww("Pickles2025Teleop", "Turret CSV was not saved (logger not started, empty, or save failed).");
+            }
+        }
     }
 
     private double normalizeRadians(double angle) {

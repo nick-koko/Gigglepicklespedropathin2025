@@ -109,6 +109,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private boolean isIntaking = false;
     private double currentDirection = 0.0; // +1 forward, -1 reverse
     private boolean singleBallActive = false;
+    // True only while dumbShoot() is intentionally bypassing encoder velocity control.
+    private boolean dumbShootOpenLoopActive = false;
 
     private long SHOT_DELAY_MS = 300;
     private long SHOT_TIME = 10; // wait time between shots
@@ -395,6 +397,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * motors for positions where balls already exist.
      */
     public void intakeForward() {
+        disableDumbShootOpenLoopIfNeeded();
+
         // Cancel any shooting states
         singleBallFeedActive = false;
         multiSingleShotActive = false;
@@ -430,6 +434,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * This allows ejecting untracked balls while keeping tracked balls in place.
      */
     public void intakeReverse() {
+        disableDumbShootOpenLoopIfNeeded();
+
         // Cancel shooting states but DON'T enable all motors
         singleBallFeedActive = false;
         multiSingleShotActive = false;
@@ -448,6 +454,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * Resets ball count and motor enables so next intakeForward() starts clean.
      */
     public void dumbShoot() {
+        enableDumbShootOpenLoop();
+
         isIntaking = false;
         singleBallFeedActive = false;
         multiSingleShotActive = false;
@@ -476,6 +484,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * Stop all intake motors and servos.
      */
     public void stop() {
+        disableDumbShootOpenLoopIfNeeded();
+
         isIntaking = false;
         m1.setPower(0.0);
         m3.setPower(0.0);
@@ -536,6 +546,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * @return true if shoot sequence started, false if already shooting or no balls to shoot
      */
     public boolean shoot(long shotDuration, long delay) {
+        disableDumbShootOpenLoopIfNeeded();
+
         this.SHOT_DELAY_MS = delay;
         this.SHOT_TIME = shotDuration;
         if (shootSequenceActive) return false;
@@ -576,6 +588,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      *         or there are no balls to advance.
      */
     public boolean feedSingleBallFullPower() {
+        disableDumbShootOpenLoopIfNeeded();
+
         // Don't interfere with existing shooting sequence or another single feed
         if (shootSequenceActive || singleBallFeedActive) {
             return false;
@@ -614,6 +628,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * @return true if the sequence was started, false otherwise
      */
     public boolean shootMultipleSingleShots(int shots) {
+        disableDumbShootOpenLoopIfNeeded();
+
         if (shots <= 0) {
             return false;
         }
@@ -710,6 +726,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
      * Cancel the current shooting sequence (emergency stop).
      */
     public void cancelShootSequence() {
+        disableDumbShootOpenLoopIfNeeded();
+
         shootSequenceActive = false;
         shooting = false;
         currentShot = 0;
@@ -725,6 +743,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // =============================================
 
     private void setIntakeDirection(double direction, boolean isShootMode) {
+        disableDumbShootOpenLoopIfNeeded();
+
         if (isShootMode) {
             // Shooting mode handled by shoot() method
             return;
@@ -758,6 +778,20 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     private double rpmToTicksPerSecond(double rpm, double ticksPerRev) {
         return (rpm * ticksPerRev) / 60.0;
+    }
+
+    private void enableDumbShootOpenLoop() {
+        if (dumbShootOpenLoopActive) return;
+        m1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        m3.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        dumbShootOpenLoopActive = true;
+    }
+
+    private void disableDumbShootOpenLoopIfNeeded() {
+        if (!dumbShootOpenLoopActive) return;
+        m1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        m3.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        dumbShootOpenLoopActive = false;
     }
 
     private boolean isShooterAtSpeed() {
