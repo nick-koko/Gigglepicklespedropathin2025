@@ -62,7 +62,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // logging variables
     private CsvLogger turretLogger;
     private long lastTurretLogMs = 0L;
-    public static boolean ENABLE_TURRET_LOGGING = true;
+    public static boolean ENABLE_TURRET_LOGGING = false;
     public static long TURRET_LOG_PERIOD_MS = 25;
     private long logStartMs = 0L;
 

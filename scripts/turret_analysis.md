@@ -18,6 +18,20 @@ Shared between both tracks: calibration, geometry, limit logic, readiness gating
 LOS feedforward math, chassis handoff, and teleop integration. Only the final
 "command to servo" layer differs.
 
+### Current Implementation Status (Feb 2026)
+
+The current robot code has made strong progress and is intentionally using this behavior:
+
+- **Absolute encoder is used at startup only** to determine quadrature offset.
+- **Quadrature encoder is the runtime angle source** for turret tracking and readiness logic.
+- **Periodic absolute analog reads are intentionally disabled** to avoid unnecessary loop-time load
+  while no runtime absolute correction is needed.
+- **Servo lash preload is active** using a small left/right differential command to keep the turret
+  tight and reduce free play.
+
+This is a valid control strategy for Track A right now. The remaining items are phased next steps
+for robustness, not blockers for current driver practice.
+
 ---
 
 ## 1. Our Setup vs. Reference Teams
@@ -481,6 +495,58 @@ This is directly applicable — the `SubsystemComponent` handles calling `initia
 - **Narrower operational range** (±120°) vs 23511's ±149° — their deadzone is more
   conservative. Our range should be determined by our own wire management limits.
 
+### 2.5 Repo Refresh (Mar 2026) — What Changed Recently and What to Borrow
+
+This section is a "delta review" after re-checking both external repos.
+
+#### FTC-23511 Decode-2026 (servo branches)
+
+**Branch status now:**
+- `virtual-goal` remains the most complete turret reference in this repo.
+- `v2-robot` currently has a minimal/stub `Turret.java` (framework migration in progress),
+  so treat it as **not a current control reference**.
+
+**Notable updates since prior review:**
+- `virtual-goal` keeps their servo-mode turret with:
+  - servo angle command + `TURRET_SERVO_OFFSET`,
+  - quadrature/absolute sync on startup,
+  - velocity-lag compensation term (`turretAngularVelocity * TURRET_VEL_LAG`),
+  - zone-gated aim updates (`robotInZone` logic),
+  - `readyToLaunch()` comparing measured encoder angle vs commanded servo angle.
+
+**Integration guidance for us:**
+- Keep our plan to use **dwell-based readiness** (better than single-frame ready checks).
+- Keep our startup absolute->quadrature offset flow (already aligned).
+- If we add moving-shot prediction next, use their "command + angular velocity lag term"
+  concept as a template, but keep our tolerance + dwell gate before feeding balls.
+
+#### FTC-23521 Desoto Technix (servo)
+
+**Repo path update:**
+- Active repo is now `23521-Desoto-Technix/2025-decode` (not the old branch naming).
+
+**Notable updates in the last 1-2 months:**
+- March commits show intensive turret iteration:
+  - per-servo desync/offset tuning,
+  - turret center-offset compensation efforts,
+  - additional turret test usage and fast tuning cycles.
+- `master` turret remains simple servo-position mapping with analog angle readback.
+- Their `worlds` branch currently simplifies mapping and uses explicit left/right offset
+  split around center (mechanical desync compensation).
+
+**Integration guidance for us:**
+- Confirmed: **per-servo offset/desync is still highly practical** and should remain in our
+  plan (`SERVO_DIFFERENTIAL_DEGREES` / per-servo trim).
+- Do not copy analog-only readiness behavior; keep our quadrature-based runtime authority.
+- Their rapid offset-iteration pattern reinforces adding one dedicated "mechanical trim"
+  tuning checklist session (offset, center, clamp limits) before advanced moving-shot work.
+
+**Actionable additions to our own roadmap (small but high-value):**
+1. Add explicit "mechanical trim pass" checklist item (left/right servo offset, center bias,
+   wire-safe limits) as a required precondition before deeper control tuning.
+2. Keep `isReadyToShoot()` gating + dwell counters as mandatory for feed commands.
+3. Treat 23511 `virtual-goal` as the current external control reference, not `v2-robot`.
+
 ---
 
 ## 3. Recommended Implementation — Dual Track
@@ -526,8 +592,13 @@ specifically tuned for the Axon Mini's motor characteristics.
 ### 3.0B Track A — Subsystem Structure
 
 Same singleton `TurretSubsystem` as Track B, but the hardware and control loop are
-simpler. Uses NextFTC's `ServoEx` (position-caching wrapper) following the pattern
-from 23521's working implementation, translated from Kotlin to Java.
+simpler.
+
+**Implementation note (important):**
+- The current robot code uses SDK `Servo` directly and is working.
+- A future migration to NextFTC `ServoEx` is still reasonable for command dedup/caching, but
+  it should be done **later as an isolated change** after turret gating and startup offset timing
+  are stable, so any behavior change can be clearly attributed.
 
 ```java
 @Configurable
@@ -536,9 +607,8 @@ public class TurretSubsystem implements Subsystem {
     private TurretSubsystem() {}
 
     // --- Hardware ---
-    // Use NextFTC ServoEx instead of raw SDK Servo — caches position so
-    // repeated setPosition() calls with the same value skip the I2C write.
-    // (Pattern from 23521's turret.kt, translated to Java)
+    // Current implementation may use raw SDK Servo.
+    // Optional later migration: NextFTC ServoEx for command caching / dedup.
     private ServoEx turretServo1 = new ServoEx("turret_servo_1");  // Axon Mini #1 (positional)
     private ServoEx turretServo2 = new ServoEx("turret_servo_2");  // Axon Mini #2 (positional)
     private AnalogInput absEncoder;         // Melonbotics absolute (4.8:1)
@@ -1624,7 +1694,7 @@ Estimated time: **4-6 sessions.**
 - Integrate TurretSubsystem with Pedro Pathing pose
 - Place robot at 3-4 known positions, verify turret points at goal
 - Tune `AIM_TOLERANCE_DEG` by shooting from various positions
-- Verify `isReadyToShoot()` gating works correctly
+- Verify `isReadyToShoot()` gating works correctly (and wire it into feed/shoot paths)
 - Test limit clamping — turret should stop before wires get tight
 
 **A3: On-robot moving — driver practice begins (ongoing)**
@@ -1637,6 +1707,16 @@ Estimated time: **4-6 sessions.**
 - Velocity lag compensation (Section 3.0G, enhancement #2)
 - Virtual goal solver (Section 3.0G, enhancement #3)
 - Shooter integration with effective distance from virtual goal
+
+**A5: Startup offset timing robustness**
+- Replace fixed startup settle delay with a "settled-or-timeout" style condition so offset
+  learning does not capture a bad value when return-to-center takes longer than expected.
+- Keep this as a focused change before broader refactors.
+
+**A6: Servo API migration (last, isolated)**
+- After gating and startup offset behavior are stable, migrate `Servo` -> `ServoEx`.
+- Perform this as the **only** change in that session to detect any adverse effects clearly.
+- If behavior changes, revert quickly and re-test with instrumentation.
 
 ### Track B: Test Stand (CR Mode)
 
@@ -1761,3 +1841,8 @@ Only the `periodic()` method's output stage differs:
 19. **Parallel hardware:** Do we have enough Axon Minis for both tracks simultaneously?
     The competition robot needs 2 servos in positional mode, the test stand needs 2 in
     CR mode. That's 4 total Axon Minis (or the ability to reconfigure between sessions).
+
+20. **Near-term execution order (agreed):**
+    1) add turret-ready shot gating in teleop feed/shoot paths,
+    2) improve startup offset determination so it is not tied to a fixed delay,
+    3) only after stability, migrate `Servo` to `ServoEx` as an isolated change.
