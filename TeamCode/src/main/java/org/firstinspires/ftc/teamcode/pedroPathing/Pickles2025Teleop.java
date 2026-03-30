@@ -61,10 +61,40 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     // logging variables
     private CsvLogger turretLogger;
+    private CsvLogger shotInfoLogger;
     private long lastTurretLogMs = 0L;
     public static boolean ENABLE_TURRET_LOGGING = false;
     public static long TURRET_LOG_PERIOD_MS = 25;
+    public static boolean ENABLE_SHOT_INFO_LOGGING = true;
+    public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
     private long logStartMs = 0L;
+    private int shotSequenceIdCounter = 0;
+    private boolean shotLogSequenceActive = false;
+    private long shotSequenceStartMs = 0L;
+    private int shotSequenceId = 0;
+    private int shotSequenceStartBallCount = 0;
+    private int shotSequenceExpectedShots = 0;
+    private String shotSequenceReason = "";
+    private boolean shotSequenceStartBb0 = false;
+    private boolean shotSequenceStartBb1 = false;
+    private boolean shotSequenceStartBb2 = false;
+    private int shotBb0FallCount = 0;
+    private int shotBb0RiseCount = 0;
+    private int shotBb1FallCount = 0;
+    private int shotBb1RiseCount = 0;
+    private int shotBb2FallCount = 0;
+    private int shotBb2RiseCount = 0;
+    private final long[] shotBb0FallMs = new long[] {-1L, -1L, -1L};
+    private final long[] shotBb0RiseMs = new long[] {-1L, -1L, -1L};
+    private final long[] shotBb1FallMs = new long[] {-1L, -1L, -1L};
+    private final long[] shotBb1RiseMs = new long[] {-1L, -1L, -1L};
+    private final long[] shotBb2FallMs = new long[] {-1L, -1L, -1L};
+    private final long[] shotBb2RiseMs = new long[] {-1L, -1L, -1L};
+    private final long[] shotIntervalMs = new long[] {-1L, -1L, -1L};
+    private boolean prevBb0ForShotLog = false;
+    private boolean prevBb1ForShotLog = false;
+    private boolean prevBb2ForShotLog = false;
+    private boolean bbPrevInitializedForShotLog = false;
 
     //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
     public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
@@ -223,6 +253,52 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             );
 
             logStartMs = 0L;
+
+            if (ENABLE_SHOT_INFO_LOGGING) {
+                shotInfoLogger = new CsvLogger("pickles2025_shot_breakbeam");
+                shotInfoLogger.start(
+                        "t_ms," +
+                                "match_t_ms," +
+                                "sequence_id," +
+                                "trigger_reason," +
+                                "start_ball_count," +
+                                "expected_shots," +
+                                "start_bb0," +
+                                "start_bb1," +
+                                "start_bb2," +
+                                "bb0_fall_1_ms," +
+                                "bb0_rise_1_ms," +
+                                "bb0_fall_2_ms," +
+                                "bb0_rise_2_ms," +
+                                "bb0_fall_3_ms," +
+                                "bb0_rise_3_ms," +
+                                "bb1_fall_1_ms," +
+                                "bb1_rise_1_ms," +
+                                "bb1_fall_2_ms," +
+                                "bb1_rise_2_ms," +
+                                "bb1_fall_3_ms," +
+                                "bb1_rise_3_ms," +
+                                "bb2_fall_1_ms," +
+                                "bb2_rise_1_ms," +
+                                "bb2_fall_2_ms," +
+                                "bb2_rise_2_ms," +
+                                "bb2_fall_3_ms," +
+                                "bb2_rise_3_ms," +
+                                "shot1_interval_ms," +
+                                "shot2_interval_ms," +
+                                "shot3_interval_ms," +
+                                "bb0_fall_count," +
+                                "bb0_rise_count," +
+                                "bb1_fall_count," +
+                                "bb1_rise_count," +
+                                "bb2_fall_count," +
+                                "bb2_rise_count," +
+                                "end_reason," +
+                                "duration_ms"
+                );
+            } else {
+                shotInfoLogger = null;
+            }
 
     }
 
@@ -602,6 +678,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         boolean bb1 = IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken();
         boolean bb2 = IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken();
 
+        updateShotInfoBreakbeamTracking(nowMs, bb0, bb1, bb2);
+
         telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
         telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
         telemetryM.addData("BB_sensor1", bb1 ? 1 : 0);
@@ -803,7 +881,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         if ((gamepad2.xWasPressed()) && (ShooterSubsystem.INSTANCE.isAtSpeed(75.0))) {
-            IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
+            int startBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+            boolean started = IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(startBallCount);
+            if (started) {
+                startShotInfoSequence("multi_single_shot", nowMs, startBallCount, bb0, bb1, bb2);
+            }
 //            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
         }
 //        if (gamepad2.yWasPressed()) {
@@ -812,6 +894,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         boolean leftTriggerActive = gamepad2.left_trigger > 0.1;
         boolean rightTriggerActive = gamepad1.right_trigger > 0.1;
+        maybeFinalizeShotInfoSequence(nowMs, rightTriggerActive, leftTriggerActive);
         if (rightTriggerActive && !tooCloseWarningActive) {
             long delay = 0;
             long shotTime = 250;
@@ -834,9 +917,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //                }
 //                else{
                 if(ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
+                    int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
                     ShooterSubsystem.INSTANCE.boostOverride = false;
                     IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                     ShooterSubsystem.INSTANCE.setBoostOn(true);
+                    startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
 
                     if (!dumbShootTimerActive) {
                         dumbShootTimerActive = true;
@@ -848,9 +933,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             }
             else{
                 if(ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
+                    int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
                     ShooterSubsystem.INSTANCE.boostOverride = false;
                     IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                     ShooterSubsystem.INSTANCE.setBoostOn(true);
+                    startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+                    if (!dumbShootTimerActive) {
+                        dumbShootTimerActive = true;
+                        dumbShootStartTimeMs = nowMs;
+                    }
 //                    IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
 //                    ShooterSubsystem.INSTANCE.boostOverride = true;
 //                    ShooterSubsystem.INSTANCE.setBoostOn(false);
@@ -884,6 +975,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (leftTriggerActive && !rightTriggerActive && singleShotPending &&
                 ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // 75 RPM window for 58-RPM resolution
             if (IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower()) {
+                startShotInfoSequence("single_ball_feed", nowMs, IntakeWithSensorsSubsystem.INSTANCE.getBallCount(), bb0, bb1, bb2);
                 singleShotPending = false;
             }
         }
@@ -939,6 +1031,194 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 RobotLog.ww("Pickles2025Teleop", "Turret CSV was not saved (logger not started, empty, or save failed).");
             }
         }
+
+        if (ENABLE_SHOT_INFO_LOGGING && shotInfoLogger != null) {
+            // Ensure an in-progress sequence is not lost.
+            if (shotLogSequenceActive) {
+                finalizeShotInfoSequence("opmode_stop", System.currentTimeMillis());
+            }
+            File savedFile = shotInfoLogger.save();
+            if (savedFile != null) {
+                RobotLog.ii("Pickles2025Teleop", "Shot-info CSV saved: " + savedFile.getAbsolutePath());
+            } else {
+                RobotLog.ww("Pickles2025Teleop", "Shot-info CSV was not saved (logger not started, empty, or save failed).");
+            }
+        }
+    }
+
+    private void startShotInfoSequence(
+            String reason,
+            long nowMs,
+            int startBallCount,
+            boolean bb0,
+            boolean bb1,
+            boolean bb2
+    ) {
+        if (!ENABLE_SHOT_INFO_LOGGING || shotInfoLogger == null) return;
+        if (shotLogSequenceActive) return;
+
+        shotLogSequenceActive = true;
+        shotSequenceStartMs = nowMs;
+        shotSequenceId = ++shotSequenceIdCounter;
+        shotSequenceStartBallCount = Math.max(0, startBallCount);
+        shotSequenceExpectedShots = Math.max(1, Math.min(3, shotSequenceStartBallCount));
+        shotSequenceReason = reason;
+        shotSequenceStartBb0 = bb0;
+        shotSequenceStartBb1 = bb1;
+        shotSequenceStartBb2 = bb2;
+        shotBb0FallCount = 0;
+        shotBb0RiseCount = 0;
+        shotBb1FallCount = 0;
+        shotBb1RiseCount = 0;
+        shotBb2FallCount = 0;
+        shotBb2RiseCount = 0;
+
+        for (int i = 0; i < 3; i++) {
+            shotBb0FallMs[i] = -1L;
+            shotBb0RiseMs[i] = -1L;
+            shotBb1FallMs[i] = -1L;
+            shotBb1RiseMs[i] = -1L;
+            shotBb2FallMs[i] = -1L;
+            shotBb2RiseMs[i] = -1L;
+            shotIntervalMs[i] = -1L;
+        }
+    }
+
+    private void updateShotInfoBreakbeamTracking(long nowMs, boolean bb0, boolean bb1, boolean bb2) {
+        if (!ENABLE_SHOT_INFO_LOGGING || shotInfoLogger == null) return;
+
+        if (!bbPrevInitializedForShotLog) {
+            prevBb0ForShotLog = bb0;
+            prevBb1ForShotLog = bb1;
+            prevBb2ForShotLog = bb2;
+            bbPrevInitializedForShotLog = true;
+            return;
+        }
+
+        if (!shotLogSequenceActive) {
+            prevBb0ForShotLog = bb0;
+            prevBb1ForShotLog = bb1;
+            prevBb2ForShotLog = bb2;
+            return;
+        }
+
+        long relMs = nowMs - shotSequenceStartMs;
+
+        if (!prevBb0ForShotLog && bb0) {
+            if (shotBb0RiseCount < 3) shotBb0RiseMs[shotBb0RiseCount] = relMs;
+            shotBb0RiseCount++;
+        } else if (prevBb0ForShotLog && !bb0) {
+            if (shotBb0FallCount < 3) shotBb0FallMs[shotBb0FallCount] = relMs;
+            shotBb0FallCount++;
+        }
+
+        if (!prevBb1ForShotLog && bb1) {
+            if (shotBb1RiseCount < 3) shotBb1RiseMs[shotBb1RiseCount] = relMs;
+            shotBb1RiseCount++;
+        } else if (prevBb1ForShotLog && !bb1) {
+            if (shotBb1FallCount < 3) shotBb1FallMs[shotBb1FallCount] = relMs;
+            shotBb1FallCount++;
+        }
+
+        if (!prevBb2ForShotLog && bb2) {
+            if (shotBb2RiseCount < 3) shotBb2RiseMs[shotBb2RiseCount] = relMs;
+            shotBb2RiseCount++;
+        } else if (prevBb2ForShotLog && !bb2) {
+            if (shotBb2FallCount < 3) shotBb2FallMs[shotBb2FallCount] = relMs;
+            shotBb2FallCount++;
+            if (shotBb2FallCount == 1) {
+                shotIntervalMs[0] = shotBb2FallMs[0];
+            } else if (shotBb2FallCount == 2) {
+                shotIntervalMs[1] = shotBb2FallMs[1] - shotBb2FallMs[0];
+            } else if (shotBb2FallCount == 3) {
+                shotIntervalMs[2] = shotBb2FallMs[2] - shotBb2FallMs[1];
+            }
+        }
+
+        prevBb0ForShotLog = bb0;
+        prevBb1ForShotLog = bb1;
+        prevBb2ForShotLog = bb2;
+    }
+
+    private void maybeFinalizeShotInfoSequence(long nowMs, boolean rightTriggerActive, boolean leftTriggerActive) {
+        if (!ENABLE_SHOT_INFO_LOGGING || shotInfoLogger == null) return;
+        if (!shotLogSequenceActive) return;
+
+        long elapsed = nowMs - shotSequenceStartMs;
+        if (shotBb2FallCount >= shotSequenceExpectedShots) {
+            finalizeShotInfoSequence("expected_shots_seen", nowMs);
+            return;
+        }
+
+        if (elapsed >= SHOT_INFO_LOG_TIMEOUT_MS) {
+            finalizeShotInfoSequence("timeout", nowMs);
+            return;
+        }
+
+        // If triggers are released and intake/shoot modes are idle, finalize early after short grace.
+        boolean intakeBusy =
+                IntakeWithSensorsSubsystem.INSTANCE.isSingleBallFeedActive() ||
+                        IntakeWithSensorsSubsystem.INSTANCE.isMultiSingleShotActive() ||
+                        IntakeWithSensorsSubsystem.INSTANCE.isShootSequenceActive() ||
+                        IntakeWithSensorsSubsystem.INSTANCE.isShooting();
+        if (!rightTriggerActive && !leftTriggerActive && !intakeBusy && elapsed > 300) {
+            finalizeShotInfoSequence("idle_end", nowMs);
+        }
+    }
+
+    private void finalizeShotInfoSequence(String endReason, long nowMs) {
+        if (!ENABLE_SHOT_INFO_LOGGING || shotInfoLogger == null) return;
+        if (!shotLogSequenceActive) return;
+
+        long matchT = (logStartMs == 0L) ? 0L : (nowMs - logStartMs);
+        long durationMs = nowMs - shotSequenceStartMs;
+
+        shotInfoLogger.addRow(
+                nowMs,
+                matchT,
+                shotSequenceId,
+                shotSequenceReason,
+                shotSequenceStartBallCount,
+                shotSequenceExpectedShots,
+                shotSequenceStartBb0,
+                shotSequenceStartBb1,
+                shotSequenceStartBb2,
+                shotBb0FallMs[0],
+                shotBb0RiseMs[0],
+                shotBb0FallMs[1],
+                shotBb0RiseMs[1],
+                shotBb0FallMs[2],
+                shotBb0RiseMs[2],
+                shotBb1FallMs[0],
+                shotBb1RiseMs[0],
+                shotBb1FallMs[1],
+                shotBb1RiseMs[1],
+                shotBb1FallMs[2],
+                shotBb1RiseMs[2],
+                shotBb2FallMs[0],
+                shotBb2RiseMs[0],
+                shotBb2FallMs[1],
+                shotBb2RiseMs[1],
+                shotBb2FallMs[2],
+                shotBb2RiseMs[2],
+                shotIntervalMs[0],
+                shotIntervalMs[1],
+                shotIntervalMs[2],
+                shotBb0FallCount,
+                shotBb0RiseCount,
+                shotBb1FallCount,
+                shotBb1RiseCount,
+                shotBb2FallCount,
+                shotBb2RiseCount,
+                endReason,
+                durationMs
+        );
+
+        shotLogSequenceActive = false;
+        shotSequenceStartMs = 0L;
+        shotSequenceStartBallCount = 0;
+        shotSequenceExpectedShots = 0;
+        shotSequenceReason = "";
     }
 
     private double normalizeRadians(double angle) {
