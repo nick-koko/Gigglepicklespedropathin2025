@@ -12,6 +12,7 @@ import com.pedropathing.ftc.InvertedFTCCoordinates;
 import com.pedropathing.ftc.PoseConverter;
 import com.pedropathing.geometry.BezierPoint;
 import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Vector;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
@@ -62,11 +63,47 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // logging variables
     private CsvLogger turretLogger;
     private CsvLogger shotInfoLogger;
+    private CsvLogger sotmLogger;
+    private CsvLogger dumbShootRpmLogger;
+    private CsvLogger shotTuningLogger;
     private long lastTurretLogMs = 0L;
-    public static boolean ENABLE_TURRET_LOGGING = false;
+    private long lastSotmLogMs = 0L;
+    private long lastDumbShootRpmLogMs = 0L;
+    public static boolean ENABLE_TURRET_LOGGING = true;
     public static long TURRET_LOG_PERIOD_MS = 25;
-    public static boolean ENABLE_SHOT_INFO_LOGGING = true;
+    // Turret diagnostics for steady-state tracking/stiction investigation.
+    public static double TURRET_DIAG_TARGET_STABLE_DELTA_DEG = 0.15;
+    public static double TURRET_DIAG_STICTION_ERROR_MIN_DEG = 0.8;
+    public static double TURRET_DIAG_STICTION_VELOCITY_MAX_DEG_PER_SEC = 2.0;
+    public static double TURRET_DIAG_SERVO_DEADBAND_POS_GUESS = 0.0010;
+    public static long TURRET_DIAG_STICTION_MIN_TIME_MS = 120;
+    public static boolean ENABLE_SOTM_LOGGING = false;
+    public static long SOTM_LOG_PERIOD_MS = 25;
+    public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = false;
+    public static long DUMBSHOOT_RPM_LOG_PERIOD_MS = 10;
+    public static long DUMBSHOOT_RPM_LOG_DURATION_MS = 1100;
+    // Shot tuning mode: same driving/aiming flow, but manual shooter controls and KEEP/IGNORE labels.
+    public static boolean SHOT_TUNING_MODE = false;
+    public static boolean ENABLE_SHOT_TUNING_LOGGING = false;
+    public static double SHOT_TUNING_RPM_STEP = 25.0;
+    public static double SHOT_TUNING_HOOD_STEP = 0.005;
+    public static double SHOT_TUNING_TARGET_STEP_IN = 1.0;
+    public static boolean SHOT_TUNING_REQUIRE_AT_SPEED_TO_FIRE = true;
+    public static double SHOT_TUNING_AT_SPEED_TOLERANCE_RPM = 75.0;
+    public static double SHOT_TUNING_TARGET_X_IN = 144.0;
+    public static double SHOT_TUNING_TARGET_Y_IN = 136.0;
+    public static boolean ENABLE_SHOT_INFO_LOGGING = false;
     public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
+    // Dumbshoot-specific logging window based on observed burst timing:
+    // shot1 < 200 ms, shot2 ~150 ms later, shot3 usually ~200 ms later.
+    // Keep a small margin for loop/sensor jitter.
+    public static long SHOT_INFO_DUMBSHOOT_TIMEOUT_MS = 900;
+    // Hold logging at least this long for dumbshoot to avoid early-finalize truncation.
+    public static long SHOT_INFO_DUMBSHOOT_MIN_CAPTURE_MS = 750;
+    // If shot2 was seen but shot3 is missing, wait this long after shot2 before finalizing.
+    public static long SHOT_INFO_DUMBSHOOT_AFTER_SECOND_TIMEOUT_MS = 325;
+    // After seeing the final expected shot edge, wait a short grace period before finalize.
+    public static long SHOT_INFO_EXPECTED_SHOTS_FINALIZE_GRACE_MS = 90;
     private long logStartMs = 0L;
     private int shotSequenceIdCounter = 0;
     private boolean shotLogSequenceActive = false;
@@ -91,10 +128,52 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private final long[] shotBb2FallMs = new long[] {-1L, -1L, -1L};
     private final long[] shotBb2RiseMs = new long[] {-1L, -1L, -1L};
     private final long[] shotIntervalMs = new long[] {-1L, -1L, -1L};
+    private int shotBb2ClearLoopCountTotal = 0;
+    private int shotBb2ClearStreakCurrent = 0;
+    private int shotBb2ClearStreakMax = 0;
     private boolean prevBb0ForShotLog = false;
     private boolean prevBb1ForShotLog = false;
     private boolean prevBb2ForShotLog = false;
     private boolean bbPrevInitializedForShotLog = false;
+    private boolean dumbShootRpmLogActive = false;
+    private long dumbShootRpmLogStartMs = 0L;
+    private int dumbShootRpmLogSequenceId = 0;
+    private int dumbShootRpmSequenceCounter = 0;
+    private int dumbShootRpmLogExpectedShots = 0;
+    private boolean dumbShootRpmPrevBbInitialized = false;
+    private boolean dumbShootRpmPrevBb0 = false;
+    private boolean dumbShootRpmPrevBb1 = false;
+    private boolean dumbShootRpmPrevBb2 = false;
+    private boolean shotTuningFlywheelEnabled = false;
+    private int shotTuningShotIdCounter = 0;
+    private boolean shotTuningPendingLabel = false;
+    private int shotTuningPendingShotId = 0;
+    private long shotTuningPendingFireMs = 0L;
+    private int shotTuningPendingStartBallCount = 0;
+    private double shotTuningPendingTargetRpm = 0.0;
+    private double shotTuningPendingHoodPos = 0.0;
+    private double shotTuningPendingRpm1 = 0.0;
+    private double shotTuningPendingRpm2 = 0.0;
+    private double shotTuningPendingBotX = 0.0;
+    private double shotTuningPendingBotY = 0.0;
+    private double shotTuningPendingBotHeadingDeg = 0.0;
+    private double shotTuningPendingTargetX = 0.0;
+    private double shotTuningPendingTargetY = 0.0;
+    private double shotTuningPendingOdoDistance = 0.0;
+    private double shotTuningPendingTurretTargetDeg = 0.0;
+    private double shotTuningPendingTurretMeasuredDeg = 0.0;
+    private boolean prevTuningTargetDpadUp = false;
+    private boolean prevTuningTargetDpadDown = false;
+    private boolean prevTuningTargetDpadLeft = false;
+    private boolean prevTuningTargetDpadRight = false;
+    private boolean prevTuningRpmDpadUp = false;
+    private boolean prevTuningRpmDpadDown = false;
+    private double prevTurretLogTargetDeg = Double.NaN;
+    private double prevTurretLogMeasuredDeg = Double.NaN;
+    private double prevTurretLogServoCommandDeg = Double.NaN;
+    private double prevTurretLogServoPos = Double.NaN;
+    private long prevTurretLogMs = 0L;
+    private long turretStictionCandidateStartMs = 0L;
 
     //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
     public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
@@ -150,6 +229,34 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double targetInitialRPM = 0;
     public static double minDisatanceForShooting = 42.0;
 
+    // SOTM Stage 3 (turret + distance-based time of flight)
+    public static boolean SOTM_ENABLED = true;
+    public static double SOTM_MIN_SPEED_IN_PER_SEC = 2.0;
+    public static double SOTM_LEAD_GAIN = 1.0;
+    public static double SOTM_MAX_LEAD_IN = 15.0;
+    public static double SOTM_ANGULAR_LEAD_GAIN = 0.25;
+    public static double SOTM_OMEGA_FILTER_ALPHA = 0.2;
+    // Separate turret-lag feedforward layer (independent from SOTM lead-point math).
+    // Equivalent concept to: turretTarget += angularVelocity * kVF.
+    public static boolean SOTM_TURRET_LAG_COMP_ENABLED = true;
+    public static double SOTM_TURRET_LAG_COMP_SEC = 0.10;
+    public static double SOTM_TURRET_LAG_COMP_MAX_DEG = 12.0;
+    // When true, keep SOTM solution (turret + ballistic distance) live all the time.
+    public static boolean SOTM_ALWAYS_TRACK_TARGETS = true;
+    // Legacy toggle (intentionally unused now): flywheel enable is controlled only by
+    // shooterFollowEnabled (left-bumper latch or 3-ball auto-enable).
+    public static boolean SOTM_ALWAYS_PRIME_SHOOTER = false;
+    public static double SOTM_FIRE_AIM_TOLERANCE_DEG = 4.0;
+    public static double SOTM_FIRE_MAX_TURRET_SPEED_DEG_PER_SEC = 220.0;
+    public static boolean SOTM_REQUIRE_TURRET_READY_FOR_FIRE = false;
+    public static double SOTM_REACHABILITY_TOLERANCE_DEG = 1.0;
+    public static boolean SOTM_USE_TOF_LOOKUP = true;
+    public static double SOTM_MECHANICAL_DELAY_SEC = 0.15;
+    public static double SOTM_BALL_TRANSFER_TIME_SEC = 0.0;
+    public static double SOTM_ESTIMATED_BALL_SPEED_IN_PER_SEC = 300.0;
+    private static final double[] SOTM_TOF_DISTANCE_IN = {60.0, 80.0, 100.0, 120.0};
+    private static final double[] SOTM_TOF_FLIGHT_TIME_SEC = {0.15, 0.20, 0.27, 0.35};
+
     // Auto-stop shooter timeout after starting a dumbShoot burst (ms)
     public static long DUMBSHOOT_SHOOTER_TIMEOUT_MS = 750;
 
@@ -173,10 +280,33 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // Latches flywheel tracking mode so RPM keeps following location without holding a button.
     private boolean shooterFollowEnabled = false;
     private boolean prevGamepad1LeftBumper = false;
+    private double sotmFilteredOmegaRadPerSec = 0.0;
+    private boolean sotmOmegaFilterInitialized = false;
+    // True only after Start is pressed; prevents flywheel spin-up during Init.
+    private boolean matchHasStarted = false;
 
 
     @Override
     public void onInit() {
+        matchHasStarted = false;
+        targetRPM = 0.0;
+        ShooterSubsystem.INSTANCE.stop();
+        shooterFollowEnabled = false;
+        dumbShootTimerActive = false;
+        singleShotPending = false;
+        shotTuningFlywheelEnabled = false;
+        shotTuningPendingLabel = false;
+        shotTuningShotIdCounter = 0;
+        shooterHoodPos = 0.0;
+        prevTuningTargetDpadUp = false;
+        prevTuningTargetDpadDown = false;
+        prevTuningTargetDpadLeft = false;
+        prevTuningTargetDpadRight = false;
+        prevTuningRpmDpadUp = false;
+        prevTuningRpmDpadDown = false;
+        hold = false;
+        prevHold = false;
+
         limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
@@ -242,6 +372,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                             "turret_abs_delta_deg," +
                             "turret_learned_servo_offset_deg," +
                             "turret_abs_startup_error_deg," +
+                            "turret_encoder_ticks," +
+                            "turret_log_dt_ms," +
+                            "turret_target_delta_deg," +
+                            "turret_measured_delta_deg," +
+                            "turret_servo_command_delta_deg," +
+                            "turret_servo_pos_delta," +
+                            "turret_trim_as_servo_delta_pos," +
+                            "turret_cmd_above_deadband_guess," +
+                            "turret_target_stable," +
+                            "turret_limit_clipped," +
+                            "turret_stiction_suspect," +
                             "turret_ready," +
                             "driving_cmd," +
                             "strafe_cmd," +
@@ -252,7 +393,81 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                             "has_results"
             );
 
+            if (ENABLE_SOTM_LOGGING) {
+                sotmLogger = new CsvLogger("pickles2025_sotm");
+                sotmLogger.start(
+                        "t_ms," +
+                                "match_t_ms," +
+                                "sotm_fire_request_active," +
+                                "sotm_control_active," +
+                                "right_bumper_active," +
+                                "right_trigger_active," +
+                                "bot_x," +
+                                "bot_y," +
+                                "bot_heading_deg," +
+                                "target_x," +
+                                "target_y," +
+                                "field_angle_deg," +
+                                "angle_error_deg," +
+                                "real_distance_in," +
+                                "sotm_valid," +
+                                "sotm_lead_applied," +
+                                "sotm_speed_in_s," +
+                                "sotm_vx_in_s," +
+                                "sotm_vy_in_s," +
+                                "sotm_omega_raw_deg_s," +
+                                "sotm_omega_deg_s," +
+                                "sotm_total_tof_s," +
+                                "sotm_lead_x_in," +
+                                "sotm_lead_y_in," +
+                                "sotm_radial_vel_in_s," +
+                                "sotm_effective_dist_in," +
+                                "sotm_ballistic_dist_in," +
+                                "sotm_turret_aim_deg," +
+                                "sotm_turret_lag_comp_deg," +
+                                "turret_target_deg," +
+                                "turret_measured_deg," +
+                                "turret_ready," +
+                                "sotm_turret_gate," +
+                                "sotm_turret_goal_error_deg," +
+                                "sotm_turret_constraint_error_deg," +
+                                "sotm_turret_reachable," +
+                                "sotm_turret_speed_deg_s," +
+                                "sotm_turret_speed_gate," +
+                                "sotm_fire_gate," +
+                                "sotm_can_shoot_gate," +
+                                "shooter_target_rpm," +
+                                "shooter_rpm1," +
+                                "shooter_rpm2," +
+                                "shooter_at_speed_75," +
+                                "dumbshoot_timer_active," +
+                                "hold_state," +
+                                "drive_cmd," +
+                                "strafe_cmd," +
+                                "rotate_cmd"
+                );
+            } else {
+                sotmLogger = null;
+            }
+
             logStartMs = 0L;
+            lastTurretLogMs = 0L;
+            lastSotmLogMs = 0L;
+            lastDumbShootRpmLogMs = 0L;
+            prevTurretLogTargetDeg = Double.NaN;
+            prevTurretLogMeasuredDeg = Double.NaN;
+            prevTurretLogServoCommandDeg = Double.NaN;
+            prevTurretLogServoPos = Double.NaN;
+            prevTurretLogMs = 0L;
+            turretStictionCandidateStartMs = 0L;
+            dumbShootRpmLogActive = false;
+            dumbShootRpmLogStartMs = 0L;
+            dumbShootRpmLogSequenceId = 0;
+            dumbShootRpmSequenceCounter = 0;
+            dumbShootRpmLogExpectedShots = 0;
+            dumbShootRpmPrevBbInitialized = false;
+            shotTuningPendingLabel = false;
+            shotTuningShotIdCounter = 0;
 
             if (ENABLE_SHOT_INFO_LOGGING) {
                 shotInfoLogger = new CsvLogger("pickles2025_shot_breakbeam");
@@ -287,6 +502,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "shot1_interval_ms," +
                                 "shot2_interval_ms," +
                                 "shot3_interval_ms," +
+                                "bb2_clear_gap_1to2_ms," +
+                                "bb2_clear_gap_2to3_ms," +
+                                "bb2_clear_loops_total," +
+                                "bb2_clear_streak_max_loops," +
                                 "bb0_fall_count," +
                                 "bb0_rise_count," +
                                 "bb1_fall_count," +
@@ -298,6 +517,78 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 );
             } else {
                 shotInfoLogger = null;
+            }
+
+            if (ENABLE_DUMBSHOOT_RPM_LOGGING) {
+                dumbShootRpmLogger = new CsvLogger("pickles2025_dumbshoot_rpm");
+                dumbShootRpmLogger.start(
+                        "t_ms," +
+                                "match_t_ms," +
+                                "sequence_id," +
+                                "t_since_start_ms," +
+                                "expected_shots," +
+                                "dumbshoot_timer_active," +
+                                "shooter_target_rpm," +
+                                "shooter_rpm1," +
+                                "shooter_rpm2," +
+                                "shooter_avg_rpm," +
+                                "shooter_rpm_delta_avg," +
+                                "shooter_power1," +
+                                "shooter_power2," +
+                                "shooter_at_speed_75," +
+                                "boost_active," +
+                                "second_boost_active," +
+                                "boost_override," +
+                                "bb0," +
+                                "bb1," +
+                                "bb2," +
+                                "bb0_rise_edge," +
+                                "bb0_fall_edge," +
+                                "bb1_rise_edge," +
+                                "bb1_fall_edge," +
+                                "bb2_rise_edge," +
+                                "bb2_fall_edge," +
+                                "ball_count"
+                );
+            } else {
+                dumbShootRpmLogger = null;
+            }
+
+            if (ENABLE_SHOT_TUNING_LOGGING) {
+                shotTuningLogger = new CsvLogger("pickles2025_shot_tuning");
+                shotTuningLogger.start(
+                        "t_ms," +
+                                "match_t_ms," +
+                                "shot_id," +
+                                "label," +
+                                "label_reason," +
+                                "fire_t_ms," +
+                                "t_since_fire_ms," +
+                                "start_ball_count," +
+                                "target_x," +
+                                "target_y," +
+                                "bot_x_fire," +
+                                "bot_y_fire," +
+                                "bot_heading_deg_fire," +
+                                "ododistance_fire," +
+                                "target_rpm_fire," +
+                                "hood_pos_fire," +
+                                "rpm1_fire," +
+                                "rpm2_fire," +
+                                "target_rpm_label," +
+                                "hood_pos_label," +
+                                "rpm1_label," +
+                                "rpm2_label," +
+                                "turret_target_deg_fire," +
+                                "turret_measured_deg_fire," +
+                                "turret_target_deg_label," +
+                                "turret_measured_deg_label," +
+                                "boost_active_label," +
+                                "second_boost_active_label," +
+                                "boost_override_label"
+                );
+            } else {
+                shotTuningLogger = null;
             }
 
     }
@@ -331,6 +622,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     @Override
     public void onStartButtonPressed() {
+        matchHasStarted = true;
         //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)
@@ -343,8 +635,34 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         } else {
             shootingTargetLocation = blueShootingTarget;
         }
+        SHOT_TUNING_TARGET_X_IN = shootingTargetLocation.getX();
+        SHOT_TUNING_TARGET_Y_IN = shootingTargetLocation.getY();
 
         TurretSubsystem.INSTANCE.center();
+        sotmOmegaFilterInitialized = false;
+        sotmFilteredOmegaRadPerSec = 0.0;
+        prevTurretLogTargetDeg = Double.NaN;
+        prevTurretLogMeasuredDeg = Double.NaN;
+        prevTurretLogServoCommandDeg = Double.NaN;
+        prevTurretLogServoPos = Double.NaN;
+        prevTurretLogMs = 0L;
+        turretStictionCandidateStartMs = 0L;
+        dumbShootRpmLogActive = false;
+        dumbShootRpmLogStartMs = 0L;
+        dumbShootRpmLogSequenceId = 0;
+        dumbShootRpmSequenceCounter = 0;
+        dumbShootRpmLogExpectedShots = 0;
+        dumbShootRpmPrevBbInitialized = false;
+        lastDumbShootRpmLogMs = 0L;
+        shotTuningFlywheelEnabled = false;
+        shotTuningPendingLabel = false;
+        prevTuningTargetDpadUp = false;
+        prevTuningTargetDpadDown = false;
+        prevTuningTargetDpadLeft = false;
+        prevTuningTargetDpadRight = false;
+        prevTuningRpmDpadUp = false;
+        prevTuningRpmDpadDown = false;
+        shooterHoodPos = ShooterSubsystem.INSTANCE.getShooterHoodPosition();
 
         logStartMs = System.currentTimeMillis();
     }
@@ -362,6 +680,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             ShooterSubsystem.INSTANCE.stop();
             IntakeWithSensorsSubsystem.INSTANCE.stop();
             IntakeWithSensorsSubsystem.INSTANCE.validateBallCountAfterShoot();
+            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();
             dumbShootTimerActive = false;
             shooterFollowEnabled = false;
         }
@@ -378,6 +697,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double driving = (-gamepad1.left_stick_y) * drivePower;
         double strafe = (-gamepad1.left_stick_x) * drivePower;
         double rotate = (-gamepad1.right_stick_x) * 0.5;
+        boolean rightTriggerActive = gamepad1.right_trigger > 0.1;
+        boolean rightBumperActive = gamepad1.right_bumper;
+        boolean dpadUpActive = !SHOT_TUNING_MODE && gamepad1.dpad_up;
+        boolean sotmFireRequestActive = !SHOT_TUNING_MODE && (rightTriggerActive || rightBumperActive);
+        boolean sotmControlActive = SOTM_ENABLED && (SOTM_ALWAYS_TRACK_TARGETS || sotmFireRequestActive);
 
         if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
             driving *= -1;
@@ -391,8 +715,36 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         Pose ftcCoordPose   = currentBotPose.getAsCoordinateSystem(InvertedFTCCoordinates.INSTANCE);
         limelight.updateRobotOrientation(Math.toDegrees(ftcCoordPose.getHeading()));
 
-        double shootTargetX = shootingTargetLocation.getX();
-        double shootTargetY = botyvalue > 106 ? shootingTargetLocation.getY() - 1 : shootingTargetLocation.getY() + 3;
+        if (SHOT_TUNING_MODE) {
+            boolean tuningTargetUp = gamepad1.dpad_up;
+            boolean tuningTargetDown = gamepad1.dpad_down;
+            boolean tuningTargetLeft = gamepad1.dpad_left;
+            boolean tuningTargetRight = gamepad1.dpad_right;
+            double targetStep = Math.max(0.0, SHOT_TUNING_TARGET_STEP_IN);
+            if (tuningTargetUp && !prevTuningTargetDpadUp) {
+                SHOT_TUNING_TARGET_Y_IN += targetStep;
+            }
+            if (tuningTargetDown && !prevTuningTargetDpadDown) {
+                SHOT_TUNING_TARGET_Y_IN -= targetStep;
+            }
+            if (tuningTargetRight && !prevTuningTargetDpadRight) {
+                SHOT_TUNING_TARGET_X_IN += targetStep;
+            }
+            if (tuningTargetLeft && !prevTuningTargetDpadLeft) {
+                SHOT_TUNING_TARGET_X_IN -= targetStep;
+            }
+            prevTuningTargetDpadUp = tuningTargetUp;
+            prevTuningTargetDpadDown = tuningTargetDown;
+            prevTuningTargetDpadLeft = tuningTargetLeft;
+            prevTuningTargetDpadRight = tuningTargetRight;
+        }
+
+        double shootTargetX = SHOT_TUNING_MODE
+                ? SHOT_TUNING_TARGET_X_IN
+                : shootingTargetLocation.getX();
+        double shootTargetY = SHOT_TUNING_MODE
+                ? SHOT_TUNING_TARGET_Y_IN
+                : (botyvalue > 106 ? shootingTargetLocation.getY() - 1 : shootingTargetLocation.getY() + 3);
 
         // Vector from robot -> target
         double dx = shootTargetX - botxvalue;
@@ -408,9 +760,53 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // - angleErrorDeg  -> "how many degrees left/right from current heading"
         double angleErrorDeg = Math.toDegrees(angleErrorRad);
 
-        // Always track the goal with the turret. Left bumper now only enables
-        // shoot-related behavior (spin-up, future drive limiting/assist, etc.).
-        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(angleErrorDeg);
+        Vector robotVelocity = PedroComponent.follower().getVelocity();
+        double sotmVx = robotVelocity.getXComponent();
+        double sotmVy = robotVelocity.getYComponent();
+        double sotmSpeed = robotVelocity.getMagnitude();
+        double sotmOmegaRawRadPerSec = PedroComponent.follower().poseTracker.getAngularVelocity();
+        double sotmOmegaRadPerSec = updateSotmFilteredOmega(sotmOmegaRawRadPerSec);
+
+        SOTMResult sotmResult = calculateSotmResult(
+                botxvalue,
+                botyvalue,
+                botHeadingRad,
+                shootTargetX,
+                shootTargetY,
+                sotmVx,
+                sotmVy,
+                sotmSpeed,
+                sotmOmegaRadPerSec,
+                sotmControlActive
+        );
+
+        // Always track with turret. When SOTM is active and moving, this target is lead-compensated.
+        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(sotmResult.turretRobotRelativeAimDeg);
+        double shooterDistanceForBallistics = sotmResult.distanceForBallisticsInches;
+        double turretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+        double turretMeasuredVelDegPerSec = TurretSubsystem.INSTANCE.getMeasuredVelocityDegPerSec();
+        double turretCommandedTargetDeg = TurretSubsystem.INSTANCE.getTargetAngleDegrees();
+        double desiredTurretAimUnwrappedDeg =
+                robotFrontRelativeToTurretUnwrappedDegrees(sotmResult.turretRobotRelativeAimDeg);
+        double turretGoalErrorDeg =
+                smallestWrappedDeltaDegrees(desiredTurretAimUnwrappedDeg, turretMeasuredDeg);
+        double turretConstraintErrorDeg =
+                smallestWrappedDeltaDegrees(desiredTurretAimUnwrappedDeg, turretCommandedTargetDeg);
+        boolean turretTargetReachable =
+                Math.abs(turretConstraintErrorDeg) <= Math.max(0.0, SOTM_REACHABILITY_TOLERANCE_DEG);
+        boolean turretAimAtGoal =
+                Math.abs(turretGoalErrorDeg) <= Math.max(0.0, SOTM_FIRE_AIM_TOLERANCE_DEG);
+        boolean turretSpeedGateSatisfied =
+                Math.abs(turretMeasuredVelDegPerSec) <= Math.max(0.0, SOTM_FIRE_MAX_TURRET_SPEED_DEG_PER_SEC);
+        boolean turretReadyGateSatisfied =
+                !SOTM_REQUIRE_TURRET_READY_FOR_FIRE || TurretSubsystem.INSTANCE.isTurretReady();
+        boolean turretAimGateSatisfied =
+                turretTargetReachable &&
+                turretAimAtGoal &&
+                turretSpeedGateSatisfied &&
+                turretReadyGateSatisfied;
+        boolean sotmFireGateSatisfied = !sotmControlActive || sotmResult.valid;
+        boolean canShootAtGoal = turretAimGateSatisfied && sotmFireGateSatisfied;
 
 
         double angletangent = 0;
@@ -421,7 +817,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             PedroComponent.follower().setPose(new Pose(71, 8, Math.toRadians(270)));
         }
 
-        if (gamepad1.right_bumper) {
+        // Legacy limelight heading-assist block.
+        // Keep it only when SOTM is disabled, otherwise it fights moving-shot turret targeting.
+        if (dpadUpActive && !SOTM_ENABLED) {
             adjustLimelight = true;
             if (result != null && result.isValid()) {
                 if (ODODistance < 100) {
@@ -520,20 +918,31 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         boolean leftBumperPressedNow = gamepad1.left_bumper;
         boolean leftBumperRisingEdge = leftBumperPressedNow && !prevGamepad1LeftBumper;
-        if (leftBumperRisingEdge) {
-            shooterFollowEnabled = true;
-        }
-        if (IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3) {
-            shooterFollowEnabled = true;
-        }
-
-        if (shooterFollowEnabled) {
-            targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
-            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-            adjustOdo = true;
+        if (!SHOT_TUNING_MODE) {
+            if (leftBumperRisingEdge) {
+                shooterFollowEnabled = true;
+            }
+            if (IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3) {
+                shooterFollowEnabled = true;
+            }
+        } else {
+            shooterFollowEnabled = false;
         }
 
-        if (leftBumperPressedNow || shooterFollowEnabled) {
+        // Continuously compute desired RPM from current aiming mode, but only spin flywheel
+        // when explicitly enabled (left-bumper latch or 3-ball auto-enable).
+        if (!SHOT_TUNING_MODE) {
+            targetRPM = sotmControlActive
+                    ? calculateShooterRPMOdoDistance(shooterDistanceForBallistics)
+                    : calculateShooterRPMOdoDistance(this.ODODistance);
+
+            if (matchHasStarted && shooterFollowEnabled) {
+                ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+                adjustOdo = true;
+            }
+        }
+
+        if (leftBumperPressedNow || shooterFollowEnabled || sotmControlActive) {
             goToTargetAngle = false;
 //        } else if (gamepad1.right_trigger > 0.1) {
 //            targetAngleDeg = 180.0 + angleAllianceOffset;
@@ -679,6 +1088,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         boolean bb2 = IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken();
 
         updateShotInfoBreakbeamTracking(nowMs, bb0, bb1, bb2);
+        maybeLogDumbShootRpmSample(nowMs, bb0, bb1, bb2, rpmShooter1, rpmShooter2);
 
         telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
         telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
@@ -710,6 +1120,37 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("turretReady", TurretSubsystem.INSTANCE.isTurretReady());
         telemetry.addData("boostActive", ShooterSubsystem.INSTANCE.boostActive);
         telemetry.addData("shooterFollowEnabled", shooterFollowEnabled);
+        telemetry.addData("SOTM_active", sotmControlActive);
+        telemetry.addData("SOTM_valid", sotmResult.valid);
+        telemetry.addData("SOTM_leadApplied", sotmResult.leadApplied);
+        telemetry.addData("SOTM_speed", sotmResult.speedInPerSec);
+        telemetry.addData("SOTM_totalTofSec", sotmResult.totalTimeSeconds);
+        telemetry.addData("SOTM_leadX", sotmResult.leadXInches);
+        telemetry.addData("SOTM_leadY", sotmResult.leadYInches);
+        telemetry.addData("SOTM_radialVel", sotmResult.radialVelocityInPerSec);
+        telemetry.addData("SOTM_omegaRawDegS", Math.toDegrees(sotmOmegaRawRadPerSec));
+        telemetry.addData("SOTM_omegaFiltDegS", Math.toDegrees(sotmOmegaRadPerSec));
+        telemetry.addData("SOTM_effectiveDist", sotmResult.effectiveDistanceInches);
+        telemetry.addData("SOTM_turretAimDeg", sotmResult.turretRobotRelativeAimDeg);
+        telemetry.addData("SOTM_turretLagCompDeg", sotmResult.turretLagCompensationDeg);
+        telemetry.addData("SOTM_turretGate", turretAimGateSatisfied);
+        telemetry.addData("SOTM_turretGoalErrDeg", turretGoalErrorDeg);
+        telemetry.addData("SOTM_turretConstraintErrDeg", turretConstraintErrorDeg);
+        telemetry.addData("SOTM_turretReachable", turretTargetReachable);
+        telemetry.addData("SOTM_turretSpeedDegS", turretMeasuredVelDegPerSec);
+        telemetry.addData("SOTM_turretSpeedGate", turretSpeedGateSatisfied);
+        telemetry.addData("SOTM_fireGate", sotmFireGateSatisfied);
+        telemetry.addData("SOTM_canShootGate", canShootAtGoal);
+        telemetry.addData("SHOT_TUNE_mode", SHOT_TUNING_MODE);
+        telemetry.addData("SHOT_TUNE_flywheelEnabled", shotTuningFlywheelEnabled);
+        telemetry.addData("SHOT_TUNE_targetRPM", targetRPM);
+        telemetry.addData("SHOT_TUNE_hoodPos", shooterHoodPos);
+        telemetry.addData("SHOT_TUNE_targetX", SHOT_TUNING_TARGET_X_IN);
+        telemetry.addData("SHOT_TUNE_targetY", SHOT_TUNING_TARGET_Y_IN);
+        telemetry.addData("SHOT_TUNE_pendingLabel", shotTuningPendingLabel);
+        telemetry.addData("SHOT_TUNE_pendingShotId", shotTuningPendingShotId);
+        telemetry.addData("SHOT_TUNE_controls",
+                "g2RB toggle flywheel, g2A fire, g2Y/X hood+/- , g2DpadUp/Down rpm+/- , g1Dpad target, g1X keep, g1B ignore");
         telemetryM.addData("targetRPM", ShooterSubsystem.INSTANCE.getTargetRpm());
 
         if (ENABLE_TURRET_LOGGING && turretLogger != null) {
@@ -722,7 +1163,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 double turretTargetCorrectedDeg = TurretSubsystem.INSTANCE.getCorrectedTargetAngleDegrees();
                 double turretCommandedDeg = TurretSubsystem.INSTANCE.getCommandedAngleDegrees();
                 double turretServoCommandDeg = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
-                double turretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
                 double turretErrorDeg = turretTargetDeg - turretMeasuredDeg;
                 double turretOuterTrimDeg = TurretSubsystem.INSTANCE.getOuterLoopTrimDegrees();
                 double turretCommandDiffDeg = TurretSubsystem.INSTANCE.getCommandDiffDegrees();
@@ -740,9 +1180,58 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 double turretAbsDeltaDeg = TurretSubsystem.INSTANCE.getAbsoluteEncoderTurretDeltaDegrees();
                 double turretLearnedServoOffsetDeg = TurretSubsystem.INSTANCE.getLearnedServoCommandOffsetDegrees();
                 double turretAbsStartupErrorDeg = TurretSubsystem.INSTANCE.getAbsoluteStartupErrorDegrees();
+                int turretEncoderTicks = TurretSubsystem.INSTANCE.getCurrentEncoderTicks();
 
                 while (turretErrorDeg > 180) turretErrorDeg -= 360;
                 while (turretErrorDeg < -180) turretErrorDeg += 360;
+
+                double turretLogDtMs = 0.0;
+                if (prevTurretLogMs > 0L && nowLogMs >= prevTurretLogMs) {
+                    turretLogDtMs = nowLogMs - prevTurretLogMs;
+                }
+                double turretTargetDeltaDeg = 0.0;
+                if (Double.isFinite(prevTurretLogTargetDeg)) {
+                    turretTargetDeltaDeg = smallestWrappedDeltaDegrees(turretTargetDeg, prevTurretLogTargetDeg);
+                }
+                double turretMeasuredDeltaDeg = 0.0;
+                if (Double.isFinite(prevTurretLogMeasuredDeg)) {
+                    turretMeasuredDeltaDeg = smallestWrappedDeltaDegrees(turretMeasuredDeg, prevTurretLogMeasuredDeg);
+                }
+                double turretServoCommandDeltaDeg = 0.0;
+                if (Double.isFinite(prevTurretLogServoCommandDeg)) {
+                    turretServoCommandDeltaDeg = smallestWrappedDeltaDegrees(turretServoCommandDeg, prevTurretLogServoCommandDeg);
+                }
+                double turretServoPosDelta = 0.0;
+                if (Double.isFinite(prevTurretLogServoPos)) {
+                    turretServoPosDelta = turretServoPos - prevTurretLogServoPos;
+                }
+
+                double unclippedServoCommandDeg = turretCommandedDeg + turretOuterTrimDeg;
+                boolean turretLimitClipped =
+                        Math.abs(unclippedServoCommandDeg - turretServoCommandDeg) > 1e-6;
+                double turretTrimAsServoDeltaPos =
+                        Math.abs(turretOuterTrimDeg) / Math.max(1e-6, TurretSubsystem.TURRET_TRAVEL_DEGREES);
+                boolean turretCmdAboveDeadbandGuess =
+                        turretTrimAsServoDeltaPos >= Math.max(0.0, TURRET_DIAG_SERVO_DEADBAND_POS_GUESS);
+                boolean turretTargetStable =
+                        Math.abs(turretTargetDeltaDeg) <= Math.max(0.0, TURRET_DIAG_TARGET_STABLE_DELTA_DEG);
+                boolean stictionCandidateNow =
+                        turretTargetStable &&
+                        Math.abs(turretErrorDeg) >= Math.max(0.0, TURRET_DIAG_STICTION_ERROR_MIN_DEG) &&
+                        Math.abs(turretEncoderVelDegPerSec) <= Math.max(0.0, TURRET_DIAG_STICTION_VELOCITY_MAX_DEG_PER_SEC) &&
+                        turretCmdAboveDeadbandGuess &&
+                        !turretLimitClipped;
+                if (stictionCandidateNow) {
+                    if (turretStictionCandidateStartMs == 0L) {
+                        turretStictionCandidateStartMs = nowLogMs;
+                    }
+                } else {
+                    turretStictionCandidateStartMs = 0L;
+                }
+                boolean turretStictionSuspect =
+                        stictionCandidateNow &&
+                        turretStictionCandidateStartMs > 0L &&
+                        (nowLogMs - turretStictionCandidateStartMs) >= Math.max(0L, TURRET_DIAG_STICTION_MIN_TIME_MS);
 
                 long matchT = (logStartMs == 0L) ? 0L : (nowLogMs - logStartMs);
 
@@ -778,6 +1267,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         turretAbsDeltaDeg,
                         turretLearnedServoOffsetDeg,
                         turretAbsStartupErrorDeg,
+                        turretEncoderTicks,
+                        turretLogDtMs,
+                        turretTargetDeltaDeg,
+                        turretMeasuredDeltaDeg,
+                        turretServoCommandDeltaDeg,
+                        turretServoPosDelta,
+                        turretTrimAsServoDeltaPos,
+                        turretCmdAboveDeadbandGuess,
+                        turretTargetStable,
+                        turretLimitClipped,
+                        turretStictionSuspect,
                         TurretSubsystem.INSTANCE.isTurretReady(),
                         driving,
                         strafe,
@@ -786,6 +1286,72 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         xOffset,
                         yOffset,
                         hasResults
+                );
+
+                prevTurretLogTargetDeg = turretTargetDeg;
+                prevTurretLogMeasuredDeg = turretMeasuredDeg;
+                prevTurretLogServoCommandDeg = turretServoCommandDeg;
+                prevTurretLogServoPos = turretServoPos;
+                prevTurretLogMs = nowLogMs;
+            }
+        }
+
+        if (ENABLE_SOTM_LOGGING && sotmLogger != null) {
+            long nowSotmLogMs = System.currentTimeMillis();
+            if (nowSotmLogMs - lastSotmLogMs >= SOTM_LOG_PERIOD_MS) {
+                lastSotmLogMs = nowSotmLogMs;
+                long matchT = (logStartMs == 0L) ? 0L : (nowSotmLogMs - logStartMs);
+
+                sotmLogger.addRow(
+                        nowSotmLogMs,
+                        matchT,
+                        sotmFireRequestActive,
+                        sotmControlActive,
+                        rightBumperActive,
+                        rightTriggerActive,
+                        botxvalue,
+                        botyvalue,
+                        Math.toDegrees(botHeadingRad),
+                        shootTargetX,
+                        shootTargetY,
+                        fieldAngleDeg,
+                        angleErrorDeg,
+                        ODODistance,
+                        sotmResult.valid,
+                        sotmResult.leadApplied,
+                        sotmResult.speedInPerSec,
+                        sotmVx,
+                        sotmVy,
+                        Math.toDegrees(sotmOmegaRawRadPerSec),
+                        Math.toDegrees(sotmOmegaRadPerSec),
+                        sotmResult.totalTimeSeconds,
+                        sotmResult.leadXInches,
+                        sotmResult.leadYInches,
+                        sotmResult.radialVelocityInPerSec,
+                        sotmResult.effectiveDistanceInches,
+                        shooterDistanceForBallistics,
+                        sotmResult.turretRobotRelativeAimDeg,
+                        sotmResult.turretLagCompensationDeg,
+                        TurretSubsystem.INSTANCE.getTargetAngleDegrees(),
+                        TurretSubsystem.INSTANCE.getMeasuredAngleDegrees(),
+                        TurretSubsystem.INSTANCE.isTurretReady(),
+                        turretAimGateSatisfied,
+                        turretGoalErrorDeg,
+                        turretConstraintErrorDeg,
+                        turretTargetReachable,
+                        turretMeasuredVelDegPerSec,
+                        turretSpeedGateSatisfied,
+                        sotmFireGateSatisfied,
+                        canShootAtGoal,
+                        ShooterSubsystem.INSTANCE.getTargetRpm(),
+                        rpmShooter1,
+                        rpmShooter2,
+                        ShooterSubsystem.INSTANCE.isAtSpeed(75.0),
+                        dumbShootTimerActive,
+                        hold,
+                        driving,
+                        strafe,
+                        rotate
                 );
             }
         }
@@ -851,140 +1417,206 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
 
         //Start Ian's control
-
-        if (gamepad2.rightBumperWasPressed()) {
-            this.shoot = true;
-            // Starting a new spin-up cancels any previous dumbShoot timeout
-            dumbShootTimerActive = false;
-            if (testShooter) {
-
-            }else if (!hasResults || this.adjustOdo) {
-                //ShooterSubsystem.INSTANCE.setClosePID();
-                targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
-                //ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-                //targetRPM = 2950;
-            } else if (hasResults && yOffset > 9.) {
-                ShooterSubsystem.INSTANCE.setClosePID();
-                targetRPM = calculateShooterRPM(yOffset);
-            } else if (hasResults && yOffset <= 9.) {
-                ShooterSubsystem.INSTANCE.setFarPID();
-                targetRPM = 4330;
-            }
-            //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
-            telemetry.addData("Target Shooter Speed", targetRPM);
-            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-        } else if (gamepad2.leftBumperWasPressed()) {
-            ShooterSubsystem.INSTANCE.stop();
-            dumbShootTimerActive = false;
-            shooterFollowEnabled = false;
-            //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
-        }
-
-        if ((gamepad2.xWasPressed()) && (ShooterSubsystem.INSTANCE.isAtSpeed(75.0))) {
-            int startBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-            boolean started = IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(startBallCount);
-            if (started) {
-                startShotInfoSequence("multi_single_shot", nowMs, startBallCount, bb0, bb1, bb2);
-            }
-//            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
-        }
-//        if (gamepad2.yWasPressed()) {
-//            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
-//        }
-
         boolean leftTriggerActive = gamepad2.left_trigger > 0.1;
-        boolean rightTriggerActive = gamepad1.right_trigger > 0.1;
-        maybeFinalizeShotInfoSequence(nowMs, rightTriggerActive, leftTriggerActive);
-        if (rightTriggerActive && !tooCloseWarningActive) {
-            long delay = 0;
-            long shotTime = 250;
-//            if (hasResults && yOffset >= 10) {
-//                delay = 100;
-//                IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-//                ShooterSubsystem.INSTANCE.setBoostOn();
-//            } else if (hasResults && yOffset < 11) {
-//                delay = 700;
-//                IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
-//                ShooterSubsystem.INSTANCE.setBoostOn();
-//            }
-            hold = true;
+        if (!SHOT_TUNING_MODE && shotTuningPendingLabel) {
+            labelShotTuningSample("UNRATED", "mode_exit");
+        }
 
-            if (ODODistance < 105.) {
-//                if (yOffset < 10){
-//                    IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-//                    ShooterSubsystem.INSTANCE.setBoostOn(true);
-//                    ShooterSubsystem.INSTANCE.boostOverride = true;
-//                }
-//                else{
-                if(ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
-                    int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-                    ShooterSubsystem.INSTANCE.boostOverride = false;
-                    IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-                    ShooterSubsystem.INSTANCE.setBoostOn(true);
-                    startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
-
-                    if (!dumbShootTimerActive) {
-                        dumbShootTimerActive = true;
-                        dumbShootStartTimeMs = nowMs;
-                    }
-                }
-                //}
-                // Start the auto-stop timer only once per dumbShoot burst
-            }
-            else{
-                if(ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) {
-                    int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-                    ShooterSubsystem.INSTANCE.boostOverride = false;
-                    IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-                    ShooterSubsystem.INSTANCE.setBoostOn(true);
-                    startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
-                    if (!dumbShootTimerActive) {
-                        dumbShootTimerActive = true;
-                        dumbShootStartTimeMs = nowMs;
-                    }
-//                    IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
-//                    ShooterSubsystem.INSTANCE.boostOverride = true;
-//                    ShooterSubsystem.INSTANCE.setBoostOn(false);
-                }
-            }
-
-            //IntakeWithSensorsSubsystem.INSTANCE.shoot(shotTime, delay);
-
-        }  else if (leftTriggerActive && !prevLeftTriggerActive) {
-            // Latch a single-shot request; actual firing waits for RPM to be in range
-            hold = true;
-            singleShotPending = true;
-        } else if (gamepad2.aWasPressed()) {
+        if (SHOT_TUNING_MODE) {
             hold = false;
-            this.shoot = false;
-            //targetRPM = 1000;
-            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();//Hoping Forward is Intake (maybe change the method name)
-            ShooterSubsystem.INSTANCE.stop();
+            dumbShootTimerActive = false;
             shooterFollowEnabled = false;
-            this.hasResults = false;
-            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
-        } else if (gamepad2.b) {
-            hold = false;
-            IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
-        } else {
-            hold = false;
-        }
 
-        // If a single shot is pending and left trigger is still held (and right trigger is not),
-        // wait for shooter RPM to be within tolerance, then fire exactly one ball.
-        if (leftTriggerActive && !rightTriggerActive && singleShotPending &&
-                ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // 75 RPM window for 58-RPM resolution
-            if (IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower()) {
-                startShotInfoSequence("single_ball_feed", nowMs, IntakeWithSensorsSubsystem.INSTANCE.getBallCount(), bb0, bb1, bb2);
-                singleShotPending = false;
+            boolean tuningRpmUp = gamepad2.dpad_up;
+            boolean tuningRpmDown = gamepad2.dpad_down;
+            double rpmStep = Math.max(0.0, SHOT_TUNING_RPM_STEP);
+            if (tuningRpmUp && !prevTuningRpmDpadUp) {
+                targetRPM = Math.max(0.0, targetRPM + rpmStep);
             }
-        }
+            if (tuningRpmDown && !prevTuningRpmDpadDown) {
+                targetRPM = Math.max(0.0, targetRPM - rpmStep);
+            }
+            prevTuningRpmDpadUp = tuningRpmUp;
+            prevTuningRpmDpadDown = tuningRpmDown;
 
-        // If the left trigger is released, clear any pending single-shot request so the
-        // next press is treated as a new request.
-        if (!leftTriggerActive && prevLeftTriggerActive) {
+            double hoodStep = Math.max(0.0, SHOT_TUNING_HOOD_STEP);
+            if (gamepad2.yWasPressed()) {
+                shooterHoodPos = Math.min(1.0, shooterHoodPos + hoodStep);
+            }
+            if (gamepad2.xWasPressed()) {
+                shooterHoodPos = Math.max(0.0, shooterHoodPos - hoodStep);
+            }
+
+            if (gamepad2.rightBumperWasPressed()) {
+                shotTuningFlywheelEnabled = !shotTuningFlywheelEnabled;
+            }
+            if (gamepad2.leftBumperWasPressed()) {
+                shotTuningFlywheelEnabled = false;
+            }
+
+            if (shotTuningFlywheelEnabled && matchHasStarted) {
+                ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+            } else {
+                ShooterSubsystem.INSTANCE.stop();
+            }
+
+            boolean shotTuningAtSpeed =
+                    !SHOT_TUNING_REQUIRE_AT_SPEED_TO_FIRE ||
+                    ShooterSubsystem.INSTANCE.isAtSpeed(SHOT_TUNING_AT_SPEED_TOLERANCE_RPM);
+            boolean shotTuningCanFire = canShootAtGoal && shotTuningAtSpeed && !tooCloseWarningActive;
+            if (gamepad2.aWasPressed() && shotTuningCanFire) {
+                if (shotTuningPendingLabel) {
+                    labelShotTuningSample("UNRATED", "next_shot_before_label");
+                }
+                if (IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower()) {
+                    shotTuningShotIdCounter++;
+                    shotTuningPendingLabel = true;
+                    shotTuningPendingShotId = shotTuningShotIdCounter;
+                    shotTuningPendingFireMs = nowMs;
+                    shotTuningPendingStartBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+                    shotTuningPendingTargetRpm = targetRPM;
+                    shotTuningPendingHoodPos = shooterHoodPos;
+                    shotTuningPendingRpm1 = rpmShooter1;
+                    shotTuningPendingRpm2 = rpmShooter2;
+                    shotTuningPendingBotX = botxvalue;
+                    shotTuningPendingBotY = botyvalue;
+                    shotTuningPendingBotHeadingDeg = Math.toDegrees(botHeadingRad);
+                    shotTuningPendingTargetX = shootTargetX;
+                    shotTuningPendingTargetY = shootTargetY;
+                    shotTuningPendingOdoDistance = ODODistance;
+                    shotTuningPendingTurretTargetDeg = TurretSubsystem.INSTANCE.getTargetAngleDegrees();
+                    shotTuningPendingTurretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+                }
+            }
+
+            if (gamepad1.xWasPressed() && shotTuningPendingLabel) {
+                labelShotTuningSample("KEEP", "manual_keep");
+            } else if (gamepad1.bWasPressed() && shotTuningPendingLabel) {
+                labelShotTuningSample("IGNORE", "manual_ignore");
+            }
+
+            maybeFinalizeShotInfoSequence(nowMs, false, leftTriggerActive);
             singleShotPending = false;
-            hold = false;
+        } else {
+            if (gamepad2.rightBumperWasPressed()) {
+                this.shoot = true;
+                // Starting a new spin-up cancels any previous dumbShoot timeout
+                dumbShootTimerActive = false;
+                if (testShooter) {
+
+                }else if (!hasResults || this.adjustOdo) {
+                    //ShooterSubsystem.INSTANCE.setClosePID();
+                    targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
+                    //ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+                    //targetRPM = 2950;
+                } else if (hasResults && yOffset > 9.) {
+                    ShooterSubsystem.INSTANCE.setClosePID();
+                    targetRPM = calculateShooterRPM(yOffset);
+                } else if (hasResults && yOffset <= 9.) {
+                    ShooterSubsystem.INSTANCE.setFarPID();
+                    targetRPM = 4330;
+                }
+                //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
+                telemetry.addData("Target Shooter Speed", targetRPM);
+                ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+            } else if (gamepad2.leftBumperWasPressed()) {
+                ShooterSubsystem.INSTANCE.stop();
+                dumbShootTimerActive = false;
+                shooterFollowEnabled = false;
+                //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
+            }
+
+            if ((gamepad2.xWasPressed()) &&
+                    ShooterSubsystem.INSTANCE.isAtSpeed(75.0) &&
+                    canShootAtGoal) {
+                int startBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+                boolean started = IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(startBallCount);
+                if (started) {
+                    startShotInfoSequence("multi_single_shot", nowMs, startBallCount, bb0, bb1, bb2);
+                }
+    //            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
+            }
+    //        if (gamepad2.yWasPressed()) {
+    //            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
+    //        }
+
+            boolean canFireTriggerShot =
+                    ShooterSubsystem.INSTANCE.isAtSpeed(75.0) &&
+                    canShootAtGoal &&
+                    !tooCloseWarningActive;
+            maybeFinalizeShotInfoSequence(nowMs, sotmFireRequestActive, leftTriggerActive);
+            if (sotmFireRequestActive && !tooCloseWarningActive) {
+                // Only right-trigger shooting should lock robot translation/rotation.
+                // Right-bumper SOTM stays fully driveable.
+                hold = rightTriggerActive;
+
+                if (ODODistance < 105.) {
+                    if (canFireTriggerShot) {
+                        int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+                        ShooterSubsystem.INSTANCE.boostOverride = false;
+                        IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+                        ShooterSubsystem.INSTANCE.setBoostOn(true);
+                        startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+                        startDumbShootRpmLogSequence(nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+
+                        if (!dumbShootTimerActive) {
+                            dumbShootTimerActive = true;
+                            dumbShootStartTimeMs = nowMs;
+                        }
+                    }
+                    // Start the auto-stop timer only once per dumbShoot burst
+                }
+                else{
+                    if (canFireTriggerShot) {
+                        int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+                        ShooterSubsystem.INSTANCE.boostOverride = false;
+                        IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+                        ShooterSubsystem.INSTANCE.setBoostOn(true);
+                        startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+                        startDumbShootRpmLogSequence(nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+                        if (!dumbShootTimerActive) {
+                            dumbShootTimerActive = true;
+                            dumbShootStartTimeMs = nowMs;
+                        }
+                    }
+                }
+            }  else if (leftTriggerActive && !prevLeftTriggerActive) {
+                // Latch a single-shot request; actual firing waits for RPM to be in range
+                hold = true;
+                singleShotPending = true;
+            } else if (gamepad2.aWasPressed()) {
+                hold = false;
+                this.shoot = false;
+                //targetRPM = 1000;
+                IntakeWithSensorsSubsystem.INSTANCE.intakeForward();//Hoping Forward is Intake (maybe change the method name)
+                ShooterSubsystem.INSTANCE.stop();
+                shooterFollowEnabled = false;
+                this.hasResults = false;
+                LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
+            } else if (gamepad2.b) {
+                hold = false;
+                IntakeWithSensorsSubsystem.INSTANCE.intakeReverse();
+            } else {
+                hold = false;
+            }
+
+            // If a single shot is pending and left trigger is still held (and right trigger is not),
+            // wait for shooter RPM to be within tolerance, then fire exactly one ball.
+            if (leftTriggerActive && !sotmFireRequestActive && singleShotPending &&
+                    canShootAtGoal &&
+                    ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // 75 RPM window for 58-RPM resolution
+                if (IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower()) {
+                    startShotInfoSequence("single_ball_feed", nowMs, IntakeWithSensorsSubsystem.INSTANCE.getBallCount(), bb0, bb1, bb2);
+                    singleShotPending = false;
+                }
+            }
+
+            // If the left trigger is released, clear any pending single-shot request so the
+            // next press is treated as a new request.
+            if (!leftTriggerActive && prevLeftTriggerActive) {
+                singleShotPending = false;
+                hold = false;
+            }
         }
 
         prevLeftTriggerActive = leftTriggerActive;
@@ -999,8 +1631,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevHold = hold;
 
 
-        if (testShooter) {
+        if (SHOT_TUNING_MODE) {
+            // Keep manual hood value in shot tuning mode.
+        } else if (testShooter) {
             // Do nothing
+        } else if (sotmControlActive) {
+            this.shooterHoodPos = calculateShooterHoodOdoDistance(shooterDistanceForBallistics);
         } else if (hasResults && !adjustOdo) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
             //this.shooterHoodPos = getHoodPositionFromDistance(this.ODODistance);
             //this.shooterHoodPos = 0.05;
@@ -1022,6 +1658,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     @Override
     public void onStop() {
         super.onStop();
+        matchHasStarted = false;
+        ShooterSubsystem.INSTANCE.stop();
+        targetRPM = 0.0;
 
         if (ENABLE_TURRET_LOGGING && turretLogger != null) {
             File savedFile = turretLogger.save();
@@ -1029,6 +1668,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 RobotLog.ii("Pickles2025Teleop", "Turret CSV saved: " + savedFile.getAbsolutePath());
             } else {
                 RobotLog.ww("Pickles2025Teleop", "Turret CSV was not saved (logger not started, empty, or save failed).");
+            }
+        }
+
+        if (ENABLE_SOTM_LOGGING && sotmLogger != null) {
+            File savedFile = sotmLogger.save();
+            if (savedFile != null) {
+                RobotLog.ii("Pickles2025Teleop", "SOTM CSV saved: " + savedFile.getAbsolutePath());
+            } else {
+                RobotLog.ww("Pickles2025Teleop", "SOTM CSV was not saved (logger not started, empty, or save failed).");
             }
         }
 
@@ -1044,6 +1692,160 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 RobotLog.ww("Pickles2025Teleop", "Shot-info CSV was not saved (logger not started, empty, or save failed).");
             }
         }
+
+        if (ENABLE_DUMBSHOOT_RPM_LOGGING && dumbShootRpmLogger != null) {
+            File savedFile = dumbShootRpmLogger.save();
+            if (savedFile != null) {
+                RobotLog.ii("Pickles2025Teleop", "Dumbshoot RPM CSV saved: " + savedFile.getAbsolutePath());
+            } else {
+                RobotLog.ww("Pickles2025Teleop", "Dumbshoot RPM CSV was not saved (logger not started, empty, or save failed).");
+            }
+        }
+
+        if (ENABLE_SHOT_TUNING_LOGGING && shotTuningLogger != null) {
+            if (shotTuningPendingLabel) {
+                labelShotTuningSample("UNRATED", "opmode_stop");
+            }
+            File savedFile = shotTuningLogger.save();
+            if (savedFile != null) {
+                RobotLog.ii("Pickles2025Teleop", "Shot tuning CSV saved: " + savedFile.getAbsolutePath());
+            } else {
+                RobotLog.ww("Pickles2025Teleop", "Shot tuning CSV was not saved (logger not started, empty, or save failed).");
+            }
+        }
+    }
+
+    private void labelShotTuningSample(String label, String labelReason) {
+        if (!ENABLE_SHOT_TUNING_LOGGING || shotTuningLogger == null) return;
+        if (!shotTuningPendingLabel) return;
+
+        long nowMs = System.currentTimeMillis();
+        long matchT = (logStartMs == 0L) ? 0L : (nowMs - logStartMs);
+        long sinceFireMs = nowMs - shotTuningPendingFireMs;
+        double rpm1Now = ShooterSubsystem.INSTANCE.getShooter1RPM();
+        double rpm2Now = ShooterSubsystem.INSTANCE.getShooter2RPM();
+        shotTuningLogger.addRow(
+                nowMs,
+                matchT,
+                shotTuningPendingShotId,
+                label,
+                labelReason,
+                shotTuningPendingFireMs,
+                sinceFireMs,
+                shotTuningPendingStartBallCount,
+                shotTuningPendingTargetX,
+                shotTuningPendingTargetY,
+                shotTuningPendingBotX,
+                shotTuningPendingBotY,
+                shotTuningPendingBotHeadingDeg,
+                shotTuningPendingOdoDistance,
+                shotTuningPendingTargetRpm,
+                shotTuningPendingHoodPos,
+                shotTuningPendingRpm1,
+                shotTuningPendingRpm2,
+                targetRPM,
+                shooterHoodPos,
+                rpm1Now,
+                rpm2Now,
+                shotTuningPendingTurretTargetDeg,
+                shotTuningPendingTurretMeasuredDeg,
+                TurretSubsystem.INSTANCE.getTargetAngleDegrees(),
+                TurretSubsystem.INSTANCE.getMeasuredAngleDegrees(),
+                ShooterSubsystem.INSTANCE.boostActive,
+                ShooterSubsystem.INSTANCE.secondBoostActive,
+                ShooterSubsystem.INSTANCE.boostOverride
+        );
+
+        shotTuningPendingLabel = false;
+    }
+
+    private void startDumbShootRpmLogSequence(long nowMs, int expectedShots, boolean bb0, boolean bb1, boolean bb2) {
+        if (!ENABLE_DUMBSHOOT_RPM_LOGGING || dumbShootRpmLogger == null) return;
+        dumbShootRpmSequenceCounter++;
+        dumbShootRpmLogSequenceId = dumbShootRpmSequenceCounter;
+        dumbShootRpmLogStartMs = nowMs;
+        dumbShootRpmLogExpectedShots = Math.max(0, expectedShots);
+        dumbShootRpmLogActive = true;
+        dumbShootRpmPrevBbInitialized = true;
+        dumbShootRpmPrevBb0 = bb0;
+        dumbShootRpmPrevBb1 = bb1;
+        dumbShootRpmPrevBb2 = bb2;
+        lastDumbShootRpmLogMs = 0L;
+    }
+
+    private void maybeLogDumbShootRpmSample(
+            long nowMs,
+            boolean bb0,
+            boolean bb1,
+            boolean bb2,
+            double rpmShooter1,
+            double rpmShooter2
+    ) {
+        if (!ENABLE_DUMBSHOOT_RPM_LOGGING || dumbShootRpmLogger == null) return;
+        if (!dumbShootRpmLogActive) return;
+
+        long sinceStartMs = nowMs - dumbShootRpmLogStartMs;
+        if (sinceStartMs > Math.max(0L, DUMBSHOOT_RPM_LOG_DURATION_MS)) {
+            dumbShootRpmLogActive = false;
+            return;
+        }
+
+        if (lastDumbShootRpmLogMs > 0L &&
+                nowMs - lastDumbShootRpmLogMs < Math.max(1L, DUMBSHOOT_RPM_LOG_PERIOD_MS)) {
+            return;
+        }
+        lastDumbShootRpmLogMs = nowMs;
+
+        boolean bb0RiseEdge = false;
+        boolean bb0FallEdge = false;
+        boolean bb1RiseEdge = false;
+        boolean bb1FallEdge = false;
+        boolean bb2RiseEdge = false;
+        boolean bb2FallEdge = false;
+        if (dumbShootRpmPrevBbInitialized) {
+            bb0RiseEdge = !dumbShootRpmPrevBb0 && bb0;
+            bb0FallEdge = dumbShootRpmPrevBb0 && !bb0;
+            bb1RiseEdge = !dumbShootRpmPrevBb1 && bb1;
+            bb1FallEdge = dumbShootRpmPrevBb1 && !bb1;
+            bb2RiseEdge = !dumbShootRpmPrevBb2 && bb2;
+            bb2FallEdge = dumbShootRpmPrevBb2 && !bb2;
+        }
+        dumbShootRpmPrevBb0 = bb0;
+        dumbShootRpmPrevBb1 = bb1;
+        dumbShootRpmPrevBb2 = bb2;
+        dumbShootRpmPrevBbInitialized = true;
+
+        long matchT = (logStartMs == 0L) ? 0L : (nowMs - logStartMs);
+        double shooterAvgRpm = 0.5 * (rpmShooter1 + rpmShooter2);
+        dumbShootRpmLogger.addRow(
+                nowMs,
+                matchT,
+                dumbShootRpmLogSequenceId,
+                sinceStartMs,
+                dumbShootRpmLogExpectedShots,
+                dumbShootTimerActive,
+                ShooterSubsystem.INSTANCE.getTargetRpm(),
+                rpmShooter1,
+                rpmShooter2,
+                shooterAvgRpm,
+                ShooterSubsystem.INSTANCE.getAverageRpmDelta(),
+                ShooterSubsystem.INSTANCE.getShooter1Power(),
+                ShooterSubsystem.INSTANCE.getShooter2Power(),
+                ShooterSubsystem.INSTANCE.isAtSpeed(75.0),
+                ShooterSubsystem.INSTANCE.boostActive,
+                ShooterSubsystem.INSTANCE.secondBoostActive,
+                ShooterSubsystem.INSTANCE.boostOverride,
+                bb0,
+                bb1,
+                bb2,
+                bb0RiseEdge,
+                bb0FallEdge,
+                bb1RiseEdge,
+                bb1FallEdge,
+                bb2RiseEdge,
+                bb2FallEdge,
+                IntakeWithSensorsSubsystem.INSTANCE.getBallCount()
+        );
     }
 
     private void startShotInfoSequence(
@@ -1072,6 +1874,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotBb1RiseCount = 0;
         shotBb2FallCount = 0;
         shotBb2RiseCount = 0;
+        shotBb2ClearLoopCountTotal = 0;
+        shotBb2ClearStreakCurrent = 0;
+        shotBb2ClearStreakMax = 0;
 
         for (int i = 0; i < 3; i++) {
             shotBb0FallMs[i] = -1L;
@@ -1103,6 +1908,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         long relMs = nowMs - shotSequenceStartMs;
+
+        // Loop-level "clear beam" observability for sensor2.
+        // bb2 == true means broken; clear/unbroken is !bb2.
+        if (!bb2) {
+            shotBb2ClearLoopCountTotal++;
+            shotBb2ClearStreakCurrent++;
+            if (shotBb2ClearStreakCurrent > shotBb2ClearStreakMax) {
+                shotBb2ClearStreakMax = shotBb2ClearStreakCurrent;
+            }
+        } else {
+            shotBb2ClearStreakCurrent = 0;
+        }
 
         if (!prevBb0ForShotLog && bb0) {
             if (shotBb0RiseCount < 3) shotBb0RiseMs[shotBb0RiseCount] = relMs;
@@ -1145,7 +1962,42 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (!shotLogSequenceActive) return;
 
         long elapsed = nowMs - shotSequenceStartMs;
-        if (shotBb2FallCount >= shotSequenceExpectedShots) {
+        long lastBb2FallRelMs = shotBb2FallCount > 0
+                ? shotBb2FallMs[Math.min(shotBb2FallCount, 3) - 1]
+                : -1L;
+        long sinceLastBb2FallMs = lastBb2FallRelMs >= 0 ? (elapsed - lastBb2FallRelMs) : Long.MAX_VALUE;
+        boolean expectedShotsSeen = shotBb2FallCount >= shotSequenceExpectedShots;
+        boolean expectedShotsSettled =
+                expectedShotsSeen &&
+                sinceLastBb2FallMs >= Math.max(0L, SHOT_INFO_EXPECTED_SHOTS_FINALIZE_GRACE_MS);
+
+        // For dumbshoot: avoid early "idle_end" finalization, which can truncate
+        // breakbeam capture before all expected transitions occur.
+        if ("dumbshoot".equals(shotSequenceReason)) {
+            boolean minCaptureSatisfied =
+                    elapsed >= Math.max(0L, SHOT_INFO_DUMBSHOOT_MIN_CAPTURE_MS);
+            if (expectedShotsSettled && minCaptureSatisfied) {
+                finalizeShotInfoSequence("expected_shots_seen", nowMs);
+                return;
+            }
+
+            // If two shots were detected, prefer a short targeted window for shot3.
+            if (shotSequenceExpectedShots >= 3 && shotBb2FallCount >= 2 && shotBb2FallMs[1] >= 0L) {
+                long sinceSecondShotMs = elapsed - shotBb2FallMs[1];
+                if (minCaptureSatisfied &&
+                        sinceSecondShotMs >= Math.max(0L, SHOT_INFO_DUMBSHOOT_AFTER_SECOND_TIMEOUT_MS)) {
+                    finalizeShotInfoSequence("third_missing_after_second", nowMs);
+                    return;
+                }
+            }
+
+            if (elapsed >= Math.max(0L, SHOT_INFO_DUMBSHOOT_TIMEOUT_MS)) {
+                finalizeShotInfoSequence("dumbshoot_timeout", nowMs);
+            }
+            return;
+        }
+
+        if (expectedShotsSettled) {
             finalizeShotInfoSequence("expected_shots_seen", nowMs);
             return;
         }
@@ -1172,6 +2024,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         long matchT = (logStartMs == 0L) ? 0L : (nowMs - logStartMs);
         long durationMs = nowMs - shotSequenceStartMs;
+        long bb2ClearGap12Ms = (shotBb2RiseMs[0] >= 0L && shotBb2FallMs[1] >= 0L)
+                ? (shotBb2FallMs[1] - shotBb2RiseMs[0])
+                : -1L;
+        long bb2ClearGap23Ms = (shotBb2RiseMs[1] >= 0L && shotBb2FallMs[2] >= 0L)
+                ? (shotBb2FallMs[2] - shotBb2RiseMs[1])
+                : -1L;
 
         shotInfoLogger.addRow(
                 nowMs,
@@ -1204,6 +2062,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 shotIntervalMs[0],
                 shotIntervalMs[1],
                 shotIntervalMs[2],
+                bb2ClearGap12Ms,
+                bb2ClearGap23Ms,
+                shotBb2ClearLoopCountTotal,
+                shotBb2ClearStreakMax,
                 shotBb0FallCount,
                 shotBb0RiseCount,
                 shotBb1FallCount,
@@ -1219,6 +2081,202 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotSequenceStartBallCount = 0;
         shotSequenceExpectedShots = 0;
         shotSequenceReason = "";
+    }
+
+    private static class SOTMResult {
+        final boolean valid;
+        final boolean leadApplied;
+        final double speedInPerSec;
+        final double totalTimeSeconds;
+        final double leadXInches;
+        final double leadYInches;
+        final double radialVelocityInPerSec;
+        final double effectiveDistanceInches;
+        final double distanceForBallisticsInches;
+        final double turretRobotRelativeAimDeg;
+        final double turretLagCompensationDeg;
+
+        SOTMResult(
+                boolean valid,
+                boolean leadApplied,
+                double speedInPerSec,
+                double totalTimeSeconds,
+                double leadXInches,
+                double leadYInches,
+                double radialVelocityInPerSec,
+                double effectiveDistanceInches,
+                double distanceForBallisticsInches,
+                double turretRobotRelativeAimDeg,
+                double turretLagCompensationDeg
+        ) {
+            this.valid = valid;
+            this.leadApplied = leadApplied;
+            this.speedInPerSec = speedInPerSec;
+            this.totalTimeSeconds = totalTimeSeconds;
+            this.leadXInches = leadXInches;
+            this.leadYInches = leadYInches;
+            this.radialVelocityInPerSec = radialVelocityInPerSec;
+            this.effectiveDistanceInches = effectiveDistanceInches;
+            this.distanceForBallisticsInches = distanceForBallisticsInches;
+            this.turretRobotRelativeAimDeg = turretRobotRelativeAimDeg;
+            this.turretLagCompensationDeg = turretLagCompensationDeg;
+        }
+    }
+
+    private SOTMResult calculateSotmResult(
+            double botX,
+            double botY,
+            double botHeadingRad,
+            double targetX,
+            double targetY,
+            double vxInPerSec,
+            double vyInPerSec,
+            double speedInPerSec,
+            double omegaRadPerSec,
+            boolean sotmControlActive
+    ) {
+        double dx = targetX - botX;
+        double dy = targetY - botY;
+        double realDistance = Math.hypot(dx, dy);
+        if (!Double.isFinite(realDistance) || realDistance < 1e-6) {
+            return new SOTMResult(
+                    false,
+                    false,
+                    speedInPerSec,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    minDisatanceForShooting,
+                    0.0,
+                    0.0
+            );
+        }
+
+        double totalTimeSec = getSotmTotalTimeSeconds(realDistance);
+        double leadX = 0.0;
+        double leadY = 0.0;
+        boolean leadApplied = sotmControlActive && speedInPerSec > SOTM_MIN_SPEED_IN_PER_SEC;
+        if (leadApplied) {
+            leadX = vxInPerSec * totalTimeSec * SOTM_LEAD_GAIN;
+            leadY = vyInPerSec * totalTimeSec * SOTM_LEAD_GAIN;
+            double leadMagnitude = Math.hypot(leadX, leadY);
+            if (leadMagnitude > SOTM_MAX_LEAD_IN && leadMagnitude > 1e-6) {
+                double scale = SOTM_MAX_LEAD_IN / leadMagnitude;
+                leadX *= scale;
+                leadY *= scale;
+            }
+        }
+
+        double virtualTargetX = targetX - leadX;
+        double virtualTargetY = targetY - leadY;
+        double virtualFieldAngleRad = Math.atan2(virtualTargetY - botY, virtualTargetX - botX);
+        double turretRobotRelativeAimDeg = Math.toDegrees(normalizeRadians(virtualFieldAngleRad - botHeadingRad));
+        if (leadApplied) {
+            turretRobotRelativeAimDeg += Math.toDegrees(
+                    omegaRadPerSec * totalTimeSec * SOTM_ANGULAR_LEAD_GAIN
+            );
+        }
+
+        double turretLagCompensationDeg = 0.0;
+        if (sotmControlActive && SOTM_TURRET_LAG_COMP_ENABLED) {
+            turretLagCompensationDeg = Math.toDegrees(omegaRadPerSec) * SOTM_TURRET_LAG_COMP_SEC;
+            double maxLagCompDeg = Math.max(0.0, SOTM_TURRET_LAG_COMP_MAX_DEG);
+            turretLagCompensationDeg = Math.max(
+                    -maxLagCompDeg,
+                    Math.min(maxLagCompDeg, turretLagCompensationDeg)
+            );
+            turretRobotRelativeAimDeg += turretLagCompensationDeg;
+        }
+
+        // Keep effective distance tied to real target vector (Stage 3 guidance, avoids double-counting).
+        double radialVelocityInPerSec = (vxInPerSec * dx + vyInPerSec * dy) / realDistance;
+        double effectiveDistance = Math.max(0.0, realDistance - (radialVelocityInPerSec * totalTimeSec));
+        double distanceForBallistics = leadApplied
+                ? Math.max(minDisatanceForShooting, effectiveDistance)
+                : realDistance;
+
+        boolean valid =
+                Double.isFinite(totalTimeSec) &&
+                Double.isFinite(leadX) &&
+                Double.isFinite(leadY) &&
+                Double.isFinite(radialVelocityInPerSec) &&
+                Double.isFinite(effectiveDistance) &&
+                Double.isFinite(distanceForBallistics) &&
+                Double.isFinite(turretRobotRelativeAimDeg);
+
+        return new SOTMResult(
+                valid,
+                leadApplied,
+                speedInPerSec,
+                totalTimeSec,
+                leadX,
+                leadY,
+                radialVelocityInPerSec,
+                effectiveDistance,
+                distanceForBallistics,
+                turretRobotRelativeAimDeg,
+                turretLagCompensationDeg
+        );
+    }
+
+    private double getSotmTotalTimeSeconds(double distanceInches) {
+        return SOTM_MECHANICAL_DELAY_SEC +
+                SOTM_BALL_TRANSFER_TIME_SEC +
+                getSotmFlightTimeSeconds(distanceInches);
+    }
+
+    private double getSotmFlightTimeSeconds(double distanceInches) {
+        if (SOTM_USE_TOF_LOOKUP) {
+            return interpolateSotmLookup(
+                    distanceInches,
+                    SOTM_TOF_DISTANCE_IN,
+                    SOTM_TOF_FLIGHT_TIME_SEC
+            );
+        }
+        return distanceInches / Math.max(1e-6, SOTM_ESTIMATED_BALL_SPEED_IN_PER_SEC);
+    }
+
+    private static double interpolateSotmLookup(double x, double[] xs, double[] ys) {
+        if (xs.length == 0 || ys.length == 0 || xs.length != ys.length) return 0.0;
+        if (x <= xs[0]) return ys[0];
+        int last = xs.length - 1;
+        if (x >= xs[last]) return ys[last];
+
+        for (int i = 0; i < last; i++) {
+            double x0 = xs[i];
+            double x1 = xs[i + 1];
+            if (x >= x0 && x <= x1) {
+                double t = (x - x0) / Math.max(1e-6, x1 - x0);
+                return ys[i] + (t * (ys[i + 1] - ys[i]));
+            }
+        }
+        return ys[last];
+    }
+
+    private double updateSotmFilteredOmega(double rawOmegaRadPerSec) {
+        double alpha = Math.max(0.0, Math.min(1.0, SOTM_OMEGA_FILTER_ALPHA));
+        if (!sotmOmegaFilterInitialized) {
+            sotmFilteredOmegaRadPerSec = rawOmegaRadPerSec;
+            sotmOmegaFilterInitialized = true;
+            return sotmFilteredOmegaRadPerSec;
+        }
+        sotmFilteredOmegaRadPerSec =
+                (alpha * rawOmegaRadPerSec) + ((1.0 - alpha) * sotmFilteredOmegaRadPerSec);
+        return sotmFilteredOmegaRadPerSec;
+    }
+
+    private static double robotFrontRelativeToTurretUnwrappedDegrees(double robotFrontRelativeDegrees) {
+        return (TurretSubsystem.ROBOT_FRONT_RELATIVE_SIGN * robotFrontRelativeDegrees) +
+                TurretSubsystem.ROBOT_FRONT_TO_TURRET_ZERO_OFFSET_DEGREES;
+    }
+
+    private static double smallestWrappedDeltaDegrees(double targetDegrees, double currentDegrees) {
+        double delta = targetDegrees - currentDegrees;
+        while (delta > 180.0) delta -= 360.0;
+        while (delta < -180.0) delta += 360.0;
+        return delta;
     }
 
     private double normalizeRadians(double angle) {

@@ -26,15 +26,15 @@ public class ShooterSubsystem implements Subsystem {
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
 //    public static double kP = 0.15;
-    public static double kP = 0.00066;
+    public static double kP = 0.0007;
 //    public static double kP = 0.00075;
     //public static double kI = 0.0001;
     public static double kI = 0.000;
 //    public static double kD = 0.00001;
     public static double kD = 0.0000;
 
-    public static double kS = .1431;
-    public static double kV = 0.000126;
+    public static double kS = .115; //voltage needed to just barely move flywheel
+    public static double kV = 0.00013; //check voltage needed at about 2500rpm and 4000rpm, and then determine the kV slope required with kS
     public static double kA = 0.00000;
 
     public static double HEADROOM = 0.10;

@@ -81,44 +81,44 @@ public class farAutonPaths extends NextFTCOpMode{
     private final Pose offLineLeverBlue = new Pose(30, 20, Math.toRadians(90)); // Middle (Second Set) of Artifacts from the Spike Mark.
     private final Pose offLineCloseBlue = new Pose(47, 27, Math.toRadians(180));
 
-    public final Pose startPoseRed = startPoseBlue.mirror();
-    private final Pose scorePoseCloseRed = scorePoseCloseBlue.mirror();
+    public final Pose startPoseRed = startPoseBlue.mirror(144);
+    private final Pose scorePoseCloseRed = scorePoseCloseBlue.mirror(144);
 
-    private final Pose pickup1PoseRed = pickup1PoseBlue.mirror();
-    private final Pose pickup1CP1Red = pickup1CP1Blue.mirror();
-    private final Pose pickup1CP2Red = pickup1CP2Blue.mirror();
-    private final Pose pickup1EndPoseRed = pickup1EndPoseBlue.mirror();
-    private final Pose pickup2PoseRed = pickup2PoseBlue.mirror();
-    private final Pose pickup2CP1Red = pickup2CP1Blue.mirror();
-    private final Pose pickup2CP2Red = pickup2CP2Blue.mirror();
-    private final Pose pickup2EndPoseRed = pickup2EndPoseBlue.mirror();
-    private final Pose pickup2GateLeverEndPoseRed = pickup2GateLeverEndPoseBlue.mirror();
-    private final Pose pickup2GateLeverPushPoseRed = pickup2GateLeverPushPoseBlue.mirror();
-    private final Pose pickup2GateLeverPushHoldPoseRed = pickup2GateLeverPushHoldPoseBlue.mirror();
-    private final Pose pickup2GateLeverPushCP1Red = pickup2GateLeverPushCP1Blue.mirror();
-    private final Pose pickup2GateLeverPushCP2Red = pickup2GateLeverPushCP2Blue.mirror();
-    private final Pose pickup3PoseRed = pickup3PoseBlue.mirror();
-    private final Pose pickup3CP1Red = pickup3CP1Blue.mirror();
-    private final Pose pickup3CP2Red = pickup3CP2Blue.mirror();
-    private final Pose pickup3EndPoseRed = pickup3EndPoseBlue.mirror();
-    private final Pose getPickup3CPPathRed = getPickup3CPPathBlue.mirror();
-    private final Pose pickupBZonePoseRed = pickupBZonePoseBlue.mirror();
-    private final Pose pickupBZoneCP1Red = pickupBZoneCP1Blue.mirror();
-    private final Pose pickupBZoneCP2Red = pickupBZoneCP2Blue.mirror();
-    private final Pose pickupBZoneEndPoseRed = pickupBZoneEndPoseBlue.mirror();
-    private final Pose getPickup1CPPathRed = getPickup1CPPathBlue.mirror();
-    private final Pose getPickup2CPPathRed = getPickup2CPPathBlue.mirror();
-    private final Pose getPickupBZoneCPPathRed = getPickupBZoneCPPathBlue.mirror();
+    private final Pose pickup1PoseRed = pickup1PoseBlue.mirror(144);
+    private final Pose pickup1CP1Red = pickup1CP1Blue.mirror(144);
+    private final Pose pickup1CP2Red = pickup1CP2Blue.mirror(144);
+    private final Pose pickup1EndPoseRed = pickup1EndPoseBlue.mirror(144);
+    private final Pose pickup2PoseRed = pickup2PoseBlue.mirror(144);
+    private final Pose pickup2CP1Red = pickup2CP1Blue.mirror(144);
+    private final Pose pickup2CP2Red = pickup2CP2Blue.mirror(144);
+    private final Pose pickup2EndPoseRed = pickup2EndPoseBlue.mirror(144);
+    private final Pose pickup2GateLeverEndPoseRed = pickup2GateLeverEndPoseBlue.mirror(144);
+    private final Pose pickup2GateLeverPushPoseRed = pickup2GateLeverPushPoseBlue.mirror(144);
+    private final Pose pickup2GateLeverPushHoldPoseRed = pickup2GateLeverPushHoldPoseBlue.mirror(144);
+    private final Pose pickup2GateLeverPushCP1Red = pickup2GateLeverPushCP1Blue.mirror(144);
+    private final Pose pickup2GateLeverPushCP2Red = pickup2GateLeverPushCP2Blue.mirror(144);
+    private final Pose pickup3PoseRed = pickup3PoseBlue.mirror(144);
+    private final Pose pickup3CP1Red = pickup3CP1Blue.mirror(144);
+    private final Pose pickup3CP2Red = pickup3CP2Blue.mirror(144);
+    private final Pose pickup3EndPoseRed = pickup3EndPoseBlue.mirror(144);
+    private final Pose getPickup3CPPathRed = getPickup3CPPathBlue.mirror(144);
+    private final Pose pickupBZonePoseRed = pickupBZonePoseBlue.mirror(144);
+    private final Pose pickupBZoneCP1Red = pickupBZoneCP1Blue.mirror(144);
+    private final Pose pickupBZoneCP2Red = pickupBZoneCP2Blue.mirror(144);
+    private final Pose pickupBZoneEndPoseRed = pickupBZoneEndPoseBlue.mirror(144);
+    private final Pose getPickup1CPPathRed = getPickup1CPPathBlue.mirror(144);
+    private final Pose getPickup2CPPathRed = getPickup2CPPathBlue.mirror(144);
+    private final Pose getPickupBZoneCPPathRed = getPickupBZoneCPPathBlue.mirror(144);
 
-    private final Pose pickupTZonePoseRed = pickupTZonePoseBlue.mirror();
-    private final Pose pickupTZoneCP1Red = pickupTZoneCP1Blue.mirror();
-    private final Pose pickupTZoneCP2Red = pickupTZoneCP2Blue.mirror();
-    private final Pose pickupTZoneEndPoseRed = pickupTZoneEndPoseBlue.mirror();
-    private final Pose pickupTZonePreEndPoseRed = pickupTZonePreEndPoseBlue.mirror();
-    private final Pose getPickupTZoneCPPathRed = getPickupTZoneCPPathBlue.mirror();
+    private final Pose pickupTZonePoseRed = pickupTZonePoseBlue.mirror(144);
+    private final Pose pickupTZoneCP1Red = pickupTZoneCP1Blue.mirror(144);
+    private final Pose pickupTZoneCP2Red = pickupTZoneCP2Blue.mirror(144);
+    private final Pose pickupTZoneEndPoseRed = pickupTZoneEndPoseBlue.mirror(144);
+    private final Pose pickupTZonePreEndPoseRed = pickupTZonePreEndPoseBlue.mirror(144);
+    private final Pose getPickupTZoneCPPathRed = getPickupTZoneCPPathBlue.mirror(144);
 
-    private final Pose offLineLeverRed = offLineLeverBlue.mirror();
-    private final Pose offLineCloseRed = offLineCloseBlue.mirror();
+    private final Pose offLineLeverRed = offLineLeverBlue.mirror(144);
+    private final Pose offLineCloseRed = offLineCloseBlue.mirror(144);
 
 
     public Pose startPose;

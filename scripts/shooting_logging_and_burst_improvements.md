@@ -41,6 +41,112 @@ This gives first-pass evidence about whether breakbeam edges are reliable enough
 
 ---
 
+## Shot Tuning Logging Strategy (Detailed)
+
+### Logging mode design
+
+Use two explicit modes so tuning data is useful without changing match behavior:
+
+- `COMP_MODE`: normal competition behavior, logging off.
+- `TUNE_MODE`: same control behavior, logging on.
+
+Important: control math should remain identical between modes.  
+Only data capture and CSV writing behavior should change.
+
+### Low-overhead logging rules
+
+1. Prefer event-based logging over continuous file writes.
+2. Keep data in memory during run.
+3. Save CSV at opmode stop (or occasional chunk flush if needed).
+4. Avoid extra hardware polling only for logging.
+
+This keeps loop timing close to real match conditions.
+
+### Row granularity
+
+Use **one row per burst sequence** right now (already implemented), with room for up to 3 balls.  
+Later, optionally add one row per ball if we need finer analysis.
+
+### Core fields to keep in every burst row
+
+- `t_ms`, `match_t_ms`
+- `sequence_id`
+- `trigger_reason` (`dumbshoot`, `single_ball_feed`, `multi_single_shot`)
+- `start_ball_count`
+- `expected_shots`
+- `start_bb0`, `start_bb1`, `start_bb2`
+- breakbeam edge times (up to 3 rising/falling events per sensor)
+- interval fields:
+  - `shot1_interval_ms` (trigger -> first shot event)
+  - `shot2_interval_ms` (shot1 -> shot2)
+  - `shot3_interval_ms` (shot2 -> shot3)
+- edge counts for each sensor
+- `end_reason` and `duration_ms`
+
+### Recommended additions after first breakbeam validation
+
+Add a compact RPM snapshot per ball event:
+- `rpm_at_shot1`, `rpm_at_shot2`, `rpm_at_shot3`
+- optionally `rpm_min_post_shotN` and `recovery_ms_shotN`
+
+If breakbeam is unreliable, populate these using RPM-sag event timing instead.
+
+### Driver/operator labeling workflow
+
+Since CSV does not know quality on its own, use a simple primary label per burst:
+- `use_for_fit = KEEP` or `IGNORE`
+
+Optional secondary labels (only when easy/useful):
+- `outcome` (`3/3`, `2/3`, `1/3`, `0/3`, or make/miss pattern)
+- `reason_ignore` (optional; leave blank by default)
+
+Recommended team default for speed:
+- Always record `KEEP/IGNORE`.
+- Record reason codes only when there is a clear, recurring issue and it takes little effort.
+
+This can be recorded in a small side note keyed by `sequence_id`, or appended in telemetry
+and copied after the run.
+
+### Why KEEP/IGNORE first
+
+During large tuning sweeps, speed and consistency of labeling matter more than rich metadata.
+`KEEP/IGNORE` gives fast filtering for table fitting without slowing down collection.
+
+---
+
+## Battery Voltage Logging Strategy
+
+Voltage should be logged in a **consistent loaded state**, not only resting values.
+
+### Required fields
+- `vbat_loaded_pre`: average battery voltage in a short pre-shot window (for example 80-120 ms before burst trigger)
+- `vbat_loaded_min`: minimum voltage during burst window
+
+### Optional context fields
+- `vbat_loaded_post`: short post-burst average
+- `vbat_rest_start`: resting voltage at start of session/run block
+
+### Practical guidance
+- For fitting/tables, use `vbat_loaded_pre` as the primary voltage feature.
+- Keep window definitions fixed across all runs.
+- If data was collected at unusually low loaded voltage, mark `IGNORE` instead of trying to force-fit it.
+- If enough data exists, analyze by voltage bins to verify consistency.
+
+### Session procedure
+
+1. Run `TUNE_MODE` only during planned tuning sessions.
+2. Keep burst style consistent for each run block (normal cadence vs stress cadence).
+3. Export CSV at stop.
+4. Save run notes with:
+   - battery range,
+   - target RPM profile,
+   - boost settings,
+   - observed hit quality summary.
+
+This creates comparable datasets for iteration-to-iteration decisions.
+
+---
+
 ## Why Event Logging (Not Heavy Continuous Logging)
 
 We want useful data without changing loop behavior during tuning.
