@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
@@ -37,7 +38,7 @@ public class closeBlueSide extends closeAutonPaths{
     public closeBlueSide() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
-                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, TurretSubsystem.INSTANCE),
                 FateComponent.INSTANCE
         );
     }
@@ -49,6 +50,7 @@ public class closeBlueSide extends closeAutonPaths{
     /** This method is called once at the init of the OpMode. **/
     @Override
     public void onInit() {
+        TurretSubsystem.INSTANCE.center();
         ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
         ShooterSubsystem.INSTANCE.stop();
 
@@ -292,6 +294,7 @@ public class closeBlueSide extends closeAutonPaths{
      * It runs all the setup actions, including building paths and starting the path system **/
     @Override
     public void onStartButtonPressed() {
+        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(-90);
         if (intAmount == 3) {
                 Close3Ball().schedule();
             }

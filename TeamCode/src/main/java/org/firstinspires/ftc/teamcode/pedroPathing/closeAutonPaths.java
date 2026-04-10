@@ -42,8 +42,8 @@ import dev.nextftc.ftc.NextFTCOpMode;
 @Configurable
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeAutonPaths extends NextFTCOpMode{
-    public static double autonShooterRPM = 2825.0;
-    public static double autonShooterHoodServoPos = 0.0;
+    public static double autonShooterRPM = 2950.0;
+    public static double autonShooterHoodServoPos = 0.15;
     public static double pickupBrakingStrength = 1.0;
     public static double pickupCornerBrakingStrength = 0.5;
     public static double firstGatePushDelay = 0.0;
@@ -51,8 +51,8 @@ public class closeAutonPaths extends NextFTCOpMode{
     public static double thirdGatePushDelay = 2.00;
     public static double threeGatePushDelayBeforeLastShot = 1.5;
 
-    public final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(180)); // Start Pose of our robot
-    private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(128)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    public final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(270)); // Start Pose of our robot
+    private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
     private final Pose pickup1PoseBlue = new Pose(40, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1CP1Blue = new Pose(46.5, 97, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -67,7 +67,7 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     private final Pose pickup1GateLeverPushHoldPoseBlue = new Pose(15.5, 72.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
-    private final Pose pickup2PoseBlue = new Pose(40, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2PoseBlue = new Pose(40, 63.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP1Blue = new Pose(47, 91.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP2Blue = new Pose( 52.5, 66, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
@@ -90,7 +90,7 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     private final Pose pickup3GateLeverPushHoldPoseBlue = new Pose(15.5, 72.0, Math.toRadians(180));
 
-    private final Pose pickup3PoseBlue = new Pose(40, 37.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup3PoseBlue = new Pose(40, 43.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP1Blue = new Pose(37,90  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP2Blue = new Pose( 57, 39, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3AfterGateCP1Blue = new Pose(52,73  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -606,7 +606,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                 ),
 
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.2),
+                new Delay(0.0),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -632,7 +632,7 @@ public class closeAutonPaths extends NextFTCOpMode{
         return new SequentialGroup(
                 new FollowPath(firstPickupGateLeverShootEnd),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.2),
+                new Delay(0.0),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -665,7 +665,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.8),
+                new Delay(0.0),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -691,7 +691,7 @@ public class closeAutonPaths extends NextFTCOpMode{
         return new SequentialGroup(
                 new FollowPath(secondPickupGateLeverShootEnd),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.8),
+                new Delay(0.0),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -736,7 +736,7 @@ public class closeAutonPaths extends NextFTCOpMode{
         return new SequentialGroup(
                 new FollowPath(thirdPickupGateLeverShootEnd),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.8),
+                new Delay(0.0),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -770,7 +770,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.7),
+                new Delay(0.0),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -807,7 +807,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                         //new FollowPath(zonePickup),
                         new SequentialGroup(
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(1.0),
+                                new Delay(0.1),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
@@ -868,7 +868,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.5),
+                new Delay(0.0),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),

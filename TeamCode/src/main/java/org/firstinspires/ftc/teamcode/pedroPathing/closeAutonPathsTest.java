@@ -21,7 +21,7 @@ import dev.nextftc.ftc.NextFTCOpMode;
 @Configurable
 public class closeAutonPathsTest extends NextFTCOpMode {
     public static double autonShooterRPM = 2825.0;
-    public static double autonShooterHoodServoPos = 0.0;
+    public static double autonShooterHoodServoPos = -0.1;
     public static double pickupBrakingStrength = 1.0;
 
     // Start and scoring poses

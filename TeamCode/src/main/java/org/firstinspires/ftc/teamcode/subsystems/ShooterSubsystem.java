@@ -4,6 +4,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.Range;
 
 import dev.nextftc.core.subsystems.Subsystem;
@@ -26,7 +27,7 @@ public class ShooterSubsystem implements Subsystem {
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
 //    public static double kP = 0.15;
-    public static double kP = 0.0007;
+    public static double kP = 0.0008;
 //    public static double kP = 0.00075;
     //public static double kI = 0.0001;
     public static double kI = 0.000;
@@ -48,6 +49,16 @@ public class ShooterSubsystem implements Subsystem {
     // =============================================
     public static double BOOST_AMOUNT = 0.20; // 20% extra power
     public static long BOOST_DELAY_MS = 8;   // boost activates after spinUp()
+    public static double BOOST_STAGE1_MULTIPLIER_NEAR = 1.66;
+    public static double BOOST_STAGE2_MULTIPLIER_NEAR = 2.25;
+    public static double BOOST_STAGE1_MULTIPLIER_FAR = 1.66;
+    public static double BOOST_STAGE2_MULTIPLIER_FAR = 2.25;
+    public static boolean ENABLE_VOLTAGE_COMPENSATION = true;
+    public static double VOLTAGE_COMP_NOMINAL_V = 12.5;
+    public static double VOLTAGE_COMP_FILTER_TAU_SEC = 0.8;
+    public static double VOLTAGE_COMP_MIN_GAIN = 0.90;
+    public static double VOLTAGE_COMP_MAX_GAIN = 1.15;
+    public static double VOLTAGE_COMP_MIN_VALID_V = 7.0;
 
     // =============================================
     // CONSTANTS
@@ -58,8 +69,8 @@ public class ShooterSubsystem implements Subsystem {
     private static final double INTEGRAL_MIN = -1.0;
     private static final double INTEGRAL_MAX = 1.0;
 
-    private double boost1 = 1.66;
-    private double boost2 = 2.25;
+    private double boost1 = BOOST_STAGE1_MULTIPLIER_NEAR;
+    private double boost2 = BOOST_STAGE2_MULTIPLIER_NEAR;
 
     // =============================================
     // HARDWARE
@@ -96,6 +107,12 @@ public class ShooterSubsystem implements Subsystem {
     private double lastRpmDeltaShooter1 = 0.0;
     private double lastRpmDeltaShooter2 = 0.0;
     private double lastRpmDeltaAverage = 0.0;
+    private double lastBatteryVoltageRaw = Double.NaN;
+    private double lastBatteryVoltageFiltered = Double.NaN;
+    private double lastVoltageCompGain = 1.0;
+    private double lastCommandPreVoltageComp = 0.0;
+    private double lastCommandPostVoltageComp = 0.0;
+    private boolean lastCommandSaturated = false;
 
     // =============================================
     // NEXTFTC HOOKS
@@ -132,6 +149,7 @@ public class ShooterSubsystem implements Subsystem {
         double measuredRpm = getAverageRpmInstant();
 
         if (lastTimestampNanos == 0L) {
+            updateBatteryVoltageEstimate(0.0);
             lastTimestampNanos = now;
             lastMeasuredRpm = measuredRpm;
             // Initialize encoder-delta baselines (hardware is expected to be non-null)
@@ -142,9 +160,11 @@ public class ShooterSubsystem implements Subsystem {
 
         double dt = (now - lastTimestampNanos) / 1e9;
         if (dt <= 0.0) {
+            updateBatteryVoltageEstimate(0.0);
             lastTimestampNanos = now;
             return;
         }
+        updateBatteryVoltageEstimate(dt);
 
         // === ENCODER-DELTA RPM MEASUREMENT (uses same dt as PID) ===
         int ticks1 = shooter1.getCurrentPosition();
@@ -164,6 +184,10 @@ public class ShooterSubsystem implements Subsystem {
         lastRpmDeltaAverage = 0.5 * (lastRpmDeltaShooter1 + lastRpmDeltaShooter2);
 
         if (!enabled) {
+            lastVoltageCompGain = computeVoltageCompGain();
+            lastCommandPreVoltageComp = 0.0;
+            lastCommandPostVoltageComp = 0.0;
+            lastCommandSaturated = false;
             applyPower(0.0);
             lastMeasuredRpm = measuredRpm;
             lastTimestampNanos = now;
@@ -212,10 +236,10 @@ public class ShooterSubsystem implements Subsystem {
         if (preBoostActive) {
             output = Math.min(output + PRE_BOOST_AMOUNT, 1.0);
         } else if (boostActive && !this.boostOverride) {
-            output = Math.min(output * 1.66, 1.0);
+            output = Math.min(output * boost1, 1.0);
         }
         else if (secondBoostActive && !this.boostOverride) {
-            output = Math.min(output * 2.25, 1.0);
+            output = Math.min(output * boost2, 1.0);
         }
 
         double cap = Math.max(0.0, ff + HEADROOM);
@@ -232,6 +256,12 @@ public class ShooterSubsystem implements Subsystem {
         }
 
         output = Range.clip(output, 0.0, 1.0);
+        lastCommandPreVoltageComp = output;
+        lastVoltageCompGain = computeVoltageCompGain();
+        output *= lastVoltageCompGain;
+        output = Range.clip(output, 0.0, 1.0);
+        lastCommandPostVoltageComp = output;
+        lastCommandSaturated = output >= 0.999;
         applyPower(output);
 
         lastOutput = output;
@@ -292,6 +322,38 @@ public class ShooterSubsystem implements Subsystem {
         return shooter2.getPower();
     }
 
+    public double getBatteryVoltageRaw() {
+        return lastBatteryVoltageRaw;
+    }
+
+    public double getBatteryVoltageFiltered() {
+        return lastBatteryVoltageFiltered;
+    }
+
+    public double getVoltageCompGain() {
+        return lastVoltageCompGain;
+    }
+
+    public double getCommandPreVoltageComp() {
+        return lastCommandPreVoltageComp;
+    }
+
+    public double getCommandPostVoltageComp() {
+        return lastCommandPostVoltageComp;
+    }
+
+    public boolean isCommandSaturated() {
+        return lastCommandSaturated;
+    }
+
+    public double getActiveBoostMultiplier1() {
+        return boost1;
+    }
+
+    public double getActiveBoostMultiplier2() {
+        return boost2;
+    }
+
     public double getShooterHoodPosition() {
         return shooterHood.getPosition();
     }
@@ -339,9 +401,10 @@ public class ShooterSubsystem implements Subsystem {
     }
 
     public void setBoostOn(boolean farBoost) {
-        this.boost1 = farBoost ? 2.5: 1.75;
-        this.boost2 = farBoost ? 3 : 2.3;
+        this.boost1 = farBoost ? BOOST_STAGE1_MULTIPLIER_FAR : BOOST_STAGE1_MULTIPLIER_NEAR;
+        this.boost2 = farBoost ? BOOST_STAGE2_MULTIPLIER_FAR : BOOST_STAGE2_MULTIPLIER_NEAR;
         boostActive = false;
+        secondBoostActive = false;
         boostStartTimeMs = System.currentTimeMillis();
     }
 
@@ -410,6 +473,50 @@ public class ShooterSubsystem implements Subsystem {
         double clipped = Range.clip(power, 0.0, 1.0);
         shooter1.setPower(clipped);
         shooter2.setPower(clipped);
+    }
+
+    private double sampleBatteryVoltage() {
+        double minVoltage = Double.POSITIVE_INFINITY;
+        for (VoltageSensor sensor : ActiveOpMode.hardwareMap().voltageSensor) {
+            if (sensor == null) continue;
+            double voltage = sensor.getVoltage();
+            if (Double.isFinite(voltage) && voltage >= VOLTAGE_COMP_MIN_VALID_V && voltage < minVoltage) {
+                minVoltage = voltage;
+            }
+        }
+        return minVoltage == Double.POSITIVE_INFINITY ? Double.NaN : minVoltage;
+    }
+
+    private void updateBatteryVoltageEstimate(double dtSeconds) {
+        double rawVoltage = sampleBatteryVoltage();
+        lastBatteryVoltageRaw = rawVoltage;
+        if (!Double.isFinite(rawVoltage)) {
+            return;
+        }
+        if (!Double.isFinite(lastBatteryVoltageFiltered)) {
+            lastBatteryVoltageFiltered = rawVoltage;
+            return;
+        }
+        double tau = Math.max(0.01, VOLTAGE_COMP_FILTER_TAU_SEC);
+        double alpha = (dtSeconds <= 0.0)
+                ? 1.0
+                : Range.clip(dtSeconds / (tau + dtSeconds), 0.0, 1.0);
+        lastBatteryVoltageFiltered += alpha * (rawVoltage - lastBatteryVoltageFiltered);
+    }
+
+    private double computeVoltageCompGain() {
+        if (!ENABLE_VOLTAGE_COMPENSATION) {
+            return 1.0;
+        }
+        if (!Double.isFinite(lastBatteryVoltageFiltered) || lastBatteryVoltageFiltered < VOLTAGE_COMP_MIN_VALID_V) {
+            return 1.0;
+        }
+        double nominal = Math.max(0.1, VOLTAGE_COMP_NOMINAL_V);
+        return Range.clip(
+                nominal / lastBatteryVoltageFiltered,
+                Math.max(0.0, VOLTAGE_COMP_MIN_GAIN),
+                Math.max(VOLTAGE_COMP_MIN_GAIN, VOLTAGE_COMP_MAX_GAIN)
+        );
     }
 
     private void resetControllerState() {

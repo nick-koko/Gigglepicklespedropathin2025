@@ -4,6 +4,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.Range;
 
 import dev.nextftc.core.subsystems.Subsystem;
@@ -42,7 +43,7 @@ public class TurretSubsystem implements Subsystem {
     public static double OUTER_LOOP_MAX_TRIM_DEGREES = 8.0;
     // Split commanded turret angle across servos to add slight opposing preload.
     // Set to 0.0 to disable this behavior.
-    public static double SERVO_DIFFERENTIAL_DEGREES = 1.0;
+    public static double SERVO_DIFFERENTIAL_DEGREES = 0.0;
 
     public static double POSITIVE_TARGET_BIAS_DEGREES = 0.0;
     public static double NEGATIVE_TARGET_BIAS_DEGREES = 0.0;
@@ -71,8 +72,8 @@ public class TurretSubsystem implements Subsystem {
     // =========================
     // Hardware
     // =========================
-    private Servo leftTurret;
-    private Servo rightTurret;
+    private ServoImplEx leftTurret;
+    private ServoImplEx rightTurret;
     private DcMotor turretEncoder;
     private AnalogInput absoluteTurretEncoder;
 
@@ -115,11 +116,13 @@ public class TurretSubsystem implements Subsystem {
     private int readyLoops = 0;
     private int notReadyLoops = 0;
     private boolean turretReady = false;
+    private boolean leftServoEnabled = true;
+    private boolean rightServoEnabled = true;
 
     @Override
     public void initialize() {
-        leftTurret = ActiveOpMode.hardwareMap().get(Servo.class, LEFT_TURRET_SERVO_NAME);
-        rightTurret = ActiveOpMode.hardwareMap().get(Servo.class, RIGHT_TURRET_SERVO_NAME);
+        leftTurret = ActiveOpMode.hardwareMap().get(ServoImplEx.class, LEFT_TURRET_SERVO_NAME);
+        rightTurret = ActiveOpMode.hardwareMap().get(ServoImplEx.class, RIGHT_TURRET_SERVO_NAME);
         turretEncoder = ActiveOpMode.hardwareMap().get(DcMotor.class, TURRET_ENCODER_NAME);
 
         leftTurret.setDirection(Servo.Direction.FORWARD);
@@ -145,6 +148,8 @@ public class TurretSubsystem implements Subsystem {
         readyLoops = 0;
         notReadyLoops = 0;
         turretReady = false;
+        leftServoEnabled = true;
+        rightServoEnabled = true;
         periodicAbsoluteEncoderReadEnabled = READ_ABSOLUTE_ENCODER_IN_PERIODIC;
         wasPeriodicAbsoluteReadEnabled = false;
 
@@ -366,6 +371,39 @@ public class TurretSubsystem implements Subsystem {
         return turretReady;
     }
 
+    public void setLeftServoEnabled(boolean enabled) {
+        leftServoEnabled = enabled;
+        if (enabled) {
+            leftTurret.setPwmEnable();
+            leftTurret.setPosition(currentLeftServoPosition);
+        } else {
+            leftTurret.setPwmDisable();
+        }
+    }
+
+    public void setRightServoEnabled(boolean enabled) {
+        rightServoEnabled = enabled;
+        if (enabled) {
+            rightTurret.setPwmEnable();
+            rightTurret.setPosition(currentRightServoPosition);
+        } else {
+            rightTurret.setPwmDisable();
+        }
+    }
+
+    public void setServoEnabledStates(boolean leftEnabled, boolean rightEnabled) {
+        setLeftServoEnabled(leftEnabled);
+        setRightServoEnabled(rightEnabled);
+    }
+
+    public boolean isLeftServoEnabled() {
+        return leftServoEnabled;
+    }
+
+    public boolean isRightServoEnabled() {
+        return rightServoEnabled;
+    }
+
     public boolean isUsingAbsoluteEncoder() {
         return true;
     }
@@ -470,8 +508,19 @@ public class TurretSubsystem implements Subsystem {
                 learnedServoCommandOffsetDegrees
         );
 
-        leftTurret.setPosition(currentLeftServoPosition);
-        rightTurret.setPosition(currentRightServoPosition);
+        if (leftServoEnabled) {
+            leftTurret.setPwmEnable();
+            leftTurret.setPosition(currentLeftServoPosition);
+        } else {
+            leftTurret.setPwmDisable();
+        }
+
+        if (rightServoEnabled) {
+            rightTurret.setPwmEnable();
+            rightTurret.setPosition(currentRightServoPosition);
+        } else {
+            rightTurret.setPwmDisable();
+        }
     }
 
     private double applyTargetBias(double targetDegrees) {

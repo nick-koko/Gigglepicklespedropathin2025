@@ -12,10 +12,10 @@
             <DigitalDevice name="breakbeam1" port="2" />
         </LynxModule>
         <ServoHub name="Servo Hub 3" port="3">
-		    <ContinuousRotationServo name="intake_servo1" port="4" />
-            <ContinuousRotationServo name="intake_servo2" port="5" />
-            <ServoFullRange name="Lurret" port="1" />
-            <ServoFullRange name="Rurret" port="0" />
+		    <ContinuousRotationServo name="intake_servo1" port="2" />
+            <ContinuousRotationServo name="intake_servo2" port="0" />
+            <ServoFullRange name="Lurret" port="5" />
+            <ServoFullRange name="Rurret" port="4" />
         </ServoHub>
         <LynxModule name="Control Hub" port="173">
             <goBILDA5202SeriesMotor name="front_right" port="0" />

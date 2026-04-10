@@ -69,7 +69,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private long lastTurretLogMs = 0L;
     private long lastSotmLogMs = 0L;
     private long lastDumbShootRpmLogMs = 0L;
-    public static boolean ENABLE_TURRET_LOGGING = true;
+    public static boolean ENABLE_TURRET_LOGGING = false;
     public static long TURRET_LOG_PERIOD_MS = 25;
     // Turret diagnostics for steady-state tracking/stiction investigation.
     public static double TURRET_DIAG_TARGET_STABLE_DELTA_DEG = 0.15;
@@ -79,9 +79,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static long TURRET_DIAG_STICTION_MIN_TIME_MS = 120;
     public static boolean ENABLE_SOTM_LOGGING = false;
     public static long SOTM_LOG_PERIOD_MS = 25;
-    public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = false;
+    public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = true;
     public static long DUMBSHOOT_RPM_LOG_PERIOD_MS = 10;
+    public static boolean DUMBSHOOT_RPM_LOG_EVERY_LOOP = true;
     public static long DUMBSHOOT_RPM_LOG_DURATION_MS = 1100;
+    public static int BURST_PROFILE_ID = 0;
+    public static long SHOOT_BLOCK_LED_STROBE_MS = 180;
+    public static double SHOOT_GATE_AT_SPEED_TOLERANCE_RPM = 75.0;
+    public static double SHOOT_GATE_MIN_TARGET_RPM = 500.0;
     // Shot tuning mode: same driving/aiming flow, but manual shooter controls and KEEP/IGNORE labels.
     public static boolean SHOT_TUNING_MODE = false;
     public static boolean ENABLE_SHOT_TUNING_LOGGING = false;
@@ -92,7 +97,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_TUNING_AT_SPEED_TOLERANCE_RPM = 75.0;
     public static double SHOT_TUNING_TARGET_X_IN = 144.0;
     public static double SHOT_TUNING_TARGET_Y_IN = 136.0;
-    public static boolean ENABLE_SHOT_INFO_LOGGING = false;
+    public static boolean ENABLE_SHOT_INFO_LOGGING = true;
     public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
     // Dumbshoot-specific logging window based on observed burst timing:
     // shot1 < 200 ms, shot2 ~150 ms later, shot3 usually ~200 ms later.
@@ -112,6 +117,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private int shotSequenceStartBallCount = 0;
     private int shotSequenceExpectedShots = 0;
     private String shotSequenceReason = "";
+    private int shotSequenceBurstProfileId = 0;
+    private double shotSequenceStartTargetRpm = 0.0;
+    private double shotSequenceStartHoodPos = 0.0;
+    private long shotSequenceStartBoostDelayMs = 0L;
+    private double shotSequenceStartPreBoostAmount = 0.0;
+    private double shotSequenceStartBoostMult1 = 0.0;
+    private double shotSequenceStartBoostMult2 = 0.0;
+    private int shotSequenceLinkedDumbShootRpmSequenceId = -1;
     private boolean shotSequenceStartBb0 = false;
     private boolean shotSequenceStartBb1 = false;
     private boolean shotSequenceStartBb2 = false;
@@ -140,6 +153,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private int dumbShootRpmLogSequenceId = 0;
     private int dumbShootRpmSequenceCounter = 0;
     private int dumbShootRpmLogExpectedShots = 0;
+    private int dumbShootRpmLinkedShotInfoSequenceId = -1;
+    private int dumbShootRpmBurstProfileId = 0;
+    private int dumbShootRpmBb0RiseCount = 0;
+    private int dumbShootRpmBb0FallCount = 0;
+    private int dumbShootRpmBb1RiseCount = 0;
+    private int dumbShootRpmBb1FallCount = 0;
+    private int dumbShootRpmBb2RiseCount = 0;
+    private int dumbShootRpmBb2FallCount = 0;
     private boolean dumbShootRpmPrevBbInitialized = false;
     private boolean dumbShootRpmPrevBb0 = false;
     private boolean dumbShootRpmPrevBb1 = false;
@@ -168,6 +189,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean prevTuningTargetDpadRight = false;
     private boolean prevTuningRpmDpadUp = false;
     private boolean prevTuningRpmDpadDown = false;
+    private String shotGateLedState = "NONE";
     private double prevTurretLogTargetDeg = Double.NaN;
     private double prevTurretLogMeasuredDeg = Double.NaN;
     private double prevTurretLogServoCommandDeg = Double.NaN;
@@ -304,6 +326,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevTuningTargetDpadRight = false;
         prevTuningRpmDpadUp = false;
         prevTuningRpmDpadDown = false;
+        shotGateLedState = "NONE";
         hold = false;
         prevHold = false;
 
@@ -390,7 +413,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                             "ododistance," +
                             "x_offset," +
                             "y_offset," +
-                            "has_results"
+                            "has_results," +
+                            "loop_time_ms"
             );
 
             if (ENABLE_SOTM_LOGGING) {
@@ -440,11 +464,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "shooter_rpm1," +
                                 "shooter_rpm2," +
                                 "shooter_at_speed_75," +
+                                "shooter_battery_v," +
+                                "shooter_battery_v_filtered," +
+                                "shooter_voltage_comp_gain," +
+                                "shooter_cmd_pre_vcomp," +
+                                "shooter_cmd_post_vcomp," +
+                                "shooter_cmd_saturated," +
                                 "dumbshoot_timer_active," +
                                 "hold_state," +
                                 "drive_cmd," +
                                 "strafe_cmd," +
-                                "rotate_cmd"
+                                "rotate_cmd," +
+                                "loop_time_ms"
                 );
             } else {
                 sotmLogger = null;
@@ -465,6 +496,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             dumbShootRpmLogSequenceId = 0;
             dumbShootRpmSequenceCounter = 0;
             dumbShootRpmLogExpectedShots = 0;
+            dumbShootRpmLinkedShotInfoSequenceId = -1;
+            dumbShootRpmBurstProfileId = 0;
+            dumbShootRpmBb0RiseCount = 0;
+            dumbShootRpmBb0FallCount = 0;
+            dumbShootRpmBb1RiseCount = 0;
+            dumbShootRpmBb1FallCount = 0;
+            dumbShootRpmBb2RiseCount = 0;
+            dumbShootRpmBb2FallCount = 0;
             dumbShootRpmPrevBbInitialized = false;
             shotTuningPendingLabel = false;
             shotTuningShotIdCounter = 0;
@@ -513,7 +552,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "bb2_fall_count," +
                                 "bb2_rise_count," +
                                 "end_reason," +
-                                "duration_ms"
+                                "duration_ms," +
+                                "burst_profile_id," +
+                                "start_target_rpm," +
+                                "start_hood_pos," +
+                                "start_boost_delay_ms," +
+                                "start_pre_boost_amount," +
+                                "start_boost_mult1," +
+                                "start_boost_mult2," +
+                                "linked_dumbshoot_rpm_sequence_id"
                 );
             } else {
                 shotInfoLogger = null;
@@ -525,6 +572,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         "t_ms," +
                                 "match_t_ms," +
                                 "sequence_id," +
+                                "shot_info_sequence_id," +
+                                "burst_profile_id," +
                                 "t_since_start_ms," +
                                 "expected_shots," +
                                 "dumbshoot_timer_active," +
@@ -536,9 +585,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "shooter_power1," +
                                 "shooter_power2," +
                                 "shooter_at_speed_75," +
+                                "shooter_battery_v," +
+                                "shooter_battery_v_filtered," +
+                                "shooter_voltage_comp_gain," +
+                                "shooter_cmd_pre_vcomp," +
+                                "shooter_cmd_post_vcomp," +
+                                "shooter_cmd_saturated," +
                                 "boost_active," +
                                 "second_boost_active," +
                                 "boost_override," +
+                                "shooter_boost_mult1," +
+                                "shooter_boost_mult2," +
                                 "bb0," +
                                 "bb1," +
                                 "bb2," +
@@ -548,7 +605,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "bb1_fall_edge," +
                                 "bb2_rise_edge," +
                                 "bb2_fall_edge," +
-                                "ball_count"
+                                "bb0_rise_count_total," +
+                                "bb0_fall_count_total," +
+                                "bb1_rise_count_total," +
+                                "bb1_fall_count_total," +
+                                "bb2_rise_count_total," +
+                                "bb2_fall_count_total," +
+                                "ball_count," +
+                                "loop_time_ms"
                 );
             } else {
                 dumbShootRpmLogger = null;
@@ -652,6 +716,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         dumbShootRpmLogSequenceId = 0;
         dumbShootRpmSequenceCounter = 0;
         dumbShootRpmLogExpectedShots = 0;
+        dumbShootRpmLinkedShotInfoSequenceId = -1;
+        dumbShootRpmBurstProfileId = 0;
+        dumbShootRpmBb0RiseCount = 0;
+        dumbShootRpmBb0FallCount = 0;
+        dumbShootRpmBb1RiseCount = 0;
+        dumbShootRpmBb1FallCount = 0;
+        dumbShootRpmBb2RiseCount = 0;
+        dumbShootRpmBb2FallCount = 0;
         dumbShootRpmPrevBbInitialized = false;
         lastDumbShootRpmLogMs = 0L;
         shotTuningFlywheelEnabled = false;
@@ -662,6 +734,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevTuningTargetDpadRight = false;
         prevTuningRpmDpadUp = false;
         prevTuningRpmDpadDown = false;
+        shotGateLedState = "NONE";
         shooterHoodPos = ShooterSubsystem.INSTANCE.getShooterHoodPosition();
 
         logStartMs = System.currentTimeMillis();
@@ -936,7 +1009,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     ? calculateShooterRPMOdoDistance(shooterDistanceForBallistics)
                     : calculateShooterRPMOdoDistance(this.ODODistance);
 
-            if (matchHasStarted && shooterFollowEnabled) {
+            // Allow RB/RT fire request to actively prime flywheel RPM so shoot gating can clear.
+            // This still avoids pre-spinning during Init or idle driving.
+            boolean shooterPrimeRequested = shooterFollowEnabled || sotmFireRequestActive;
+            if (matchHasStarted && shooterPrimeRequested) {
                 ShooterSubsystem.INSTANCE.spinUp(targetRPM);
                 adjustOdo = true;
             }
@@ -1019,6 +1095,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double rpmShooter1 = ShooterSubsystem.INSTANCE.getShooter1RPM();
         double rpmShooter2 = ShooterSubsystem.INSTANCE.getShooter2RPM();
         double rpmOuttake = IntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM();
+        boolean shooterAtSpeed75 = isShooterReadyForFeed(
+                SHOOT_GATE_AT_SPEED_TOLERANCE_RPM,
+                rpmShooter1,
+                rpmShooter2
+        );
 
         // Optional simple moving average
         if (SHOW_SMOOTHED) {
@@ -1111,7 +1192,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("INT_multiReq", IntakeWithSensorsSubsystem.INSTANCE.getMultiSingleShotRequested());
         telemetry.addData("INT_multiDone", IntakeWithSensorsSubsystem.INSTANCE.getMultiSingleShotCompleted());
 
-        telemetryM.addData("LoopTime_ms", timer.getMs());
+        double loopTimeMs = timer.getMs();
+        telemetryM.addData("LoopTime_ms", loopTimeMs);
         telemetry.addData("rotate", rotate);
         telemetry.addData("turretTargetDeg", TurretSubsystem.INSTANCE.getTargetAngleDegrees());
         telemetry.addData("turretMeasuredDeg", TurretSubsystem.INSTANCE.getMeasuredAngleDegrees());
@@ -1141,6 +1223,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("SOTM_turretSpeedGate", turretSpeedGateSatisfied);
         telemetry.addData("SOTM_fireGate", sotmFireGateSatisfied);
         telemetry.addData("SOTM_canShootGate", canShootAtGoal);
+        telemetry.addData("SOTM_shooterAtSpeed75", shooterAtSpeed75);
+        telemetry.addData("SHOOT_batteryV", ShooterSubsystem.INSTANCE.getBatteryVoltageRaw());
+        telemetry.addData("SHOOT_batteryVFiltered", ShooterSubsystem.INSTANCE.getBatteryVoltageFiltered());
+        telemetry.addData("SHOOT_voltageCompGain", ShooterSubsystem.INSTANCE.getVoltageCompGain());
+        telemetry.addData("SHOOT_cmdPreVComp", ShooterSubsystem.INSTANCE.getCommandPreVoltageComp());
+        telemetry.addData("SHOOT_cmdPostVComp", ShooterSubsystem.INSTANCE.getCommandPostVoltageComp());
+        telemetry.addData("SHOOT_cmdSaturated", ShooterSubsystem.INSTANCE.isCommandSaturated());
+        telemetry.addData("SHOOT_boostMult1", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1());
+        telemetry.addData("SHOOT_boostMult2", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2());
+        telemetry.addData("SHOOT_burstProfileId", BURST_PROFILE_ID);
+        telemetry.addData("SOTM_tooCloseBlock", tooCloseWarningActive);
+        telemetry.addData("SOTM_shotGateLedState", shotGateLedState);
         telemetry.addData("SHOT_TUNE_mode", SHOT_TUNING_MODE);
         telemetry.addData("SHOT_TUNE_flywheelEnabled", shotTuningFlywheelEnabled);
         telemetry.addData("SHOT_TUNE_targetRPM", targetRPM);
@@ -1285,7 +1379,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         ODODistance,
                         xOffset,
                         yOffset,
-                        hasResults
+                        hasResults,
+                        loopTimeMs
                 );
 
                 prevTurretLogTargetDeg = turretTargetDeg;
@@ -1346,12 +1441,19 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         ShooterSubsystem.INSTANCE.getTargetRpm(),
                         rpmShooter1,
                         rpmShooter2,
-                        ShooterSubsystem.INSTANCE.isAtSpeed(75.0),
+                        shooterAtSpeed75,
+                        ShooterSubsystem.INSTANCE.getBatteryVoltageRaw(),
+                        ShooterSubsystem.INSTANCE.getBatteryVoltageFiltered(),
+                        ShooterSubsystem.INSTANCE.getVoltageCompGain(),
+                        ShooterSubsystem.INSTANCE.getCommandPreVoltageComp(),
+                        ShooterSubsystem.INSTANCE.getCommandPostVoltageComp(),
+                        ShooterSubsystem.INSTANCE.isCommandSaturated(),
                         dumbShootTimerActive,
                         hold,
                         driving,
                         strafe,
-                        rotate
+                        rotate,
+                        loopTimeMs
                 );
             }
         }
@@ -1462,7 +1564,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
             boolean shotTuningAtSpeed =
                     !SHOT_TUNING_REQUIRE_AT_SPEED_TO_FIRE ||
-                    ShooterSubsystem.INSTANCE.isAtSpeed(SHOT_TUNING_AT_SPEED_TOLERANCE_RPM);
+                    isShooterReadyForFeed(
+                            SHOT_TUNING_AT_SPEED_TOLERANCE_RPM,
+                            rpmShooter1,
+                            rpmShooter2
+                    );
             boolean shotTuningCanFire = canShootAtGoal && shotTuningAtSpeed && !tooCloseWarningActive;
             if (gamepad2.aWasPressed() && shotTuningCanFire) {
                 if (shotTuningPendingLabel) {
@@ -1497,6 +1603,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
             maybeFinalizeShotInfoSequence(nowMs, false, leftTriggerActive);
             singleShotPending = false;
+            shotGateLedState = "NONE";
         } else {
             if (gamepad2.rightBumperWasPressed()) {
                 this.shoot = true;
@@ -1527,7 +1634,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             }
 
             if ((gamepad2.xWasPressed()) &&
-                    ShooterSubsystem.INSTANCE.isAtSpeed(75.0) &&
+                    shooterAtSpeed75 &&
                     canShootAtGoal) {
                 int startBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
                 boolean started = IntakeWithSensorsSubsystem.INSTANCE.shootMultipleSingleShots(startBallCount);
@@ -1541,9 +1648,33 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     //        }
 
             boolean canFireTriggerShot =
-                    ShooterSubsystem.INSTANCE.isAtSpeed(75.0) &&
+                    shooterAtSpeed75 &&
                     canShootAtGoal &&
                     !tooCloseWarningActive;
+            String desiredShotGateLedState = "NONE";
+            if (sotmFireRequestActive && !tooCloseWarningActive) {
+                if (!turretAimGateSatisfied) {
+                    desiredShotGateLedState = "TURRET_BLOCK";
+                } else if (!shooterAtSpeed75) {
+                    desiredShotGateLedState = "RPM_BLOCK";
+                }
+            }
+            if (!desiredShotGateLedState.equals(shotGateLedState)) {
+                if ("TURRET_BLOCK".equals(desiredShotGateLedState)) {
+                    LEDControlSubsystem.INSTANCE.startStrobe(
+                            LEDControlSubsystem.LedColor.OFF,
+                            LEDControlSubsystem.LedColor.ORANGE,
+                            Math.max(10L, SHOOT_BLOCK_LED_STROBE_MS)
+                    );
+                } else if ("RPM_BLOCK".equals(desiredShotGateLedState)) {
+                    LEDControlSubsystem.INSTANCE.startStrobe(
+                            LEDControlSubsystem.LedColor.OFF,
+                            LEDControlSubsystem.LedColor.BLUE,
+                            Math.max(10L, SHOOT_BLOCK_LED_STROBE_MS)
+                    );
+                }
+                shotGateLedState = desiredShotGateLedState;
+            }
             maybeFinalizeShotInfoSequence(nowMs, sotmFireRequestActive, leftTriggerActive);
             if (sotmFireRequestActive && !tooCloseWarningActive) {
                 // Only right-trigger shooting should lock robot translation/rotation.
@@ -1557,7 +1688,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                         ShooterSubsystem.INSTANCE.setBoostOn(true);
                         startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
-                        startDumbShootRpmLogSequence(nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+                        shotSequenceLinkedDumbShootRpmSequenceId = startDumbShootRpmLogSequence(
+                                nowMs,
+                                startBallCountBeforeDumbShoot,
+                                bb0,
+                                bb1,
+                                bb2,
+                                shotSequenceId
+                        );
 
                         if (!dumbShootTimerActive) {
                             dumbShootTimerActive = true;
@@ -1573,7 +1711,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
                         ShooterSubsystem.INSTANCE.setBoostOn(true);
                         startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
-                        startDumbShootRpmLogSequence(nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+                        shotSequenceLinkedDumbShootRpmSequenceId = startDumbShootRpmLogSequence(
+                                nowMs,
+                                startBallCountBeforeDumbShoot,
+                                bb0,
+                                bb1,
+                                bb2,
+                                shotSequenceId
+                        );
                         if (!dumbShootTimerActive) {
                             dumbShootTimerActive = true;
                             dumbShootStartTimeMs = nowMs;
@@ -1604,7 +1749,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             // wait for shooter RPM to be within tolerance, then fire exactly one ball.
             if (leftTriggerActive && !sotmFireRequestActive && singleShotPending &&
                     canShootAtGoal &&
-                    ShooterSubsystem.INSTANCE.isAtSpeed(75.0)) { // 75 RPM window for 58-RPM resolution
+                    shooterAtSpeed75) { // 75 RPM window for 58-RPM resolution
                 if (IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower()) {
                     startShotInfoSequence("single_ball_feed", nowMs, IntakeWithSensorsSubsystem.INSTANCE.getBallCount(), bb0, bb1, bb2);
                     singleShotPending = false;
@@ -1715,6 +1860,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
     }
 
+    private boolean isShooterReadyForFeed(double toleranceRpm, double rpmShooter1, double rpmShooter2) {
+        double targetRpm = ShooterSubsystem.INSTANCE.getTargetRpm();
+        if (targetRpm < SHOOT_GATE_MIN_TARGET_RPM) {
+            return false;
+        }
+        double averageShooterRpm = 0.5 * (rpmShooter1 + rpmShooter2);
+        return Math.abs(targetRpm - averageShooterRpm) <= toleranceRpm;
+    }
+
     private void labelShotTuningSample(String label, String labelReason) {
         if (!ENABLE_SHOT_TUNING_LOGGING || shotTuningLogger == null) return;
         if (!shotTuningPendingLabel) return;
@@ -1759,18 +1913,34 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotTuningPendingLabel = false;
     }
 
-    private void startDumbShootRpmLogSequence(long nowMs, int expectedShots, boolean bb0, boolean bb1, boolean bb2) {
-        if (!ENABLE_DUMBSHOOT_RPM_LOGGING || dumbShootRpmLogger == null) return;
+    private int startDumbShootRpmLogSequence(
+            long nowMs,
+            int expectedShots,
+            boolean bb0,
+            boolean bb1,
+            boolean bb2,
+            int linkedShotInfoSequenceId
+    ) {
+        if (!ENABLE_DUMBSHOOT_RPM_LOGGING || dumbShootRpmLogger == null) return -1;
         dumbShootRpmSequenceCounter++;
         dumbShootRpmLogSequenceId = dumbShootRpmSequenceCounter;
         dumbShootRpmLogStartMs = nowMs;
         dumbShootRpmLogExpectedShots = Math.max(0, expectedShots);
+        dumbShootRpmLinkedShotInfoSequenceId = linkedShotInfoSequenceId;
+        dumbShootRpmBurstProfileId = BURST_PROFILE_ID;
+        dumbShootRpmBb0RiseCount = 0;
+        dumbShootRpmBb0FallCount = 0;
+        dumbShootRpmBb1RiseCount = 0;
+        dumbShootRpmBb1FallCount = 0;
+        dumbShootRpmBb2RiseCount = 0;
+        dumbShootRpmBb2FallCount = 0;
         dumbShootRpmLogActive = true;
         dumbShootRpmPrevBbInitialized = true;
         dumbShootRpmPrevBb0 = bb0;
         dumbShootRpmPrevBb1 = bb1;
         dumbShootRpmPrevBb2 = bb2;
         lastDumbShootRpmLogMs = 0L;
+        return dumbShootRpmLogSequenceId;
     }
 
     private void maybeLogDumbShootRpmSample(
@@ -1791,6 +1961,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         if (lastDumbShootRpmLogMs > 0L &&
+                !DUMBSHOOT_RPM_LOG_EVERY_LOOP &&
                 nowMs - lastDumbShootRpmLogMs < Math.max(1L, DUMBSHOOT_RPM_LOG_PERIOD_MS)) {
             return;
         }
@@ -1810,6 +1981,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             bb2RiseEdge = !dumbShootRpmPrevBb2 && bb2;
             bb2FallEdge = dumbShootRpmPrevBb2 && !bb2;
         }
+        if (bb0RiseEdge) dumbShootRpmBb0RiseCount++;
+        if (bb0FallEdge) dumbShootRpmBb0FallCount++;
+        if (bb1RiseEdge) dumbShootRpmBb1RiseCount++;
+        if (bb1FallEdge) dumbShootRpmBb1FallCount++;
+        if (bb2RiseEdge) dumbShootRpmBb2RiseCount++;
+        if (bb2FallEdge) dumbShootRpmBb2FallCount++;
         dumbShootRpmPrevBb0 = bb0;
         dumbShootRpmPrevBb1 = bb1;
         dumbShootRpmPrevBb2 = bb2;
@@ -1817,10 +1994,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         long matchT = (logStartMs == 0L) ? 0L : (nowMs - logStartMs);
         double shooterAvgRpm = 0.5 * (rpmShooter1 + rpmShooter2);
+        double loopTimeMs = timer.getMs();
         dumbShootRpmLogger.addRow(
                 nowMs,
                 matchT,
                 dumbShootRpmLogSequenceId,
+                dumbShootRpmLinkedShotInfoSequenceId,
+                dumbShootRpmBurstProfileId,
                 sinceStartMs,
                 dumbShootRpmLogExpectedShots,
                 dumbShootTimerActive,
@@ -1831,10 +2011,22 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 ShooterSubsystem.INSTANCE.getAverageRpmDelta(),
                 ShooterSubsystem.INSTANCE.getShooter1Power(),
                 ShooterSubsystem.INSTANCE.getShooter2Power(),
-                ShooterSubsystem.INSTANCE.isAtSpeed(75.0),
+                isShooterReadyForFeed(
+                        SHOOT_GATE_AT_SPEED_TOLERANCE_RPM,
+                        rpmShooter1,
+                        rpmShooter2
+                ),
+                ShooterSubsystem.INSTANCE.getBatteryVoltageRaw(),
+                ShooterSubsystem.INSTANCE.getBatteryVoltageFiltered(),
+                ShooterSubsystem.INSTANCE.getVoltageCompGain(),
+                ShooterSubsystem.INSTANCE.getCommandPreVoltageComp(),
+                ShooterSubsystem.INSTANCE.getCommandPostVoltageComp(),
+                ShooterSubsystem.INSTANCE.isCommandSaturated(),
                 ShooterSubsystem.INSTANCE.boostActive,
                 ShooterSubsystem.INSTANCE.secondBoostActive,
                 ShooterSubsystem.INSTANCE.boostOverride,
+                ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1(),
+                ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2(),
                 bb0,
                 bb1,
                 bb2,
@@ -1844,7 +2036,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 bb1FallEdge,
                 bb2RiseEdge,
                 bb2FallEdge,
-                IntakeWithSensorsSubsystem.INSTANCE.getBallCount()
+                dumbShootRpmBb0RiseCount,
+                dumbShootRpmBb0FallCount,
+                dumbShootRpmBb1RiseCount,
+                dumbShootRpmBb1FallCount,
+                dumbShootRpmBb2RiseCount,
+                dumbShootRpmBb2FallCount,
+                IntakeWithSensorsSubsystem.INSTANCE.getBallCount(),
+                loopTimeMs
         );
     }
 
@@ -1865,6 +2064,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotSequenceStartBallCount = Math.max(0, startBallCount);
         shotSequenceExpectedShots = Math.max(1, Math.min(3, shotSequenceStartBallCount));
         shotSequenceReason = reason;
+        shotSequenceBurstProfileId = BURST_PROFILE_ID;
+        shotSequenceStartTargetRpm = ShooterSubsystem.INSTANCE.getTargetRpm();
+        shotSequenceStartHoodPos = shooterHoodPos;
+        shotSequenceStartBoostDelayMs = ShooterSubsystem.BOOST_DELAY_MS;
+        shotSequenceStartPreBoostAmount = ShooterSubsystem.PRE_BOOST_AMOUNT;
+        shotSequenceStartBoostMult1 = ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1();
+        shotSequenceStartBoostMult2 = ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2();
+        shotSequenceLinkedDumbShootRpmSequenceId = -1;
         shotSequenceStartBb0 = bb0;
         shotSequenceStartBb1 = bb1;
         shotSequenceStartBb2 = bb2;
@@ -2073,7 +2280,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 shotBb2FallCount,
                 shotBb2RiseCount,
                 endReason,
-                durationMs
+                durationMs,
+                shotSequenceBurstProfileId,
+                shotSequenceStartTargetRpm,
+                shotSequenceStartHoodPos,
+                shotSequenceStartBoostDelayMs,
+                shotSequenceStartPreBoostAmount,
+                shotSequenceStartBoostMult1,
+                shotSequenceStartBoostMult2,
+                shotSequenceLinkedDumbShootRpmSequenceId
         );
 
         shotLogSequenceActive = false;
@@ -2081,6 +2296,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotSequenceStartBallCount = 0;
         shotSequenceExpectedShots = 0;
         shotSequenceReason = "";
+        shotSequenceBurstProfileId = 0;
+        shotSequenceStartTargetRpm = 0.0;
+        shotSequenceStartHoodPos = 0.0;
+        shotSequenceStartBoostDelayMs = 0L;
+        shotSequenceStartPreBoostAmount = 0.0;
+        shotSequenceStartBoostMult1 = 0.0;
+        shotSequenceStartBoostMult2 = 0.0;
+        shotSequenceLinkedDumbShootRpmSequenceId = -1;
     }
 
     private static class SOTMResult {
@@ -2288,7 +2511,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double calculateShooterRPMOdoDistance(double odoDistance) {
         //odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 :
 //        return  odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 : 16.9425 * odoDistance + 1984.45;
-        return  odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 : 16.6925 * odoDistance + 1984.45;
+        return  odoDistance > 110 ? 16.9425 * odoDistance + 2000.45 : 16.6925 * odoDistance + 2060.45;
     }
 
     public static double calculateShooterHoodOdoDistance(double odoDistance) {

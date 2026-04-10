@@ -32,8 +32,9 @@ public class Constants {
                     new FilteredPIDFCoefficients(0.04, 0, 0.0002, 0.6, 0)
             ); */
     public static FollowerConstants followerConstants = new FollowerConstants()
-            .headingPIDFCoefficients(new PIDFCoefficients(1.5, 0, 0.1, 0)) // tuned constants
-            .predictiveBrakingCoefficients(new PredictiveBrakingCoefficients(0.1, 0.10315877, 0.00177572)) // (kP, kLinear, kQuadratic)
+            .mass(12.106)
+            .headingPIDFCoefficients(new PIDFCoefficients(1.5, 0, 0.11, 0)) // tuned constants
+            .predictiveBrakingCoefficients(new PredictiveBrakingCoefficients(0.1, 0.09629215, 0.001609466)) // (kP, kLinear, kQuadratic)
             .centripetalScaling(0);
 
     public static MecanumConstants driveConstants = new MecanumConstants()
@@ -61,7 +62,7 @@ public class Constants {
             .strafeEncoderDirection(GoBildaPinpointDriver.EncoderDirection.FORWARD);
 
     public static PathConstraints pathConstraints = new PathConstraints(
-            0.97,
+            0.95,
             100,
             1.0,
             1

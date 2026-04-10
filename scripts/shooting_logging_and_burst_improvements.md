@@ -26,18 +26,46 @@ It is intentionally separate from turret-control and SOTM planning docs.
 
 ## Current Logging Direction
 
-`Pickles2025Teleop` now has a new logging path for shot-sequence breakbeam data:
+`Pickles2025Teleop` now has a two-tier burst logging path:
 
-- `ENABLE_SHOT_INFO_LOGGING`
-- `SHOT_INFO_LOG_TIMEOUT_MS`
-- CSV logger style matches existing turret logger flow.
-- One row per shot sequence, with:
-  - sequence start info (trigger reason, ball count, starting sensor states),
-  - breakbeam edge timestamps (up to 3 events per sensor),
-  - interval columns (up to 3 balls),
-  - edge counts and end reason.
+- `ENABLE_SHOT_INFO_LOGGING` (one row per burst sequence)
+- `ENABLE_DUMBSHOOT_RPM_LOGGING` (high-rate burst stream)
+- `DUMBSHOOT_RPM_LOG_EVERY_LOOP` (for transient-focused tuning sessions)
+- `BURST_PROFILE_ID` (manual profile tag for A/B/C testing)
 
-This gives first-pass evidence about whether breakbeam edges are reliable enough for per-ball timing.
+### Shot summary logger (per sequence)
+
+Includes:
+- trigger reason, start ball count, expected shots, start sensor states
+- breakbeam edge timestamps and counts
+- interval fields and end reason
+- burst profile metadata at sequence start:
+  - `burst_profile_id`
+  - `start_target_rpm`
+  - `start_hood_pos`
+  - `start_boost_delay_ms`
+  - `start_pre_boost_amount`
+  - `start_boost_mult1`
+  - `start_boost_mult2`
+  - `linked_dumbshoot_rpm_sequence_id`
+
+### High-rate burst stream logger
+
+Includes:
+- sequence ids and linkage fields:
+  - `sequence_id`
+  - `shot_info_sequence_id`
+  - `burst_profile_id`
+- rpm/power/battery/voltage-comp/boost state
+- breakbeam edge flags and cumulative bb0/bb1/bb2 edge counts:
+  - `bb0_rise_count_total`, `bb0_fall_count_total`
+  - `bb1_rise_count_total`, `bb1_fall_count_total`
+  - `bb2_rise_count_total`, `bb2_fall_count_total`
+- `loop_time_ms`
+
+This gives both:
+- outcome-level sequence metrics, and
+- transient-level controller behavior during each burst.
 
 ---
 
@@ -55,19 +83,32 @@ Only data capture and CSV writing behavior should change.
 
 ### Low-overhead logging rules
 
-1. Prefer event-based logging over continuous file writes.
-2. Keep data in memory during run.
-3. Save CSV at opmode stop (or occasional chunk flush if needed).
-4. Avoid extra hardware polling only for logging.
+For dedicated burst tuning sessions:
 
-This keeps loop timing close to real match conditions.
+1. Keep logging window short and burst-scoped (not full-match heavy logging).
+2. Keep data in memory during run.
+3. Save CSV at opmode stop. (or occasional chunk flush if needed).
+4. Avoid extra hardware polling only for logging.
+5. Avoid enabling unrelated loggers during burst testing.
+
+Recommended burst-tuning config:
+
+- `ENABLE_DUMBSHOOT_RPM_LOGGING = true`
+- `ENABLE_SHOT_INFO_LOGGING = true`
+- `ENABLE_SOTM_LOGGING = false`
+- `ENABLE_TURRET_LOGGING = false`
+- `DUMBSHOOT_RPM_LOG_EVERY_LOOP = true` (best transient visibility)
 
 ### Row granularity
 
-Use **one row per burst sequence** right now (already implemented), with room for up to 3 balls.  
-Later, optionally add one row per ball if we need finer analysis.
+Use two granularities together:
 
-### Core fields to keep in every burst row
+- One row per burst sequence (shot summary logger)
+- One row per loop during active burst logging window (dumbshoot RPM logger)
+
+This is preferred over a single monolithic logger because sequence outcomes and transient control data have different sampling needs.
+
+### Core fields to keep in every sequence row
 
 - `t_ms`, `match_t_ms`
 - `sequence_id`
@@ -82,14 +123,22 @@ Later, optionally add one row per ball if we need finer analysis.
   - `shot3_interval_ms` (shot2 -> shot3)
 - edge counts for each sensor
 - `end_reason` and `duration_ms`
+- `burst_profile_id`
+- `start_target_rpm`, `start_hood_pos`
+- `start_boost_delay_ms`, `start_pre_boost_amount`, `start_boost_mult1`, `start_boost_mult2`
+- `linked_dumbshoot_rpm_sequence_id`
 
-### Recommended additions after first breakbeam validation
+### Recommended post-processing metrics (derived from existing logs)
 
-Add a compact RPM snapshot per ball event:
-- `rpm_at_shot1`, `rpm_at_shot2`, `rpm_at_shot3`
-- optionally `rpm_min_post_shotN` and `recovery_ms_shotN`
-
-If breakbeam is unreliable, populate these using RPM-sag event timing instead.
+Compute these in analysis scripts (no extra runtime logging required):
+- `rpm_at_shot1/2/3` (prefer breakbeam event time, fallback to inferred event time)
+- `rpm_min_post_shotN`
+- `recovery_ms_shotN`
+- `% time saturated during burst`
+- shot event confidence labels (`EDGE` vs `INFERRED`)
+- per-sequence edge-observability score using cumulative totals:
+  - `expected_shots` vs final cumulative `bb1_fall_count_total` and `bb2_fall_count_total`
+  - mismatch flag for sensor-under-capture risk
 
 ### Driver/operator labeling workflow
 
@@ -194,9 +243,62 @@ Determine whether breakbeam edges can reliably identify each ball in fast bursts
 - verify no frequent missed edges or double-counts
 - use short slow-motion video for ground truth when needed
 
-### Decision point
-- If breakbeam edge timing is reliable: use it as shot-event timing signal.
-- If not reliable enough: use RPM-sag event detection fallback.
+### Decision point (updated from data)
+
+- Breakbeam at current loop timing is not reliable as the sole event source in fast 3-ball bursts.
+- Use breakbeam as preferred signal when present.
+- Add an inferred timing fallback (commanded feed window / expected interval) when an edge is missed.
+- Keep confidence tags so analysis can separate edge-confirmed vs inferred events.
+- Use cumulative edge totals to validate whether missed timestamps are likely logging/quantization misses vs true path failures.
+
+### Fast-loop practical rule
+
+For shot-state transitions in high-speed bursts:
+- Use single-sample edge acceptance inside expected timing windows.
+- Do not rely on multi-sample debounce for transition gating (windows are often too short).
+- Use timer fallback so state machine always advances even when edges are missed.
+- Keep fallback windows profile-specific (`BURST_PROFILE_ID`) instead of global constants.
+
+---
+
+## Data Insights So Far (Existing Logs)
+
+Based on existing burst logs:
+
+- Many expected 3-shot sequences physically shot all 3 balls, but not all `bb2` transitions were captured.
+- Existing summary logs show frequent `third_missing_after_second` / timeout-style endings in high-speed bursts.
+- Existing RPM streams already show useful guidance:
+  - RPM deficit typically grows after burst start and is often largest in the middle of the burst window.
+  - Higher target-RPM bursts show larger and longer deficits.
+
+Conclusion:
+
+- We can start boost-profile architecture work now using existing RPM/power traces.
+- We still need new profile-tagged dedicated burst runs to converge safely.
+
+---
+
+## Current Code Behavior Notes (Important)
+
+These are implementation realities observed in the current TeleOp + shooter code:
+
+1. **Loop order matters**
+   - `ShooterSubsystem.periodic()` runs in component `preUpdate()`.
+   - `Pickles2025Teleop.onUpdate()` runs after that.
+   - So `setBoostOn()` called in TeleOp affects boost timing for the *next* loop's shooter update.
+
+2. **Held fire button can repeatedly restart boost timing**
+   - In current flow, while driver holds fire and gates allow shooting, `setBoostOn()` can be called repeatedly.
+   - This repeatedly resets boost start timing semantics.
+
+3. **Slew limiting strongly shapes burst behavior**
+   - Shooter command is slew-limited (`SLEW_PER_SECOND`).
+   - During short gaps, command cannot jump instantly to desired boosted command.
+   - Over the full burst window, command can continue ramping upward, which can contribute to hotter later shots (especially shot 3 with longer 2->3 gap).
+
+4. **Breakbeam clear windows can be shorter than loop period**
+   - At fast cadence, some clear windows are shorter than effective logging/loop cadence.
+   - Missed edges are expected in this regime.
 
 ---
 
@@ -205,9 +307,98 @@ Determine whether breakbeam edges can reliably identify each ball in fast bursts
 Because transfer speed must stay high and continuous, improvements should be on flywheel command only.
 
 ### Near-term
-1. Fix shooter boost implementation issues so boost behavior is actually as configured.
-2. Use shot event timing (breakbeam or RPM-sag) to move from one-shot fixed-time boost to per-ball boost scheduling.
-3. Tune separately for ball 1, ball 2, ball 3 recovery behavior.
+1. Ensure boost multipliers are panel-tunable and actually applied by control logic.
+2. Use per-burst profile tagging (`BURST_PROFILE_ID`) for A/B profile sweeps.
+3. Use hybrid shot-event timing (edge-first, inferred fallback) for per-ball scheduling.
+4. Tune separately for ball 1, ball 2, ball 3 recovery behavior.
+5. Make boost-trigger semantics one-shot per burst (avoid repeated re-arming while button is held).
+
+### Timing model convention
+
+Use two clocks:
+
+- `t_req`: shot request/start of burst sequence
+- `t_contact1_est = t_req + feed_latency_ms` (initially from video estimate, then refined by data)
+
+Then:
+
+- `t_contact2_est = t_contact1_est + t12_est`
+- `t_contact3_est = t_contact2_est + t23_est`
+
+Where:
+- `t12_est` and `t23_est` come from profile timing stats and can be corrected by available edges.
+- `feed_latency_ms` comes from `shot1_interval_ms` distributions per profile.
+- `bb1->bb2` windows are maintained per shot index and profile for edge-assisted correction.
+
+### Shot-phase guidance
+
+- Shot 1 preboost should usually be small/zero by default.
+- Start recovery at estimated/observed contact start (not after contact ends).
+- Keep pre and recovery as separate tunables, even if initial values are equal.
+- Gate boost by RPM error to reduce overshoot risk when gaps are longer than nominal.
+
+### Timing and State Diagram (Example)
+
+Use this as a practical starting sketch (times are relative to `t_req` and should be tuned):
+
+```text
+t_req = 0 ms (driver fire request accepted)
+
+Estimated contacts:
+  t_contact1_est ~ 100 ms
+  t_contact2_est ~ 100 + t12_est  (start with ~167 ms -> ~267 ms)
+  t_contact3_est ~ t_contact2_est + t23_est (start with ~187 ms -> ~454 ms)
+
+States / phases:
+
+IDLE
+  |
+  v
+ARM / BURST_START
+  |
+  |---- PRE1 (optional, often 0 or very small)
+  |       start: t_contact1_est - preLead1
+  |       end:   shot1_event or t_contact1_est fallback
+  |
+  |---- RECOVER1
+  |       start trigger priority:
+  |         1) bb1/bb2 edge in expected window
+  |         2) timer fallback at t_contact1_est
+  |       end: recover1_duration or transition into PRE2
+  |
+  |---- PRE2
+  |       start: t_contact2_est - preLead2
+  |       end:   shot2_event or timer fallback
+  |
+  |---- RECOVER2
+  |       start: shot2_event (edge-first, inferred fallback)
+  |       end:   recover2_duration or transition into PRE3
+  |
+  |---- PRE3
+  |       start: t_contact3_est - preLead3
+  |       end:   shot3_event or timer fallback
+  |
+  |---- RECOVER3
+  |       start: shot3_event (edge-first, inferred fallback)
+  |       end:   recover3_duration
+  |
+  v
+DONE / RETURN_TO_BASELINE
+```
+
+Event confidence guidance:
+- `EDGE`: direct breakbeam event in valid window.
+- `INFERRED`: upstream cue (`bb1`) + timing window.
+- `TIMING_ONLY`: no usable edge; timer fallback.
+
+Window selection guidance:
+- Build windows from p10..p90 plus fixed margin (for example +/- 10 ms).
+- If summary and high-rate windows disagree, use the union for safety first, then tighten after more data.
+- Recompute per profile after each data-collection block.
+
+Fast-loop note:
+- At ~15-20 ms loop times, treat transitions as single-sample decisions in valid windows.
+- Do not require multi-sample debounce for state transitions.
 
 ### Control shape (target behavior)
 - baseline RPM control (PID/FF)
@@ -229,6 +420,43 @@ Use RPM-derived event detection:
 
 Then run the same per-ball analysis and boost scheduling.
 
+For this robot, this should be treated as default behavior for high-speed 3-ball bursts:
+- breakbeam-confirmed when available,
+- inferred fallback when edge is missed.
+
+Additional practical note:
+- `bb1` appears useful as a circumstantial upstream cue for `bb2` timing in many sequences.
+- Use `bb1` as a fallback predictor, not as a direct contact timestamp.
+- `bb1` clear after ball 2 is especially useful for reducing shot-3 timing variance.
+
+---
+
+## Analysis Script Workflow (Current)
+
+Run:
+
+`python scripts/analyze_burst_profile_windows.py`
+
+For each `burst_profile_id`, use:
+
+1. **Timer backbone section**
+   - `feed_latency_ms (shot1_interval_ms)`
+   - `t12_est_ms (shot2_interval_ms)`
+   - `t23_est_ms (shot3_interval_ms)`
+2. **bb1->bb2 windows**
+   - review summary and high-rate values
+   - apply combined recommendation for scheduler fallback windows
+3. **Edge visibility section**
+   - verify bb1/bb2 seen-rates by shot index
+4. **Loop + edge-count section**
+   - confirm loop-time health
+   - compare cumulative edge totals vs expected shots
+
+Interpretation rules:
+- Low bb2 seen-rate with normal completion suggests quantization/logging miss, not necessarily mechanism failure.
+- Broad `t23_est` spread indicates shot-3 phase needs wider adaptive timing or stronger bb1-assisted correction.
+- Persistent high saturation plus low shot3 RPM implies recovery shaping issue (boost schedule), not timing-only issue.
+
 ---
 
 ## Hood-While-Shooting Position
@@ -245,13 +473,23 @@ Planned order:
 
 ## Next Session Checklist
 
-1. Enable shot-info logging.
-2. Run several 3-ball bursts at real cadence.
-3. Export CSV and annotate run context (normal vs stressed cadence).
-4. Analyze:
-   - edge reliability,
-   - timing intervals,
-   - burst consistency.
-5. Decide event source (breakbeam vs RPM-sag).
-6. Apply next boost iteration based on measured sag/recovery.
+1. Set dedicated burst tuning config:
+   - `ENABLE_DUMBSHOOT_RPM_LOGGING = true`
+   - `ENABLE_SHOT_INFO_LOGGING = true`
+   - `ENABLE_SOTM_LOGGING = false`
+   - `ENABLE_TURRET_LOGGING = false`
+   - `DUMBSHOOT_RPM_LOG_EVERY_LOOP = true`
+2. Run characterization blocks first (1-ball, 2-ball, 3-ball; ~10 each) to update timing/visibility model.
+3. Pick profile, set `BURST_PROFILE_ID`, and record boost parameters in Panels.
+4. Run 10-20 bursts for each profile (near and far target conditions).
+5. Export CSV and keep short run notes.
+6. Analyze by `burst_profile_id` and linked sequence ids:
+   - completion behavior,
+   - shot timing,
+   - rpm sag/recovery,
+   - saturation ratio.
+7. Iterate one parameter group at a time (delay, pre-boost, stage multipliers).
+8. Verify command-shape behavior:
+   - whether command ramps through the burst due to slew,
+   - whether repeated boost re-arming is eliminated in experimental logic.
 
