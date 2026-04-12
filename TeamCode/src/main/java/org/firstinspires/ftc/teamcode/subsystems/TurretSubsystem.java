@@ -153,17 +153,9 @@ public class TurretSubsystem implements Subsystem {
         periodicAbsoluteEncoderReadEnabled = READ_ABSOLUTE_ENCODER_IN_PERIODIC;
         wasPeriodicAbsoluteReadEnabled = false;
 
-        // Force the turret to mechanical "center" first so startup references
-        // are captured in a consistent sector even if drivers forgot to pre-center.
-        leftTurret.setPosition(SERVO_CENTER_POSITION);
-        rightTurret.setPosition(SERVO_CENTER_POSITION);
-        currentServoPosition = SERVO_CENTER_POSITION;
-        if (STARTUP_CENTER_SETTLE_MS > 0) {
-            long settleStartMs = System.currentTimeMillis();
-            while (System.currentTimeMillis() - settleStartMs < STARTUP_CENTER_SETTLE_MS) {
-                // Intentionally waiting for turret to settle before startup references.
-            }
-        }
+        currentLeftServoPosition = leftTurret.getPosition();
+        currentRightServoPosition = rightTurret.getPosition();
+        currentServoPosition = 0.5 * (currentLeftServoPosition + currentRightServoPosition);
 
         turretEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turretEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -171,31 +163,98 @@ public class TurretSubsystem implements Subsystem {
         previousEncoderTicks = currentEncoderTicks;
 
         double quadRawAtStartDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
-        double absoluteTurretAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteTurretReferenceAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteRawAtStartDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
         absoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         previousAbsoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         unwrappedAbsoluteEncoderDegrees = absoluteRawAtStartDegrees;
 
-        absoluteTurretAtStartDegrees = absoluteRawToNearestTurretAngleDegrees(
-                absoluteRawAtStartDegrees,
-                STARTUP_EXPECTED_TURRET_ANGLE_DEGREES
-        );
-
-        absoluteStartupErrorDegrees =
-                absoluteTurretAtStartDegrees - STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
-        learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
-
-        absoluteEncoderTurretAngleDegrees = absoluteTurretReferenceAtStartDegrees;
+        absoluteEncoderTurretAngleDegrees = Double.NaN;
         absoluteEncoderTurretDeltaDegrees = 0.0;
 
-        quadratureOffsetDegrees = quadRawAtStartDegrees - absoluteTurretReferenceAtStartDegrees;
+        quadratureOffsetDegrees = 0.0;
         quadRawAngleDegrees = quadRawAtStartDegrees;
-        measuredAngleDegrees = quadRawAtStartDegrees - quadratureOffsetDegrees;
+        measuredAngleDegrees = quadRawAtStartDegrees;
 
-        applyServoAngle(INITIAL_ANGLE_DEGREES);
         lastLoopTimeSeconds = nowSeconds();
+    }
+
+    /**
+     * Startup helper that commands both turret servos to their raw neutral position
+     * without relying on turret-angle calibration.
+     */
+    public void moveServosToStartupZeroPosition() {
+        double clippedCenter = Range.clip(SERVO_CENTER_POSITION, MIN_SERVO_POSITION, MAX_SERVO_POSITION);
+        currentLeftServoPosition = clippedCenter;
+        currentRightServoPosition = clippedCenter;
+        currentServoPosition = clippedCenter;
+
+        if (leftServoEnabled) {
+            leftTurret.setPwmEnable();
+            leftTurret.setPosition(currentLeftServoPosition);
+        } else {
+            leftTurret.setPwmDisable();
+        }
+
+        if (rightServoEnabled) {
+            rightTurret.setPwmEnable();
+            rightTurret.setPosition(currentRightServoPosition);
+        } else {
+            rightTurret.setPwmDisable();
+        }
+    }
+
+    public void waitForStartupServoSettle() {
+        if (STARTUP_CENTER_SETTLE_MS <= 0) return;
+        long settleStartMs = System.currentTimeMillis();
+        while (System.currentTimeMillis() - settleStartMs < STARTUP_CENTER_SETTLE_MS) {
+            // Intentional startup wait.
+        }
+    }
+
+    /**
+     * Uses expected turret angle to resolve the analog encoder sector and updates
+     * the servo command offset learned at startup.
+     *
+     * @return resolved turret angle from the analog encoder in turret-angle frame.
+     */
+    public double learnAbsoluteTurretAngleFromExpected(double expectedTurretAngleDegrees) {
+        double rawDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
+        absoluteRawAtStartDegrees = rawDegrees;
+        absoluteEncoderRawDegrees = rawDegrees;
+        previousAbsoluteEncoderRawDegrees = rawDegrees;
+        unwrappedAbsoluteEncoderDegrees = rawDegrees;
+
+        double resolvedTurretAngleDegrees =
+                absoluteRawToNearestTurretAngleDegrees(rawDegrees, expectedTurretAngleDegrees);
+        absoluteTurretReferenceAtStartDegrees = resolvedTurretAngleDegrees;
+        absoluteEncoderTurretAngleDegrees = resolvedTurretAngleDegrees;
+        absoluteEncoderTurretDeltaDegrees = 0.0;
+
+        absoluteStartupErrorDegrees = resolvedTurretAngleDegrees - expectedTurretAngleDegrees;
+        learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
+
+        return resolvedTurretAngleDegrees;
+    }
+
+    /**
+     * Sets quadrature offset so the current quadrature reading maps to the provided known angle.
+     * This should be called after startup analog-sector learning.
+     */
+    public void setQuadratureOffsetFromKnownTurretAngle(double knownTurretAngleDegrees) {
+        currentEncoderTicks = turretEncoder.getCurrentPosition();
+        previousEncoderTicks = currentEncoderTicks;
+        quadRawAngleDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
+        quadratureOffsetDegrees = quadRawAngleDegrees - knownTurretAngleDegrees;
+        measuredAngleDegrees = quadRawAngleDegrees - quadratureOffsetDegrees;
+
+        targetAngleDegrees = measuredAngleDegrees;
+        correctedTargetAngleDegrees = measuredAngleDegrees;
+        commandedAngleDegrees = measuredAngleDegrees;
+        lastServoCommandAngleDegrees = measuredAngleDegrees;
+        lastOuterLoopTrimDegrees = 0.0;
+        lastCommandDiffDegrees = 0.0;
+        lastRateLimitedStepDegrees = 0.0;
     }
 
     @Override

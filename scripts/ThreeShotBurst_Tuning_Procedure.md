@@ -4,6 +4,23 @@
 
 Improve 3-ball burst consistency first (especially shot 3), then return to location-specific RPM/hood table tuning.
 
+## Naming Convention (student-facing)
+
+Use duration-first naming in code and discussion:
+
+- `t_ShotFeedStartMs`: time origin for one feed sequence (`= 0` at feed command start)
+- `dt_ShotFeedStartToBall1ContactMs_est`: estimated delay from feed start to ball1 flywheel contact start
+- `dt_Ball1ToBall2ContactStartMs_est`: estimated delay from ball1 contact start to ball2 contact start
+- `dt_Ball2ToBall3ContactStartMs_est`: estimated delay from ball2 contact start to ball3 contact start
+
+Derived contact-start estimates:
+
+- `t_Ball1ContactStartMs_est = dt_ShotFeedStartToBall1ContactMs_est`
+- `t_Ball2ContactStartMs_est = t_Ball1ContactStartMs_est + dt_Ball1ToBall2ContactStartMs_est`
+- `t_Ball3ContactStartMs_est = t_Ball2ContactStartMs_est + dt_Ball2ToBall3ContactStartMs_est`
+
+Rule: treat breakbeam edges as state/window cues, not global "edge #1/#2/#3" truth.
+
 ## Current Logging Readiness
 
 Use both logs together during dedicated burst testing:
@@ -47,10 +64,12 @@ Do this for near, then far (if time allows). Keep one profile at a time.
 Purpose:
 
 - quantify how often bb1/bb2 events are captured per shot index
-- estimate timer fallbacks (`feed_latency`, `t12`, `t23`) from summary intervals
+- estimate timer fallbacks (`dt_ShotFeedStartToBall1ContactMs_est`, `dt_Ball1ToBall2ContactStartMs_est`, `dt_Ball2ToBall3ContactStartMs_est`) from summary intervals
 - estimate `bb1 -> bb2` windows for hybrid timing logic
 
 ### Phase B: 3-ball profile sweep
+
+Only do this after first-pass hybrid state logic is implemented.
 
 For each location (near and far), run:
 
@@ -61,8 +80,24 @@ For each location (near and far), run:
 Change one parameter group at a time:
 
 - `BOOST_DELAY_MS`
-- `PRE_BOOST_AMOUNT`
+- per-ball preboost lead windows:
+  - `HYBRID_PREBOOST1_LEAD_MS`
+  - `HYBRID_PREBOOST2_LEAD_MS`
+  - `HYBRID_PREBOOST3_LEAD_MS`
+- per-ball preboost amounts:
+  - `HYBRID_PREBOOST1_AMOUNT`
+  - `HYBRID_PREBOOST2_AMOUNT`
+  - `HYBRID_PREBOOST3_AMOUNT`
 - stage multipliers (`BOOST_STAGE1_MULTIPLIER_*`, `BOOST_STAGE2_MULTIPLIER_*`)
+- feed-path shaping (optional):
+  - `DUMBSHOOT_DELAY_M1_MS`
+  - `DUMBSHOOT_DELAY_M2_MS`
+  - `DUMBSHOOT_M1_POWER`, `DUMBSHOOT_M2_POWER`, `DUMBSHOOT_M3_POWER`
+
+Notes:
+
+- If preboost is not helping, set `HYBRID_PREBOOST*_AMOUNT = 0`.
+- For burst tuning, keep `DISABLE_SLEW_DURING_BOOST = true` so short boost windows are not rate-limited.
 
 ## During-Run Labeling
 
@@ -85,6 +120,12 @@ Read these sections in output for each `burst_profile_id`:
 - `bb2_clear_gap_*` windows
 - high-rate `loop_time_ms` and cumulative edge-count totals
 
+Map script outputs to code variable names:
+
+- `feed_latency_ms` -> `dt_ShotFeedStartToBall1ContactMs_est`
+- `t12_est_ms` -> `dt_Ball1ToBall2ContactStartMs_est`
+- `t23_est_ms` -> `dt_Ball2ToBall3ContactStartMs_est`
+
 ## Pass/Fail Metrics
 
 Per profile:
@@ -100,6 +141,27 @@ Quick acceptance target:
 - 3-shot completion >= 95%
 - shot2/shot3 spacing stable
 - no persistent shot3 under-speed trend relative to shot1
+
+## Current first-pass windows from 20260410 data
+
+Use these as starting points (not final):
+
+- Close:
+  - `dt_ShotFeedStartToBall1ContactMs_est` ~ 135 ms
+  - `dt_Ball1ToBall2ContactStartMs_est` ~ 115 ms
+  - `dt_Ball2ToBall3ContactStartMs_est` ~ 155 ms (wide confidence)
+- Far:
+  - `dt_ShotFeedStartToBall1ContactMs_est` ~ 195 ms
+  - `dt_Ball1ToBall2ContactStartMs_est` ~ 125 ms
+  - `dt_Ball2ToBall3ContactStartMs_est` ~ 145 ms (very low sample confidence)
+
+Breakbeam usage direction from this dataset:
+
+- Shot1: bb2 fall is strong.
+- Shot2: bb2 fall is useful but incomplete.
+- Shot3: rely on timer backbone, with bb1 fall in-window as assist.
+
+So first-pass control should be timer-first with edge-assisted advancement.
 
 ## Scrimmage-Minimum Workflow
 

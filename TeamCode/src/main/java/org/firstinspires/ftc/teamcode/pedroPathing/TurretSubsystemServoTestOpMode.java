@@ -50,6 +50,12 @@ public class TurretSubsystemServoTestOpMode extends NextFTCOpMode {
 
     @Override
     public void onInit() {
+        TurretSubsystem.INSTANCE.moveServosToStartupZeroPosition();
+        TurretSubsystem.INSTANCE.waitForStartupServoSettle();
+        double learnedTurretAngleDegrees = TurretSubsystem.INSTANCE.learnAbsoluteTurretAngleFromExpected(
+                TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES
+        );
+        TurretSubsystem.INSTANCE.setQuadratureOffsetFromKnownTurretAngle(learnedTurretAngleDegrees);
         TurretSubsystem.INSTANCE.setPeriodicAbsoluteEncoderReadEnabled(ENABLE_TURRET_TEST_ABSOLUTE_LOGGING);
         TurretSubsystem.INSTANCE.setServoEnabledStates(true, true);
 

@@ -51,6 +51,18 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double S2_SINGLE_SHOT_POWER = 0.85;
     public static double S3_SINGLE_SHOT_POWER = 0.85;
 
+    // Dumbshoot open-loop profile:
+    // - motor3 starts immediately
+    // - motor1 and transfer (m2 path via servos) can be delayed independently
+    public static double DUMBSHOOT_M1_POWER = 1.0;
+    public static double DUMBSHOOT_M3_POWER = 1.0;
+    public static double DUMBSHOOT_M2_POWER = 1.0; // Applied to both s2 and s3
+    public static long DUMBSHOOT_DELAY_M1_MS = 0;
+    public static long DUMBSHOOT_DELAY_M2_MS = 0;
+    // Delay gating by distance (inches). Default 0 keeps previous behavior
+    // (configured delays always active). Set > 0 to apply delays only at/above threshold.
+    public static double DUMBSHOOT_DELAY_DISTANCE_THRESHOLD_IN = 72.0;
+
     // Delay between shots for multi-single-shot mode (ms)
     public static long MULTI_SINGLE_SHOT_DELAY_MS = 150;
     
@@ -111,6 +123,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private boolean singleBallActive = false;
     // True only while dumbShoot() is intentionally bypassing encoder velocity control.
     private boolean dumbShootOpenLoopActive = false;
+    private long dumbShootStartTimeMs = 0L;
+    private double dumbShootDistanceForDelayInches = 0.0;
 
     private long SHOT_DELAY_MS = 300;
     private long SHOT_TIME = 10; // wait time between shots
@@ -182,6 +196,10 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     @Override
     public void periodic() {
+        if (dumbShootOpenLoopActive) {
+            updateDumbShootOpenLoop();
+            return;
+        }
 //        if (shootSequenceActive) {   //Commented out because of intake issues, and using just dumb shoot with multi-ball boost, so maybe not needed.
 //            updateShooting();
 //            return;
@@ -461,10 +479,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         multiSingleShotActive = false;
         shooting = false;
         
-        m1.setPower(1.0);
-        m3.setPower(1.0);
-        s2.setPower(1.0);
-        s3.setPower(1.0);
+        dumbShootStartTimeMs = System.currentTimeMillis();
+        updateDumbShootOpenLoop();
         
         ballCount = 0;
         
@@ -491,6 +507,14 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m3.setPower(0.0);
         s2.setPower(0.0);
         s3.setPower(0.0);
+    }
+
+    public void setDumbShootDistanceForDelayInches(double distanceInches) {
+        if (Double.isFinite(distanceInches)) {
+            dumbShootDistanceForDelayInches = Math.max(0.0, distanceInches);
+        } else {
+            dumbShootDistanceForDelayInches = 0.0;
+        }
     }
 
     /**
@@ -785,6 +809,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m1.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         m3.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         dumbShootOpenLoopActive = true;
+        dumbShootStartTimeMs = System.currentTimeMillis();
     }
 
     private void disableDumbShootOpenLoopIfNeeded() {
@@ -792,6 +817,33 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         m1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         m3.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         dumbShootOpenLoopActive = false;
+        dumbShootStartTimeMs = 0L;
+    }
+
+    private void updateDumbShootOpenLoop() {
+        long nowMs = System.currentTimeMillis();
+        boolean delaysEnabledByDistance =
+                DUMBSHOOT_DELAY_DISTANCE_THRESHOLD_IN <= 0.0 ||
+                dumbShootDistanceForDelayInches >= DUMBSHOOT_DELAY_DISTANCE_THRESHOLD_IN;
+        long effectiveDelayM1Ms = delaysEnabledByDistance ? Math.max(0L, DUMBSHOOT_DELAY_M1_MS) : 0L;
+        long effectiveDelayM2Ms = delaysEnabledByDistance ? Math.max(0L, DUMBSHOOT_DELAY_M2_MS) : 0L;
+        long elapsedMs = Math.max(0L, nowMs - dumbShootStartTimeMs);
+        boolean enableFeedM1 = elapsedMs >= effectiveDelayM1Ms;
+        boolean enableFeedM2 = elapsedMs >= effectiveDelayM2Ms;
+
+        m3.setPower(DUMBSHOOT_M3_POWER); //Always immediately enable first ball feeding
+        if (enableFeedM1) {
+            m1.setPower(DUMBSHOOT_M1_POWER);
+        } else {
+            m1.setPower(0.0);
+        }
+        if (enableFeedM2) {
+            s2.setPower(DUMBSHOOT_M2_POWER);
+            s3.setPower(DUMBSHOOT_M2_POWER);
+        } else {
+            s2.setPower(0.0);
+            s3.setPower(0.0);
+        }
     }
 
     private boolean isShooterAtSpeed() {

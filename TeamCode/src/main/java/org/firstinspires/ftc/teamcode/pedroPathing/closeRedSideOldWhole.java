@@ -767,6 +767,7 @@ public class closeRedSideOldWhole extends NextFTCOpMode{
         ShooterSubsystem.INSTANCE.stop();
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
         GlobalRobotData.hasAutonRun = true;
     }
 
@@ -808,6 +809,7 @@ public class closeRedSideOldWhole extends NextFTCOpMode{
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
         GlobalRobotData.hasAutonRun = true;
     }
 

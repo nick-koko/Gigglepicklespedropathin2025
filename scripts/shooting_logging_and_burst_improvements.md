@@ -57,6 +57,14 @@ Includes:
   - `shot_info_sequence_id`
   - `burst_profile_id`
 - rpm/power/battery/voltage-comp/boost state
+- hybrid burst-state fields:
+  - `hybrid_feed_boost_active`
+  - `hybrid_phase`
+  - `hybrid_t_since_shot_feed_start_ms`
+  - `hybrid_expected_contact_ms`
+  - `hybrid_preboost_amount_active`
+  - `hybrid_last_advance_reason`
+  - `hybrid_last_advance_rel_ms`
 - breakbeam edge flags and cumulative bb0/bb1/bb2 edge counts:
   - `bb0_rise_count_total`, `bb0_fall_count_total`
   - `bb1_rise_count_total`, `bb1_fall_count_total`
@@ -287,14 +295,14 @@ These are implementation realities observed in the current TeleOp + shooter code
    - `Pickles2025Teleop.onUpdate()` runs after that.
    - So `setBoostOn()` called in TeleOp affects boost timing for the *next* loop's shooter update.
 
-2. **Held fire button can repeatedly restart boost timing**
-   - In current flow, while driver holds fire and gates allow shooting, `setBoostOn()` can be called repeatedly.
-   - This repeatedly resets boost start timing semantics.
+2. **Held fire re-arming behavior (updated)**
+   - Updated: dumbshoot burst start is now gated so one held press does not repeatedly re-arm boost timing inside the same active sequence.
+   - A new sequence can start only after the previous one ends.
 
 3. **Slew limiting strongly shapes burst behavior**
-   - Shooter command is slew-limited (`SLEW_PER_SECOND`).
-   - During short gaps, command cannot jump instantly to desired boosted command.
-   - Over the full burst window, command can continue ramping upward, which can contribute to hotter later shots (especially shot 3 with longer 2->3 gap).
+   - Shooter command is slew-limited in normal tracking.
+   - During boost windows, slew limiting can be bypassed with `DISABLE_SLEW_DURING_BOOST = true` (now default).
+   - This keeps distance-noise smoothing while allowing short burst boosts to apply quickly.
 
 4. **Breakbeam clear windows can be shorter than loop period**
    - At fast cadence, some clear windows are shorter than effective logging/loop cadence.
@@ -304,7 +312,8 @@ These are implementation realities observed in the current TeleOp + shooter code
 
 ## Boost-Control Improvement Path (Continuous Feed)
 
-Because transfer speed must stay high and continuous, improvements should be on flywheel command only.
+Because transfer speed must stay high and continuous, primary improvements should be on flywheel command shaping.  
+Feed-path delay/power sweeps can be run as separate experiments when needed.
 
 ### Near-term
 1. Ensure boost multipliers are panel-tunable and actually applied by control logic.
@@ -317,18 +326,27 @@ Because transfer speed must stay high and continuous, improvements should be on 
 
 Use two clocks:
 
-- `t_req`: shot request/start of burst sequence
-- `t_contact1_est = t_req + feed_latency_ms` (initially from video estimate, then refined by data)
+- `t_ShotFeedStartMs`: feed-start moment for this sequence (time origin)
+- `dt_ShotFeedStartToBall1ContactMs_est`: estimated delay from feed start to ball1 contact start
 
 Then:
 
-- `t_contact2_est = t_contact1_est + t12_est`
-- `t_contact3_est = t_contact2_est + t23_est`
+- `dt_Ball1ToBall2ContactStartMs_est`: ball1-contact-start -> ball2-contact-start
+- `dt_Ball2ToBall3ContactStartMs_est`: ball2-contact-start -> ball3-contact-start
 
 Where:
-- `t12_est` and `t23_est` come from profile timing stats and can be corrected by available edges.
-- `feed_latency_ms` comes from `shot1_interval_ms` distributions per profile.
+- `dt_ShotFeedStartToBall1ContactMs_est` comes from `shot1_interval_ms` distributions per profile.
+- `dt_Ball1ToBall2ContactStartMs_est` and `dt_Ball2ToBall3ContactStartMs_est` come from profile interval stats and can be corrected by available edges.
 - `bb1->bb2` windows are maintained per shot index and profile for edge-assisted correction.
+
+Derived timestamps when needed:
+- `t_Ball1ContactStartMs_est = dt_ShotFeedStartToBall1ContactMs_est`
+- `t_Ball2ContactStartMs_est = t_Ball1ContactStartMs_est + dt_Ball1ToBall2ContactStartMs_est`
+- `t_Ball3ContactStartMs_est = t_Ball2ContactStartMs_est + dt_Ball2ToBall3ContactStartMs_est`
+
+Terminology rule for students:
+- `t_*` means timestamp since `t_ShotFeedStartMs`
+- `dt_*` means duration between events
 
 ### Shot-phase guidance
 
@@ -336,18 +354,21 @@ Where:
 - Start recovery at estimated/observed contact start (not after contact ends).
 - Keep pre and recovery as separate tunables, even if initial values are equal.
 - Gate boost by RPM error to reduce overshoot risk when gaps are longer than nominal.
+- Per-ball preboost amounts are independently tunable:
+  - `HYBRID_PREBOOST1_AMOUNT`, `HYBRID_PREBOOST2_AMOUNT`, `HYBRID_PREBOOST3_AMOUNT`
+- If preboost is not helpful, set amounts to zero and tune multiplier windows only.
 
 ### Timing and State Diagram (Example)
 
-Use this as a practical starting sketch (times are relative to `t_req` and should be tuned):
+Use this as a practical starting sketch (times are relative to `t_ShotFeedStartMs` and should be tuned):
 
 ```text
-t_req = 0 ms (driver fire request accepted)
+t_ShotFeedStartMs = 0 ms (feed rollers commanded on)
 
 Estimated contacts:
-  t_contact1_est ~ 100 ms
-  t_contact2_est ~ 100 + t12_est  (start with ~167 ms -> ~267 ms)
-  t_contact3_est ~ t_contact2_est + t23_est (start with ~187 ms -> ~454 ms)
+  t_Ball1ContactStartMs_est ~ dt_ShotFeedStartToBall1ContactMs_est
+  t_Ball2ContactStartMs_est ~ t_Ball1ContactStartMs_est + dt_Ball1ToBall2ContactStartMs_est
+  t_Ball3ContactStartMs_est ~ t_Ball2ContactStartMs_est + dt_Ball2ToBall3ContactStartMs_est
 
 States / phases:
 
@@ -357,17 +378,17 @@ IDLE
 ARM / BURST_START
   |
   |---- PRE1 (optional, often 0 or very small)
-  |       start: t_contact1_est - preLead1
-  |       end:   shot1_event or t_contact1_est fallback
+  |       start: t_Ball1ContactStartMs_est - preLead1
+  |       end:   shot1_event or timer fallback
   |
   |---- RECOVER1
   |       start trigger priority:
   |         1) bb1/bb2 edge in expected window
-  |         2) timer fallback at t_contact1_est
+  |         2) timer fallback at t_Ball1ContactStartMs_est
   |       end: recover1_duration or transition into PRE2
   |
   |---- PRE2
-  |       start: t_contact2_est - preLead2
+  |       start: t_Ball2ContactStartMs_est - preLead2
   |       end:   shot2_event or timer fallback
   |
   |---- RECOVER2
@@ -375,7 +396,7 @@ ARM / BURST_START
   |       end:   recover2_duration or transition into PRE3
   |
   |---- PRE3
-  |       start: t_contact3_est - preLead3
+  |       start: t_Ball3ContactStartMs_est - preLead3
   |       end:   shot3_event or timer fallback
   |
   |---- RECOVER3
@@ -395,6 +416,7 @@ Window selection guidance:
 - Build windows from p10..p90 plus fixed margin (for example +/- 10 ms).
 - If summary and high-rate windows disagree, use the union for safety first, then tighten after more data.
 - Recompute per profile after each data-collection block.
+- Accept edges by **state + window**, not absolute edge index (`*_1`, `*_2`, `*_3` columns can shift when earlier edges are missed).
 
 Fast-loop note:
 - At ~15-20 ms loop times, treat transitions as single-sample decisions in valid windows.
@@ -440,9 +462,9 @@ Run:
 For each `burst_profile_id`, use:
 
 1. **Timer backbone section**
-   - `feed_latency_ms (shot1_interval_ms)`
-   - `t12_est_ms (shot2_interval_ms)`
-   - `t23_est_ms (shot3_interval_ms)`
+   - `feed_latency_ms (shot1_interval_ms)` -> `dt_ShotFeedStartToBall1ContactMs_est`
+   - `t12_est_ms (shot2_interval_ms)` -> `dt_Ball1ToBall2ContactStartMs_est`
+   - `t23_est_ms (shot3_interval_ms)` -> `dt_Ball2ToBall3ContactStartMs_est`
 2. **bb1->bb2 windows**
    - review summary and high-rate values
    - apply combined recommendation for scheduler fallback windows
@@ -456,6 +478,38 @@ Interpretation rules:
 - Low bb2 seen-rate with normal completion suggests quantization/logging miss, not necessarily mechanism failure.
 - Broad `t23_est` spread indicates shot-3 phase needs wider adaptive timing or stronger bb1-assisted correction.
 - Persistent high saturation plus low shot3 RPM implies recovery shaping issue (boost schedule), not timing-only issue.
+- In 3-ball sequences, a missing `bb1_fall_3_ms` does not mean "no final clear"; earlier missed edges can shift ordinal slots. Use state-window acceptance and cumulative counts.
+
+---
+
+## 20260410 Data Direction (applied)
+
+Based on the latest close/far characterization runs:
+
+- Shot1: bb2 fall is highly reliable and should be primary shot1 cue.
+- Shot2: bb2 fall is partially reliable; keep timer fallback always enabled.
+- Shot3: bb2 is unreliable; use timer backbone with bb1-fall in-window assist.
+
+Initial timing centers for first-pass implementation:
+
+- Close: `dt_ShotFeedStartToBall1ContactMs_est ~ 135`, `dt_Ball1ToBall2ContactStartMs_est ~ 115`, `dt_Ball2ToBall3ContactStartMs_est ~ 155`
+- Far: `dt_ShotFeedStartToBall1ContactMs_est ~ 195`, `dt_Ball1ToBall2ContactStartMs_est ~ 125`, `dt_Ball2ToBall3ContactStartMs_est ~ 145`
+
+Use wide shot3 windows initially, then tighten after the first implementation run.
+
+---
+
+## Feed-Path Shaping Knobs (optional)
+
+For transfer/feed timing experiments (without changing flywheel logic), dumbshoot now supports:
+
+- `DUMBSHOOT_M3_POWER` (immediate path, no delay)
+- `DUMBSHOOT_M1_POWER`
+- `DUMBSHOOT_M2_POWER` (applied to both transfer servos)
+- `DUMBSHOOT_DELAY_M1_MS`
+- `DUMBSHOOT_DELAY_M2_MS`
+
+This allows testing whether delayed `m1`/transfer engagement improves multi-ball consistency.
 
 ---
 
@@ -492,4 +546,7 @@ Planned order:
 8. Verify command-shape behavior:
    - whether command ramps through the burst due to slew,
    - whether repeated boost re-arming is eliminated in experimental logic.
+9. If needed, run a separate feed-path sweep:
+   - hold flywheel settings fixed,
+   - tune `DUMBSHOOT_DELAY_M1_MS` / `DUMBSHOOT_DELAY_M2_MS` and `DUMBSHOOT_M*_POWER`.
 

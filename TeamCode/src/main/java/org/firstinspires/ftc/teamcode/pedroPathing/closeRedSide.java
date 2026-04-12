@@ -330,6 +330,7 @@ public class closeRedSide extends closeAutonPaths{
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
         GlobalRobotData.hasAutonRun = true;
     }
 
@@ -355,6 +356,7 @@ public class closeRedSide extends closeAutonPaths{
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+            GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
             GlobalRobotData.hasAutonRun = true;
         }
 

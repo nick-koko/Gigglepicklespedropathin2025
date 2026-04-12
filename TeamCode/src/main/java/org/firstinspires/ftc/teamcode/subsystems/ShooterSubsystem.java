@@ -27,37 +27,36 @@ public class ShooterSubsystem implements Subsystem {
     // CONFIGURABLE GAINS (Panels tunable)
     // =============================================
 //    public static double kP = 0.15;
-    public static double kP = 0.0008;
+    public static double kP = 0.0009;
 //    public static double kP = 0.00075;
     //public static double kI = 0.0001;
     public static double kI = 0.000;
 //    public static double kD = 0.00001;
     public static double kD = 0.0000;
 
-    public static double kS = .115; //voltage needed to just barely move flywheel
-    public static double kV = 0.00013; //check voltage needed at about 2500rpm and 4000rpm, and then determine the kV slope required with kS
+    public static double kS = 0.0; //voltage needed to just barely move flywheel
+    public static double kV = 0.00019; //check voltage needed at about 2500rpm and 4000rpm, and then determine the kV slope required with kS
     public static double kA = 0.00000;
 
     public static double HEADROOM = 0.10;
-    public static double PRE_BOOST_AMOUNT = 0.05;
     public static double CONTACT_DROOP_RPM = 50.0;
     public static double SLEW_PER_SECOND = 1.5;
+    public static boolean DISABLE_SLEW_DURING_BOOST = true;
     public static double I_ZONE = 500.0;
 
     // =============================================
     // TIME BASED BOOST SETTINGS
     // =============================================
-    public static double BOOST_AMOUNT = 0.20; // 20% extra power
     public static long BOOST_DELAY_MS = 8;   // boost activates after spinUp()
-    public static double BOOST_STAGE1_MULTIPLIER_NEAR = 1.66;
-    public static double BOOST_STAGE2_MULTIPLIER_NEAR = 2.25;
-    public static double BOOST_STAGE1_MULTIPLIER_FAR = 1.66;
-    public static double BOOST_STAGE2_MULTIPLIER_FAR = 2.25;
-    public static boolean ENABLE_VOLTAGE_COMPENSATION = true;
+    public static double BOOST_STAGE1_MULTIPLIER_NEAR = 2.66;
+    public static double BOOST_STAGE2_MULTIPLIER_NEAR = 3.25;
+    public static double BOOST_STAGE1_MULTIPLIER_FAR = 2.66;
+    public static double BOOST_STAGE2_MULTIPLIER_FAR = 3.25;
+    public static boolean ENABLE_VOLTAGE_COMPENSATION = false;
     public static double VOLTAGE_COMP_NOMINAL_V = 12.5;
-    public static double VOLTAGE_COMP_FILTER_TAU_SEC = 0.8;
-    public static double VOLTAGE_COMP_MIN_GAIN = 0.90;
-    public static double VOLTAGE_COMP_MAX_GAIN = 1.15;
+    public static double VOLTAGE_COMP_FILTER_TAU_SEC = 0.5;
+    public static double VOLTAGE_COMP_MIN_GAIN = 1.00;
+    public static double VOLTAGE_COMP_MAX_GAIN = 1.10;
     public static double VOLTAGE_COMP_MIN_VALID_V = 7.0;
 
     // =============================================
@@ -96,6 +95,7 @@ public class ShooterSubsystem implements Subsystem {
     public boolean secondBoostActive = false;
     private long boostStartTimeMs = 0;
     private boolean preBoostActive = false;
+    private double preBoostAmountOverride = Double.NaN;
     private boolean contactWindowActive = false;
     private boolean recoveryWindowActive = false;
 
@@ -233,8 +233,13 @@ public class ShooterSubsystem implements Subsystem {
         double output = Math.max(ff + pid, 0.0);
 
         // === APPLY BOOST ===
+        double activePreBoostAmount =
+                Double.isFinite(preBoostAmountOverride)
+                        ? Math.max(0.0, preBoostAmountOverride)
+                        : 0.0;
+
         if (preBoostActive) {
-            output = Math.min(output + PRE_BOOST_AMOUNT, 1.0);
+            output = Math.min(output + activePreBoostAmount, 1.0);
         } else if (boostActive && !this.boostOverride) {
             output = Math.min(output * boost1, 1.0);
         }
@@ -247,12 +252,19 @@ public class ShooterSubsystem implements Subsystem {
             output = Math.min(output, cap);
         }
 
-        // Slew limit
-        double maxStep = SLEW_PER_SECOND * dt;
-        double delta = output - lastOutput;
+        boolean boostWindowActive =
+                preBoostActive ||
+                (boostActive && !this.boostOverride) ||
+                (secondBoostActive && !this.boostOverride);
 
-        if (Math.abs(delta) > maxStep) {
-            output = lastOutput + Math.signum(delta) * maxStep;
+        // Keep distance-noise smoothing in normal tracking, but do not blunt
+        // intentionally short boost windows used for burst recovery.
+        if (!(DISABLE_SLEW_DURING_BOOST && boostWindowActive)) {
+            double maxStep = SLEW_PER_SECOND * dt;
+            double delta = output - lastOutput;
+            if (Math.abs(delta) > maxStep) {
+                output = lastOutput + Math.signum(delta) * maxStep;
+            }
         }
 
         output = Range.clip(output, 0.0, 1.0);
@@ -294,6 +306,7 @@ public class ShooterSubsystem implements Subsystem {
         boostActive = false;
         secondBoostActive = false;
         boostStartTimeMs = 0;
+        preBoostAmountOverride = Double.NaN;
         resetControllerState();
         applyPower(0.0);
     }
@@ -422,6 +435,20 @@ public class ShooterSubsystem implements Subsystem {
 
     public void setPreBoostWindow(boolean active) {
         preBoostActive = active;
+    }
+
+    public void setPreBoostAmountOverride(double amount) {
+        preBoostAmountOverride = Math.max(0.0, amount);
+    }
+
+    public void clearPreBoostAmountOverride() {
+        preBoostAmountOverride = Double.NaN;
+    }
+
+    public double getActivePreBoostAmount() {
+        return Double.isFinite(preBoostAmountOverride)
+                ? Math.max(0.0, preBoostAmountOverride)
+                : 0.0;
     }
 
     public void setContactWindow(boolean active) {

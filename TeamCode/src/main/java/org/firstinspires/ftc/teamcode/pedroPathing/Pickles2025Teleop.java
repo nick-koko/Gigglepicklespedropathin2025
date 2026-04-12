@@ -77,9 +77,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double TURRET_DIAG_STICTION_VELOCITY_MAX_DEG_PER_SEC = 2.0;
     public static double TURRET_DIAG_SERVO_DEADBAND_POS_GUESS = 0.0010;
     public static long TURRET_DIAG_STICTION_MIN_TIME_MS = 120;
-    public static boolean ENABLE_SOTM_LOGGING = false;
+    public static boolean ENABLE_SOTM_LOGGING = true;
     public static long SOTM_LOG_PERIOD_MS = 25;
-    public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = true;
+    public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = false;
     public static long DUMBSHOOT_RPM_LOG_PERIOD_MS = 10;
     public static boolean DUMBSHOOT_RPM_LOG_EVERY_LOOP = true;
     public static long DUMBSHOOT_RPM_LOG_DURATION_MS = 1100;
@@ -87,6 +87,28 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static long SHOOT_BLOCK_LED_STROBE_MS = 180;
     public static double SHOOT_GATE_AT_SPEED_TOLERANCE_RPM = 75.0;
     public static double SHOOT_GATE_MIN_TARGET_RPM = 500.0;
+    public static boolean ENABLE_HYBRID_SHOT_FEED_BOOST = true;
+    public static double HYBRID_NEAR_FAR_DISTANCE_THRESHOLD_IN = 105.0;
+    public static long HYBRID_CLOSE_DT_SHOT_FEED_START_TO_BALL1_CONTACT_MS_EST = 135;
+    public static long HYBRID_CLOSE_DT_BALL1_TO_BALL2_CONTACT_START_MS_EST = 115;
+    public static long HYBRID_CLOSE_DT_BALL2_TO_BALL3_CONTACT_START_MS_EST = 155;
+    public static long HYBRID_FAR_DT_SHOT_FEED_START_TO_BALL1_CONTACT_MS_EST = 195;
+    public static long HYBRID_FAR_DT_BALL1_TO_BALL2_CONTACT_START_MS_EST = 125;
+    public static long HYBRID_FAR_DT_BALL2_TO_BALL3_CONTACT_START_MS_EST = 145;
+    public static long HYBRID_PREBOOST1_LEAD_MS = 0;
+    public static long HYBRID_PREBOOST2_LEAD_MS = 20;
+    public static long HYBRID_PREBOOST3_LEAD_MS = 30;
+    public static double HYBRID_PREBOOST1_AMOUNT = 0.0;
+    public static double HYBRID_PREBOOST2_AMOUNT = 0.05;
+    public static double HYBRID_PREBOOST3_AMOUNT = 0.08;
+    public static long HYBRID_BALL1_CONTACT_WINDOW_HALF_WIDTH_MS = 60;
+    public static long HYBRID_BALL2_CONTACT_WINDOW_HALF_WIDTH_MS = 45;
+    public static long HYBRID_BALL3_CONTACT_WINDOW_HALF_WIDTH_MS = 80;
+    public static long HYBRID_MIN_EDGE_GAP_MS = 25;
+    public static long HYBRID_TIMER_FALLBACK_EXTRA_MS = 0;
+    public static boolean HYBRID_USE_BB1_FALL_FOR_BALL2 = true;
+    public static boolean HYBRID_USE_BB1_FALL_FOR_BALL3 = true;
+    public static boolean HYBRID_USE_BB2_FALL_FOR_BALL3 = true;
     // Shot tuning mode: same driving/aiming flow, but manual shooter controls and KEEP/IGNORE labels.
     public static boolean SHOT_TUNING_MODE = false;
     public static boolean ENABLE_SHOT_TUNING_LOGGING = false;
@@ -97,7 +119,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_TUNING_AT_SPEED_TOLERANCE_RPM = 75.0;
     public static double SHOT_TUNING_TARGET_X_IN = 144.0;
     public static double SHOT_TUNING_TARGET_Y_IN = 136.0;
-    public static boolean ENABLE_SHOT_INFO_LOGGING = true;
+    public static boolean ENABLE_SHOT_INFO_LOGGING = false;
     public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
     // Dumbshoot-specific logging window based on observed burst timing:
     // shot1 < 200 ms, shot2 ~150 ms later, shot3 usually ~200 ms later.
@@ -306,6 +328,30 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean sotmOmegaFilterInitialized = false;
     // True only after Start is pressed; prevents flywheel spin-up during Init.
     private boolean matchHasStarted = false;
+    // True when this TeleOp immediately follows an auton run in the same match.
+    private boolean teleopStartedFromAuton = false;
+    private boolean hybridPrevBbInitialized = false;
+    private boolean hybridPrevBb1 = false;
+    private boolean hybridPrevBb2 = false;
+    private boolean hybridShotFeedBoostActive = false;
+    private boolean hybridShotFeedUsesFarProfile = false;
+    private long hybridShotFeedStartMs = 0L;
+    private long hybridBall1ContactStartMsEst = -1L;
+    private long hybridBall2ContactStartMsEst = -1L;
+    private long hybridBall3ContactStartMsEst = -1L;
+    private long hybridLastAcceptedEdgeMs = -1L;
+    private long hybridLastAdvanceAtRelMs = -1L;
+    private String hybridLastAdvanceReason = "NONE";
+
+    private enum HybridShotFeedBoostPhase {
+        IDLE,
+        WAIT_BALL1_CONTACT,
+        WAIT_BALL2_CONTACT,
+        WAIT_BALL3_CONTACT,
+        COMPLETE
+    }
+
+    private HybridShotFeedBoostPhase hybridShotFeedBoostPhase = HybridShotFeedBoostPhase.IDLE;
 
 
     @Override
@@ -329,17 +375,22 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotGateLedState = "NONE";
         hold = false;
         prevHold = false;
+        resetHybridShotFeedBoostController();
+        hybridPrevBbInitialized = false;
 
         limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
         limelight.start();
 
-        if ((GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun)) {
+        teleopStartedFromAuton = (GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun);
+        if (teleopStartedFromAuton) {
             startingPose = GlobalRobotData.endAutonPose;
             GlobalRobotData.hasAutonRun = false;
         } else {
             selectAllianceSide = true;
         }
+
+        initializeTurretStartupReference(teleopStartedFromAuton);
 
         //PedroComponent.follower().setStartingPose(startingPose);
 
@@ -596,6 +647,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "boost_override," +
                                 "shooter_boost_mult1," +
                                 "shooter_boost_mult2," +
+                                "hybrid_feed_boost_active," +
+                                "hybrid_phase," +
+                                "hybrid_t_since_shot_feed_start_ms," +
+                                "hybrid_expected_contact_ms," +
+                                "hybrid_preboost_amount_active," +
+                                "hybrid_last_advance_reason," +
+                                "hybrid_last_advance_rel_ms," +
                                 "bb0," +
                                 "bb1," +
                                 "bb2," +
@@ -655,6 +713,23 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 shotTuningLogger = null;
             }
 
+    }
+
+    private void initializeTurretStartupReference(boolean fromAutonTransition) {
+        double expectedTurretAngleDegrees = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+        if (fromAutonTransition && Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees)) {
+            expectedTurretAngleDegrees = GlobalRobotData.endAutonTurretAngleDegrees;
+        }
+
+        if (!fromAutonTransition) {
+            // Practice TeleOp path: allow turret move during init to a known pose.
+            TurretSubsystem.INSTANCE.moveServosToStartupZeroPosition();
+        }
+
+        TurretSubsystem.INSTANCE.waitForStartupServoSettle();
+        double learnedTurretAngleDegrees =
+                TurretSubsystem.INSTANCE.learnAbsoluteTurretAngleFromExpected(expectedTurretAngleDegrees);
+        TurretSubsystem.INSTANCE.setQuadratureOffsetFromKnownTurretAngle(learnedTurretAngleDegrees);
     }
 
     /** This method is called continuously after Init while waiting for "play". **/
@@ -756,6 +831,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             IntakeWithSensorsSubsystem.INSTANCE.intakeForward();
             dumbShootTimerActive = false;
             shooterFollowEnabled = false;
+            resetHybridShotFeedBoostController();
         }
 
         LLResult result = limelight.getLatestResult();
@@ -853,8 +929,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 sotmControlActive
         );
 
-        // Always track with turret. When SOTM is active and moving, this target is lead-compensated.
-        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(sotmResult.turretRobotRelativeAimDeg);
+        // During official-match init after auton, keep turret fixed until Start is pressed.
+        if (matchHasStarted || !teleopStartedFromAuton) {
+            // Always track with turret. When SOTM is active and moving, this target is lead-compensated.
+            TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(sotmResult.turretRobotRelativeAimDeg);
+        }
         double shooterDistanceForBallistics = sotmResult.distanceForBallisticsInches;
         double turretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         double turretMeasuredVelDegPerSec = TurretSubsystem.INSTANCE.getMeasuredVelocityDegPerSec();
@@ -1167,9 +1246,19 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         boolean bb0 = IntakeWithSensorsSubsystem.INSTANCE.isSensor0Broken();
         boolean bb1 = IntakeWithSensorsSubsystem.INSTANCE.isSensor1Broken();
         boolean bb2 = IntakeWithSensorsSubsystem.INSTANCE.isSensor2Broken();
+        boolean bb1FallEdgeForHybrid = false;
+        boolean bb2FallEdgeForHybrid = false;
+        if (hybridPrevBbInitialized) {
+            bb1FallEdgeForHybrid = hybridPrevBb1 && !bb1;
+            bb2FallEdgeForHybrid = hybridPrevBb2 && !bb2;
+        }
+        hybridPrevBb1 = bb1;
+        hybridPrevBb2 = bb2;
+        hybridPrevBbInitialized = true;
 
         updateShotInfoBreakbeamTracking(nowMs, bb0, bb1, bb2);
         maybeLogDumbShootRpmSample(nowMs, bb0, bb1, bb2, rpmShooter1, rpmShooter2);
+        updateHybridShotFeedBoostController(nowMs, bb1FallEdgeForHybrid, bb2FallEdgeForHybrid);
 
         telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
         telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
@@ -1233,6 +1322,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("SHOOT_boostMult1", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1());
         telemetry.addData("SHOOT_boostMult2", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2());
         telemetry.addData("SHOOT_burstProfileId", BURST_PROFILE_ID);
+        telemetry.addData("HYBRID_feedBoostActive", hybridShotFeedBoostActive);
+        telemetry.addData("HYBRID_phase", hybridShotFeedBoostPhase.name());
+        telemetry.addData("HYBRID_tSinceShotFeedStartMs",
+                hybridShotFeedBoostActive ? (nowMs - hybridShotFeedStartMs) : -1);
+        telemetry.addData("HYBRID_expectedContactMs", getHybridExpectedContactMsForCurrentPhase());
+        telemetry.addData("HYBRID_preBoostAmountActive", ShooterSubsystem.INSTANCE.getActivePreBoostAmount());
+        telemetry.addData("HYBRID_lastAdvanceReason", hybridLastAdvanceReason);
+        telemetry.addData("HYBRID_lastAdvanceRelMs", hybridLastAdvanceAtRelMs);
         telemetry.addData("SOTM_tooCloseBlock", tooCloseWarningActive);
         telemetry.addData("SOTM_shotGateLedState", shotGateLedState);
         telemetry.addData("SHOT_TUNE_mode", SHOT_TUNING_MODE);
@@ -1528,6 +1625,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             hold = false;
             dumbShootTimerActive = false;
             shooterFollowEnabled = false;
+            resetHybridShotFeedBoostController();
 
             boolean tuningRpmUp = gamepad2.dpad_up;
             boolean tuningRpmDown = gamepad2.dpad_down;
@@ -1630,6 +1728,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 ShooterSubsystem.INSTANCE.stop();
                 dumbShootTimerActive = false;
                 shooterFollowEnabled = false;
+                resetHybridShotFeedBoostController();
                 //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
             }
 
@@ -1681,48 +1780,27 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 // Right-bumper SOTM stays fully driveable.
                 hold = rightTriggerActive;
 
-                if (ODODistance < 105.) {
-                    if (canFireTriggerShot) {
-                        int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-                        ShooterSubsystem.INSTANCE.boostOverride = false;
-                        IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-                        ShooterSubsystem.INSTANCE.setBoostOn(true);
-                        startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
-                        shotSequenceLinkedDumbShootRpmSequenceId = startDumbShootRpmLogSequence(
-                                nowMs,
-                                startBallCountBeforeDumbShoot,
-                                bb0,
-                                bb1,
-                                bb2,
-                                shotSequenceId
-                        );
-
-                        if (!dumbShootTimerActive) {
-                            dumbShootTimerActive = true;
-                            dumbShootStartTimeMs = nowMs;
-                        }
-                    }
-                    // Start the auto-stop timer only once per dumbShoot burst
-                }
-                else{
-                    if (canFireTriggerShot) {
-                        int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-                        ShooterSubsystem.INSTANCE.boostOverride = false;
-                        IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-                        ShooterSubsystem.INSTANCE.setBoostOn(true);
-                        startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
-                        shotSequenceLinkedDumbShootRpmSequenceId = startDumbShootRpmLogSequence(
-                                nowMs,
-                                startBallCountBeforeDumbShoot,
-                                bb0,
-                                bb1,
-                                bb2,
-                                shotSequenceId
-                        );
-                        if (!dumbShootTimerActive) {
-                            dumbShootTimerActive = true;
-                            dumbShootStartTimeMs = nowMs;
-                        }
+                boolean useFarBoostProfile = ODODistance >= HYBRID_NEAR_FAR_DISTANCE_THRESHOLD_IN;
+                if (canFireTriggerShot && !dumbShootTimerActive) {
+                    int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+                    ShooterSubsystem.INSTANCE.boostOverride = false;
+                    IntakeWithSensorsSubsystem.INSTANCE.setDumbShootDistanceForDelayInches(ODODistance);
+                    IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+                    startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+                    shotSequenceLinkedDumbShootRpmSequenceId = startDumbShootRpmLogSequence(
+                            nowMs,
+                            startBallCountBeforeDumbShoot,
+                            bb0,
+                            bb1,
+                            bb2,
+                            shotSequenceId
+                    );
+                    dumbShootTimerActive = true;
+                    dumbShootStartTimeMs = nowMs;
+                    if (ENABLE_HYBRID_SHOT_FEED_BOOST) {
+                        startHybridShotFeedBoostController(nowMs, ODODistance);
+                    } else {
+                        ShooterSubsystem.INSTANCE.setBoostOn(useFarBoostProfile);
                     }
                 }
             }  else if (leftTriggerActive && !prevLeftTriggerActive) {
@@ -1736,6 +1814,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 IntakeWithSensorsSubsystem.INSTANCE.intakeForward();//Hoping Forward is Intake (maybe change the method name)
                 ShooterSubsystem.INSTANCE.stop();
                 shooterFollowEnabled = false;
+                dumbShootTimerActive = false;
+                resetHybridShotFeedBoostController();
                 this.hasResults = false;
                 LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
             } else if (gamepad2.b) {
@@ -1806,6 +1886,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         matchHasStarted = false;
         ShooterSubsystem.INSTANCE.stop();
         targetRPM = 0.0;
+        resetHybridShotFeedBoostController();
 
         if (ENABLE_TURRET_LOGGING && turretLogger != null) {
             File savedFile = turretLogger.save();
@@ -1858,6 +1939,205 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 RobotLog.ww("Pickles2025Teleop", "Shot tuning CSV was not saved (logger not started, empty, or save failed).");
             }
         }
+    }
+
+    private void resetHybridShotFeedBoostController() {
+        hybridShotFeedBoostActive = false;
+        hybridShotFeedUsesFarProfile = false;
+        hybridShotFeedStartMs = 0L;
+        hybridBall1ContactStartMsEst = -1L;
+        hybridBall2ContactStartMsEst = -1L;
+        hybridBall3ContactStartMsEst = -1L;
+        hybridLastAcceptedEdgeMs = -1L;
+        hybridLastAdvanceAtRelMs = -1L;
+        hybridLastAdvanceReason = "NONE";
+        hybridShotFeedBoostPhase = HybridShotFeedBoostPhase.IDLE;
+        ShooterSubsystem.INSTANCE.clearPreBoostAmountOverride();
+        ShooterSubsystem.INSTANCE.setPreBoostWindow(false);
+        ShooterSubsystem.INSTANCE.setContactWindow(false);
+        ShooterSubsystem.INSTANCE.setRecoveryWindow(false);
+    }
+
+    private void startHybridShotFeedBoostController(long nowMs, double shooterDistanceInches) {
+        resetHybridShotFeedBoostController();
+        hybridShotFeedBoostActive = true;
+        hybridShotFeedUsesFarProfile =
+                shooterDistanceInches >= Math.max(0.0, HYBRID_NEAR_FAR_DISTANCE_THRESHOLD_IN);
+
+        long dtShotFeedStartToBall1ContactMsEst = hybridShotFeedUsesFarProfile
+                ? Math.max(0L, HYBRID_FAR_DT_SHOT_FEED_START_TO_BALL1_CONTACT_MS_EST)
+                : Math.max(0L, HYBRID_CLOSE_DT_SHOT_FEED_START_TO_BALL1_CONTACT_MS_EST);
+        long dtBall1ToBall2ContactStartMsEst = hybridShotFeedUsesFarProfile
+                ? Math.max(0L, HYBRID_FAR_DT_BALL1_TO_BALL2_CONTACT_START_MS_EST)
+                : Math.max(0L, HYBRID_CLOSE_DT_BALL1_TO_BALL2_CONTACT_START_MS_EST);
+        long dtBall2ToBall3ContactStartMsEst = hybridShotFeedUsesFarProfile
+                ? Math.max(0L, HYBRID_FAR_DT_BALL2_TO_BALL3_CONTACT_START_MS_EST)
+                : Math.max(0L, HYBRID_CLOSE_DT_BALL2_TO_BALL3_CONTACT_START_MS_EST);
+
+        hybridShotFeedStartMs = nowMs;
+        hybridBall1ContactStartMsEst = dtShotFeedStartToBall1ContactMsEst;
+        hybridBall2ContactStartMsEst = hybridBall1ContactStartMsEst + dtBall1ToBall2ContactStartMsEst;
+        hybridBall3ContactStartMsEst = hybridBall2ContactStartMsEst + dtBall2ToBall3ContactStartMsEst;
+        hybridShotFeedBoostPhase = HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT;
+        hybridLastAdvanceReason = "SHOT_FEED_START";
+        hybridLastAdvanceAtRelMs = 0L;
+    }
+
+    private void advanceHybridShotFeedBoostPhase(long nowMs, String reason, boolean fromEdge) {
+        if (!hybridShotFeedBoostActive) return;
+
+        long sinceShotFeedStartMs = nowMs - hybridShotFeedStartMs;
+        hybridLastAdvanceReason = reason;
+        hybridLastAdvanceAtRelMs = sinceShotFeedStartMs;
+        if (fromEdge) {
+            hybridLastAcceptedEdgeMs = nowMs;
+        }
+
+        // One-shot boost re-arm at each accepted/fallback contact event.
+        ShooterSubsystem.INSTANCE.setBoostOn(hybridShotFeedUsesFarProfile);
+
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
+            hybridShotFeedBoostPhase = HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT;
+        } else if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT) {
+            hybridShotFeedBoostPhase = HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT;
+        } else if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT) {
+            hybridShotFeedBoostPhase = HybridShotFeedBoostPhase.COMPLETE;
+            hybridShotFeedBoostActive = false;
+            ShooterSubsystem.INSTANCE.setPreBoostWindow(false);
+        }
+    }
+
+    private void updateHybridShotFeedBoostController(long nowMs, boolean bb1FallEdge, boolean bb2FallEdge) {
+        if (!ENABLE_HYBRID_SHOT_FEED_BOOST) {
+            ShooterSubsystem.INSTANCE.clearPreBoostAmountOverride();
+            ShooterSubsystem.INSTANCE.setPreBoostWindow(false);
+            return;
+        }
+        if (!hybridShotFeedBoostActive) {
+            ShooterSubsystem.INSTANCE.clearPreBoostAmountOverride();
+            ShooterSubsystem.INSTANCE.setPreBoostWindow(false);
+            return;
+        }
+
+        long sinceShotFeedStartMs = nowMs - hybridShotFeedStartMs;
+        long expectedContactMs = getHybridExpectedContactMsForCurrentPhase();
+        long preBoostLeadMs = getHybridPreBoostLeadMsForCurrentPhase();
+
+        boolean preBoostActive = expectedContactMs >= 0 &&
+                preBoostLeadMs > 0 &&
+                sinceShotFeedStartMs >= Math.max(0L, expectedContactMs - preBoostLeadMs) &&
+                sinceShotFeedStartMs < expectedContactMs;
+        if (preBoostActive) {
+            ShooterSubsystem.INSTANCE.setPreBoostAmountOverride(getHybridPreBoostAmountForCurrentPhase());
+        } else {
+            ShooterSubsystem.INSTANCE.clearPreBoostAmountOverride();
+        }
+        ShooterSubsystem.INSTANCE.setPreBoostWindow(preBoostActive);
+
+        if (expectedContactMs < 0) {
+            return;
+        }
+
+        boolean edgeAllowed = hybridLastAcceptedEdgeMs < 0L ||
+                nowMs - hybridLastAcceptedEdgeMs >= Math.max(0L, HYBRID_MIN_EDGE_GAP_MS);
+        boolean inExpectedWindow = isInHybridWindow(
+                sinceShotFeedStartMs,
+                expectedContactMs,
+                getHybridContactWindowHalfWidthMs()
+        );
+
+        if (edgeAllowed && inExpectedWindow) {
+            if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
+                if (bb2FallEdge) {
+                    advanceHybridShotFeedBoostPhase(nowMs, "BALL1_BB2_FALL_EDGE", true);
+                    return;
+                }
+            } else if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT) {
+                if (bb2FallEdge) {
+                    advanceHybridShotFeedBoostPhase(nowMs, "BALL2_BB2_FALL_EDGE", true);
+                    return;
+                }
+                if (HYBRID_USE_BB1_FALL_FOR_BALL2 && bb1FallEdge) {
+                    advanceHybridShotFeedBoostPhase(nowMs, "BALL2_BB1_FALL_EDGE", true);
+                    return;
+                }
+            } else if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT) {
+                if (HYBRID_USE_BB1_FALL_FOR_BALL3 && bb1FallEdge) {
+                    advanceHybridShotFeedBoostPhase(nowMs, "BALL3_BB1_FALL_EDGE", true);
+                    return;
+                }
+                if (HYBRID_USE_BB2_FALL_FOR_BALL3 && bb2FallEdge) {
+                    advanceHybridShotFeedBoostPhase(nowMs, "BALL3_BB2_FALL_EDGE", true);
+                    return;
+                }
+            }
+        }
+
+        if (sinceShotFeedStartMs >= expectedContactMs + Math.max(0L, HYBRID_TIMER_FALLBACK_EXTRA_MS)) {
+            if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
+                advanceHybridShotFeedBoostPhase(nowMs, "BALL1_TIMER_FALLBACK", false);
+            } else if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT) {
+                advanceHybridShotFeedBoostPhase(nowMs, "BALL2_TIMER_FALLBACK", false);
+            } else if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT) {
+                advanceHybridShotFeedBoostPhase(nowMs, "BALL3_TIMER_FALLBACK", false);
+            }
+        }
+    }
+
+    private long getHybridExpectedContactMsForCurrentPhase() {
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
+            return hybridBall1ContactStartMsEst;
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT) {
+            return hybridBall2ContactStartMsEst;
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT) {
+            return hybridBall3ContactStartMsEst;
+        }
+        return -1L;
+    }
+
+    private long getHybridPreBoostLeadMsForCurrentPhase() {
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
+            return Math.max(0L, HYBRID_PREBOOST1_LEAD_MS);
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT) {
+            return Math.max(0L, HYBRID_PREBOOST2_LEAD_MS);
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT) {
+            return Math.max(0L, HYBRID_PREBOOST3_LEAD_MS);
+        }
+        return 0L;
+    }
+
+    private double getHybridPreBoostAmountForCurrentPhase() {
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
+            return Math.max(0.0, HYBRID_PREBOOST1_AMOUNT);
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT) {
+            return Math.max(0.0, HYBRID_PREBOOST2_AMOUNT);
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT) {
+            return Math.max(0.0, HYBRID_PREBOOST3_AMOUNT);
+        }
+        return 0.0;
+    }
+
+    private long getHybridContactWindowHalfWidthMs() {
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
+            return Math.max(0L, HYBRID_BALL1_CONTACT_WINDOW_HALF_WIDTH_MS);
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT) {
+            return Math.max(0L, HYBRID_BALL2_CONTACT_WINDOW_HALF_WIDTH_MS);
+        }
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL3_CONTACT) {
+            return Math.max(0L, HYBRID_BALL3_CONTACT_WINDOW_HALF_WIDTH_MS);
+        }
+        return 0L;
+    }
+
+    private boolean isInHybridWindow(long valueMs, long centerMs, long halfWidthMs) {
+        return Math.abs(valueMs - centerMs) <= Math.max(0L, halfWidthMs);
     }
 
     private boolean isShooterReadyForFeed(double toleranceRpm, double rpmShooter1, double rpmShooter2) {
@@ -2027,6 +2307,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 ShooterSubsystem.INSTANCE.boostOverride,
                 ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1(),
                 ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2(),
+                hybridShotFeedBoostActive,
+                hybridShotFeedBoostPhase.name(),
+                hybridShotFeedBoostActive ? (nowMs - hybridShotFeedStartMs) : -1L,
+                getHybridExpectedContactMsForCurrentPhase(),
+                ShooterSubsystem.INSTANCE.getActivePreBoostAmount(),
+                hybridLastAdvanceReason,
+                hybridLastAdvanceAtRelMs,
                 bb0,
                 bb1,
                 bb2,
@@ -2068,7 +2355,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotSequenceStartTargetRpm = ShooterSubsystem.INSTANCE.getTargetRpm();
         shotSequenceStartHoodPos = shooterHoodPos;
         shotSequenceStartBoostDelayMs = ShooterSubsystem.BOOST_DELAY_MS;
-        shotSequenceStartPreBoostAmount = ShooterSubsystem.PRE_BOOST_AMOUNT;
+        shotSequenceStartPreBoostAmount =
+                ENABLE_HYBRID_SHOT_FEED_BOOST
+                        ? Math.max(0.0, HYBRID_PREBOOST1_AMOUNT)
+                        : 0.0;
         shotSequenceStartBoostMult1 = ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1();
         shotSequenceStartBoostMult2 = ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2();
         shotSequenceLinkedDumbShootRpmSequenceId = -1;
@@ -2511,7 +2801,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double calculateShooterRPMOdoDistance(double odoDistance) {
         //odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 :
 //        return  odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 : 16.9425 * odoDistance + 1984.45;
-        return  odoDistance > 110 ? 16.9425 * odoDistance + 2000.45 : 16.6925 * odoDistance + 2060.45;
+        return  odoDistance > 110 ? 16.9425 * odoDistance + 1950.45 : 16.6925 * odoDistance + 2010.45;
     }
 
     public static double calculateShooterHoodOdoDistance(double odoDistance) {
