@@ -9,6 +9,7 @@ import com.pedropathing.paths.PathChain;
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
@@ -42,7 +43,7 @@ import dev.nextftc.ftc.NextFTCOpMode;
 @Configurable
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeAutonPaths extends NextFTCOpMode{
-    public static double autonShooterRPM = 2925.0;
+    public static double autonShooterRPM = 2915.0;
     public static double autonShooterHoodServoPos = 0.10;
     public static double pickupBrakingStrength = 1.0;
     public static double pickupCornerBrakingStrength = 0.5;
@@ -230,12 +231,14 @@ public class closeAutonPaths extends NextFTCOpMode{
     public Pose offLineLeverExtraTime;
     public Pose offLineClose;
     public Pose offLineAfterPickup;
+    double turretangle;
 
     private PathChain firstshootpath, thirdPickupGateLeverEnd, moveOffLineLeverExtraTime, thirdPickupAfterGate, goToGateLeverBefore3rdPickup, thirdPickupGateLeverShootEnd, firstPickup,firstPickupEnd, firstPickupGateLeverEnd, firstPickupGateLeverShootEnd, secondPickup, secondPickupEnd, secondPickupGateLeverEnd, secondPickupGateLeverShootEnd, thirdPickup, thirdPickupEnd, zonePickup, zonePickupEnd, zonePickupShoot, moveOffLineLever, moveOffLineClose, moveOffLineAfterPickup;
 
         public void buildPaths() {
 
             if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+                turretangle = -90;
                 startPose = startPoseBlue;
                 scorePoseClose = scorePoseCloseBlue;
                 pickup1Pose = pickup1PoseBlue;
@@ -283,6 +286,7 @@ public class closeAutonPaths extends NextFTCOpMode{
                 offLineClose = offLineCloseBlue;
                 offLineAfterPickup = offLineAfterPickupBlue;
             } else {
+                turretangle = 90;
                 startPose = startPoseRed;
                 scorePoseClose = scorePoseCloseRed;
                 pickup1Pose = pickup1PoseRed;
@@ -569,6 +573,7 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     public Command CloseShootPreload() {
         return new SequentialGroup(
+                new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(turretangle)),
                 new ParallelGroup(
                         new FollowPath(firstshootpath),
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
@@ -885,13 +890,20 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     public Command CloseMoveOffLineToLever() {
         return new SequentialGroup(
+                new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
+                new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
                 new FollowPath(moveOffLineLever)
+
+        //new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(0))
+
         );
     }
 
     public Command CloseMoveOffLineToLeverExtraTime() {
         return new SequentialGroup(
-                new FollowPath(moveOffLineLeverExtraTime)
+                new FollowPath(moveOffLineLeverExtraTime),
+                new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(0))
+
         );
     }
 

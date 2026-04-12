@@ -153,9 +153,17 @@ public class TurretSubsystem implements Subsystem {
         periodicAbsoluteEncoderReadEnabled = READ_ABSOLUTE_ENCODER_IN_PERIODIC;
         wasPeriodicAbsoluteReadEnabled = false;
 
-        currentLeftServoPosition = leftTurret.getPosition();
-        currentRightServoPosition = rightTurret.getPosition();
-        currentServoPosition = 0.5 * (currentLeftServoPosition + currentRightServoPosition);
+        // Force the turret to mechanical "center" first so startup references
+        // are captured in a consistent sector even if drivers forgot to pre-center.
+        leftTurret.setPosition(SERVO_CENTER_POSITION);
+        rightTurret.setPosition(SERVO_CENTER_POSITION);
+        currentServoPosition = SERVO_CENTER_POSITION;
+        if (STARTUP_CENTER_SETTLE_MS > 0) {
+            long settleStartMs = System.currentTimeMillis();
+            while (System.currentTimeMillis() - settleStartMs < STARTUP_CENTER_SETTLE_MS) {
+                // Intentionally waiting for turret to settle before startup references.
+            }
+        }
 
         turretEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turretEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -163,19 +171,30 @@ public class TurretSubsystem implements Subsystem {
         previousEncoderTicks = currentEncoderTicks;
 
         double quadRawAtStartDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
+        double absoluteTurretAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteTurretReferenceAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteRawAtStartDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
         absoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         previousAbsoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         unwrappedAbsoluteEncoderDegrees = absoluteRawAtStartDegrees;
 
-        absoluteEncoderTurretAngleDegrees = Double.NaN;
+        absoluteTurretAtStartDegrees = absoluteRawToNearestTurretAngleDegrees(
+                absoluteRawAtStartDegrees,
+                STARTUP_EXPECTED_TURRET_ANGLE_DEGREES
+        );
+
+        absoluteStartupErrorDegrees =
+                absoluteTurretAtStartDegrees - STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+        learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
+
+        absoluteEncoderTurretAngleDegrees = absoluteTurretReferenceAtStartDegrees;
         absoluteEncoderTurretDeltaDegrees = 0.0;
 
-        quadratureOffsetDegrees = 0.0;
+        quadratureOffsetDegrees = quadRawAtStartDegrees - absoluteTurretReferenceAtStartDegrees;
         quadRawAngleDegrees = quadRawAtStartDegrees;
-        measuredAngleDegrees = quadRawAtStartDegrees;
+        measuredAngleDegrees = quadRawAtStartDegrees - quadratureOffsetDegrees;
 
+        applyServoAngle(INITIAL_ANGLE_DEGREES);
         lastLoopTimeSeconds = nowSeconds();
     }
 
@@ -463,6 +482,10 @@ public class TurretSubsystem implements Subsystem {
         return rightServoEnabled;
     }
 
+    public void SetServoCenter() {
+        leftTurret.setPosition(SERVO_CENTER_POSITION);
+        rightTurret.setPosition(SERVO_CENTER_POSITION);
+    }
     public boolean isUsingAbsoluteEncoder() {
         return true;
     }

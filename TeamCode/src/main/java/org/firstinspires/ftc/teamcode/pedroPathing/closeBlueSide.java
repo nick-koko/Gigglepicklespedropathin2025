@@ -50,12 +50,6 @@ public class closeBlueSide extends closeAutonPaths{
     /** This method is called once at the init of the OpMode. **/
     @Override
     public void onInit() {
-        TurretSubsystem.INSTANCE.moveServosToStartupZeroPosition();
-        TurretSubsystem.INSTANCE.waitForStartupServoSettle();
-        double learnedTurretAngleDegrees = TurretSubsystem.INSTANCE.learnAbsoluteTurretAngleFromExpected(
-                TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES
-        );
-        TurretSubsystem.INSTANCE.setQuadratureOffsetFromKnownTurretAngle(learnedTurretAngleDegrees);
         TurretSubsystem.INSTANCE.center();
         ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
         ShooterSubsystem.INSTANCE.stop();
@@ -334,11 +328,11 @@ public class closeBlueSide extends closeAutonPaths{
                     Close15BallLeverTriple().schedule();
                 }
         }
+        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(0);
 
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-        GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
 
@@ -349,6 +343,7 @@ public class closeBlueSide extends closeAutonPaths{
             // These loop the movements of the robot, these must be called continuously in order to work
 
             // Feedback to Driver Hub for debugging
+
             telemetry.addData("x", PedroComponent.follower().getPose().getX());
             telemetry.addData("y", PedroComponent.follower().getPose().getY());
             telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
@@ -361,10 +356,10 @@ public class closeBlueSide extends closeAutonPaths{
         @Override
         public void onStop() {
             // Persist ball count (and optionally pose) for TeleOp
+            TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(0);
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-            GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }
 

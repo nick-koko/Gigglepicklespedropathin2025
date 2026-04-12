@@ -382,17 +382,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         limelight.pipelineSwitch(0);
         limelight.start();
 
-        teleopStartedFromAuton = (GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun);
-        if (teleopStartedFromAuton) {
+        if ((GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun)) {
             startingPose = GlobalRobotData.endAutonPose;
             GlobalRobotData.hasAutonRun = false;
         } else {
             selectAllianceSide = true;
         }
 
-        initializeTurretStartupReference(teleopStartedFromAuton);
-
-        //PedroComponent.follower().setStartingPose(startingPose);
+       //PedroComponent.follower().setStartingPose(startingPose);
 
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         windowShooter1 = new double[Math.max(1, SMOOTH_WINDOW)];
@@ -715,23 +712,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     }
 
-    private void initializeTurretStartupReference(boolean fromAutonTransition) {
-        double expectedTurretAngleDegrees = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
-        if (fromAutonTransition && Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees)) {
-            expectedTurretAngleDegrees = GlobalRobotData.endAutonTurretAngleDegrees;
-        }
-
-        if (!fromAutonTransition) {
-            // Practice TeleOp path: allow turret move during init to a known pose.
-            TurretSubsystem.INSTANCE.moveServosToStartupZeroPosition();
-        }
-
-        TurretSubsystem.INSTANCE.waitForStartupServoSettle();
-        double learnedTurretAngleDegrees =
-                TurretSubsystem.INSTANCE.learnAbsoluteTurretAngleFromExpected(expectedTurretAngleDegrees);
-        TurretSubsystem.INSTANCE.setQuadratureOffsetFromKnownTurretAngle(learnedTurretAngleDegrees);
-    }
-
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
@@ -929,11 +909,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 sotmControlActive
         );
 
-        // During official-match init after auton, keep turret fixed until Start is pressed.
-        if (matchHasStarted || !teleopStartedFromAuton) {
-            // Always track with turret. When SOTM is active and moving, this target is lead-compensated.
-            TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(sotmResult.turretRobotRelativeAimDeg);
-        }
+        // Always track with turret. When SOTM is active and moving, this target is lead-compensated.
+        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(sotmResult.turretRobotRelativeAimDeg);
         double shooterDistanceForBallistics = sotmResult.distanceForBallisticsInches;
         double turretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         double turretMeasuredVelDegPerSec = TurretSubsystem.INSTANCE.getMeasuredVelocityDegPerSec();
@@ -950,8 +927,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 Math.abs(turretGoalErrorDeg) <= Math.max(0.0, SOTM_FIRE_AIM_TOLERANCE_DEG);
         boolean turretSpeedGateSatisfied =
                 Math.abs(turretMeasuredVelDegPerSec) <= Math.max(0.0, SOTM_FIRE_MAX_TURRET_SPEED_DEG_PER_SEC);
-        boolean turretReadyGateSatisfied =
-                !SOTM_REQUIRE_TURRET_READY_FOR_FIRE || TurretSubsystem.INSTANCE.isTurretReady();
+        boolean turretReadyGateSatisfied = true;
+                //!SOTM_REQUIRE_TURRET_READY_FOR_FIRE || TurretSubsystem.INSTANCE.isTurretReady();
         boolean turretAimGateSatisfied =
                 turretTargetReachable &&
                 turretAimAtGoal &&
@@ -2801,7 +2778,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double calculateShooterRPMOdoDistance(double odoDistance) {
         //odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 :
 //        return  odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 : 16.9425 * odoDistance + 1984.45;
-        return  odoDistance > 110 ? 16.9425 * odoDistance + 1950.45 : 16.6925 * odoDistance + 2010.45;
+        return  odoDistance > 110 ? 16.9425 * odoDistance + 1950.45 : 16.6925 * odoDistance + 1990.45;
     }
 
     public static double calculateShooterHoodOdoDistance(double odoDistance) {
