@@ -42,8 +42,8 @@ import dev.nextftc.ftc.NextFTCOpMode;
 @Configurable
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeAutonPaths extends NextFTCOpMode{
-    public static double autonShooterRPM = 2950.0;
-    public static double autonShooterHoodServoPos = 0.15;
+    public static double autonShooterRPM = 2925.0;
+    public static double autonShooterHoodServoPos = 0.10;
     public static double pickupBrakingStrength = 1.0;
     public static double pickupCornerBrakingStrength = 0.5;
     public static double firstGatePushDelay = 0.0;
@@ -51,7 +51,7 @@ public class closeAutonPaths extends NextFTCOpMode{
     public static double thirdGatePushDelay = 2.00;
     public static double threeGatePushDelayBeforeLastShot = 1.5;
 
-    public final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(270)); // Start Pose of our robot
+    public final Pose startPoseBlue = new Pose(31.5, 134.375, Math.toRadians(270)); // Start Pose of our robot
     private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
     private final Pose pickup1PoseBlue = new Pose(40, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right

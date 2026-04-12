@@ -34,8 +34,8 @@ public class ShooterSubsystem implements Subsystem {
 //    public static double kD = 0.00001;
     public static double kD = 0.0000;
 
-    public static double kS = 0.0; //voltage needed to just barely move flywheel
-    public static double kV = 0.00019; //check voltage needed at about 2500rpm and 4000rpm, and then determine the kV slope required with kS
+    public static double kS = 0.183; //voltage needed to just barely move flywheel
+    public static double kV = 0.000113; //check voltage needed at about 2500rpm and 4000rpm, and then determine the kV slope required with kS
     public static double kA = 0.00000;
 
     public static double HEADROOM = 0.10;
