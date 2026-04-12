@@ -328,8 +328,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean sotmOmegaFilterInitialized = false;
     // True only after Start is pressed; prevents flywheel spin-up during Init.
     private boolean matchHasStarted = false;
-    // True when this TeleOp immediately follows an auton run in the same match.
-    private boolean teleopStartedFromAuton = false;
     private boolean hybridPrevBbInitialized = false;
     private boolean hybridPrevBb1 = false;
     private boolean hybridPrevBb2 = false;
@@ -927,8 +925,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 Math.abs(turretGoalErrorDeg) <= Math.max(0.0, SOTM_FIRE_AIM_TOLERANCE_DEG);
         boolean turretSpeedGateSatisfied =
                 Math.abs(turretMeasuredVelDegPerSec) <= Math.max(0.0, SOTM_FIRE_MAX_TURRET_SPEED_DEG_PER_SEC);
-        boolean turretReadyGateSatisfied = true;
-                //!SOTM_REQUIRE_TURRET_READY_FOR_FIRE || TurretSubsystem.INSTANCE.isTurretReady();
+        boolean turretReadyGateSatisfied =
+                !SOTM_REQUIRE_TURRET_READY_FOR_FIRE || TurretSubsystem.INSTANCE.isTurretReady();
         boolean turretAimGateSatisfied =
                 turretTargetReachable &&
                 turretAimAtGoal &&

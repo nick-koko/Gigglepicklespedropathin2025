@@ -57,7 +57,7 @@ public class TurretSubsystem implements Subsystem {
     public static int NOT_READY_LOOPS_REQUIRED = 3;
 
     public static double STARTUP_EXPECTED_TURRET_ANGLE_DEGREES = 0.0;
-    public static long STARTUP_CENTER_SETTLE_MS = 300;
+    public static long STARTUP_CENTER_SETTLE_MS = 2000;
     public static double ABSOLUTE_TURRET_ENCODER_MAX_VOLTAGE = 3.255;
     public static double ENCODER_TO_TURRET_RATIO = 4.8;
     public static double TURRET_ENCODER_CPR = 4096.0;
@@ -196,84 +196,6 @@ public class TurretSubsystem implements Subsystem {
 
         applyServoAngle(INITIAL_ANGLE_DEGREES);
         lastLoopTimeSeconds = nowSeconds();
-    }
-
-    /**
-     * Startup helper that commands both turret servos to their raw neutral position
-     * without relying on turret-angle calibration.
-     */
-    public void moveServosToStartupZeroPosition() {
-        double clippedCenter = Range.clip(SERVO_CENTER_POSITION, MIN_SERVO_POSITION, MAX_SERVO_POSITION);
-        currentLeftServoPosition = clippedCenter;
-        currentRightServoPosition = clippedCenter;
-        currentServoPosition = clippedCenter;
-
-        if (leftServoEnabled) {
-            leftTurret.setPwmEnable();
-            leftTurret.setPosition(currentLeftServoPosition);
-        } else {
-            leftTurret.setPwmDisable();
-        }
-
-        if (rightServoEnabled) {
-            rightTurret.setPwmEnable();
-            rightTurret.setPosition(currentRightServoPosition);
-        } else {
-            rightTurret.setPwmDisable();
-        }
-    }
-
-    public void waitForStartupServoSettle() {
-        if (STARTUP_CENTER_SETTLE_MS <= 0) return;
-        long settleStartMs = System.currentTimeMillis();
-        while (System.currentTimeMillis() - settleStartMs < STARTUP_CENTER_SETTLE_MS) {
-            // Intentional startup wait.
-        }
-    }
-
-    /**
-     * Uses expected turret angle to resolve the analog encoder sector and updates
-     * the servo command offset learned at startup.
-     *
-     * @return resolved turret angle from the analog encoder in turret-angle frame.
-     */
-    public double learnAbsoluteTurretAngleFromExpected(double expectedTurretAngleDegrees) {
-        double rawDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
-        absoluteRawAtStartDegrees = rawDegrees;
-        absoluteEncoderRawDegrees = rawDegrees;
-        previousAbsoluteEncoderRawDegrees = rawDegrees;
-        unwrappedAbsoluteEncoderDegrees = rawDegrees;
-
-        double resolvedTurretAngleDegrees =
-                absoluteRawToNearestTurretAngleDegrees(rawDegrees, expectedTurretAngleDegrees);
-        absoluteTurretReferenceAtStartDegrees = resolvedTurretAngleDegrees;
-        absoluteEncoderTurretAngleDegrees = resolvedTurretAngleDegrees;
-        absoluteEncoderTurretDeltaDegrees = 0.0;
-
-        absoluteStartupErrorDegrees = resolvedTurretAngleDegrees - expectedTurretAngleDegrees;
-        learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
-
-        return resolvedTurretAngleDegrees;
-    }
-
-    /**
-     * Sets quadrature offset so the current quadrature reading maps to the provided known angle.
-     * This should be called after startup analog-sector learning.
-     */
-    public void setQuadratureOffsetFromKnownTurretAngle(double knownTurretAngleDegrees) {
-        currentEncoderTicks = turretEncoder.getCurrentPosition();
-        previousEncoderTicks = currentEncoderTicks;
-        quadRawAngleDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
-        quadratureOffsetDegrees = quadRawAngleDegrees - knownTurretAngleDegrees;
-        measuredAngleDegrees = quadRawAngleDegrees - quadratureOffsetDegrees;
-
-        targetAngleDegrees = measuredAngleDegrees;
-        correctedTargetAngleDegrees = measuredAngleDegrees;
-        commandedAngleDegrees = measuredAngleDegrees;
-        lastServoCommandAngleDegrees = measuredAngleDegrees;
-        lastOuterLoopTrimDegrees = 0.0;
-        lastCommandDiffDegrees = 0.0;
-        lastRateLimitedStepDegrees = 0.0;
     }
 
     @Override

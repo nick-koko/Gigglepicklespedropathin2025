@@ -43,7 +43,7 @@ import dev.nextftc.ftc.NextFTCOpMode;
 @Configurable
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeAutonPaths extends NextFTCOpMode{
-    public static double autonShooterRPM = 2915.0;
+    public static double autonShooterRPM = 2900.0;
     public static double autonShooterHoodServoPos = 0.10;
     public static double pickupBrakingStrength = 1.0;
     public static double pickupCornerBrakingStrength = 0.5;
@@ -55,7 +55,7 @@ public class closeAutonPaths extends NextFTCOpMode{
     public final Pose startPoseBlue = new Pose(31.5, 134.375, Math.toRadians(270)); // Start Pose of our robot
     private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
-    private final Pose pickup1PoseBlue = new Pose(40, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickup1PoseBlue = new Pose(40, 88.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1CP1Blue = new Pose(46.5, 97, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP2Blue = new Pose( 48.5, 90, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
@@ -68,20 +68,20 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     private final Pose pickup1GateLeverPushHoldPoseBlue = new Pose(15.5, 72.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
-    private final Pose pickup2PoseBlue = new Pose(40, 63.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2PoseBlue = new Pose(40, 65.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP1Blue = new Pose(47, 91.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2CP2Blue = new Pose( 52.5, 66, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
     private final Pose pickup2EndPoseBlue = new Pose(23.5, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup2CPPathBlue = new Pose(44, 57, Math.toRadians(180));
 
-    private final Pose pickup2GateLeverEndPoseBlue = new Pose(19, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2GateLeverEndPoseBlue = new Pose(17, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
     private final Pose pickup2GateLeverPushPoseBlue = new Pose(23, 71.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2GateLeverPushCP1Blue = new Pose(22.5, 57, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup2GateLeverPushCP2Blue = new Pose(28.5, 69.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup2GateLeverPushHoldPoseBlue = new Pose(15.5, 72.0, Math.toRadians(180));
+    private final Pose pickup2GateLeverPushHoldPoseBlue = new Pose(16, 72.0, Math.toRadians(180));
 
     private final Pose pickup3GateLeverEndPoseBlue = new Pose(20, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
@@ -91,7 +91,7 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     private final Pose pickup3GateLeverPushHoldPoseBlue = new Pose(15.5, 72.0, Math.toRadians(180));
 
-    private final Pose pickup3PoseBlue = new Pose(40, 43.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup3PoseBlue = new Pose(40, 41.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP1Blue = new Pose(37,90  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP2Blue = new Pose( 57, 39, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3AfterGateCP1Blue = new Pose(52,73  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -103,12 +103,12 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     private final Pose toGateBefore3HoldPoseBlue = new Pose(16, 70.0, Math.toRadians(180));
 
-    private final Pose pickup3EndPoseBlue = new Pose(20, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickup3EndPoseBlue = new Pose(18, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup3CPPathBlue = new Pose(40, 45, Math.toRadians(180));
 
     private final Pose pickupZonePoseBlue = new Pose(9, 37, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickupZoneCP1Blue = new Pose(32,48, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickupZoneCP2Blue = new Pose( 5.5, 66, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupZoneCP2Blue = new Pose( 12, 55.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
     private final Pose pickupZoneEndPoseBlue = new Pose(8, 13.0, Math.toRadians(255)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickupZoneCPPathBlue = new Pose(44, 59, Math.toRadians(235));
@@ -231,14 +231,12 @@ public class closeAutonPaths extends NextFTCOpMode{
     public Pose offLineLeverExtraTime;
     public Pose offLineClose;
     public Pose offLineAfterPickup;
-    double turretangle;
 
     private PathChain firstshootpath, thirdPickupGateLeverEnd, moveOffLineLeverExtraTime, thirdPickupAfterGate, goToGateLeverBefore3rdPickup, thirdPickupGateLeverShootEnd, firstPickup,firstPickupEnd, firstPickupGateLeverEnd, firstPickupGateLeverShootEnd, secondPickup, secondPickupEnd, secondPickupGateLeverEnd, secondPickupGateLeverShootEnd, thirdPickup, thirdPickupEnd, zonePickup, zonePickupEnd, zonePickupShoot, moveOffLineLever, moveOffLineClose, moveOffLineAfterPickup;
 
         public void buildPaths() {
 
             if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
-                turretangle = -90;
                 startPose = startPoseBlue;
                 scorePoseClose = scorePoseCloseBlue;
                 pickup1Pose = pickup1PoseBlue;
@@ -286,7 +284,6 @@ public class closeAutonPaths extends NextFTCOpMode{
                 offLineClose = offLineCloseBlue;
                 offLineAfterPickup = offLineAfterPickupBlue;
             } else {
-                turretangle = 90;
                 startPose = startPoseRed;
                 scorePoseClose = scorePoseCloseRed;
                 pickup1Pose = pickup1PoseRed;
@@ -573,7 +570,6 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     public Command CloseShootPreload() {
         return new SequentialGroup(
-                new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(turretangle)),
                 new ParallelGroup(
                         new FollowPath(firstshootpath),
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
@@ -890,20 +886,17 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     public Command CloseMoveOffLineToLever() {
         return new SequentialGroup(
-                new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
-                new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
+                //new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
+                //new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
                 new FollowPath(moveOffLineLever)
 
-        //new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(0))
 
         );
     }
 
     public Command CloseMoveOffLineToLeverExtraTime() {
         return new SequentialGroup(
-                new FollowPath(moveOffLineLeverExtraTime),
-                new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(0))
-
+                new FollowPath(moveOffLineLeverExtraTime)
         );
     }
 

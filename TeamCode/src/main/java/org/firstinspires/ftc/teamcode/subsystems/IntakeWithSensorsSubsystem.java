@@ -38,8 +38,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // =============================================
 
     // Intake RPM targets
-    public static double M1_TARGET_RPM = 1000.0;
-    public static double M3_TARGET_RPM = 500.0;
+    public static double M1_TARGET_RPM = 1800.0;
+    public static double M3_TARGET_RPM = 300.0;
 
     // Shoot RPM targets
     public static double M1_SHOOT_RPM = 400.0;
@@ -80,8 +80,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     // Motor constants
     private static final double ENCODER_TICKS_PER_MOTOR_REV = 28.0;
-    private static final double M1_GEAR_RATIO = 4;
-    private static final double M3_GEAR_RATIO = 4;
+    private static final double M1_GEAR_RATIO = 41.0/14.0; //changed from 4.0
+    private static final double M3_GEAR_RATIO = 41.0/14.0; //changed form 4.0
 
     // =============================================
     // HARDWARE
