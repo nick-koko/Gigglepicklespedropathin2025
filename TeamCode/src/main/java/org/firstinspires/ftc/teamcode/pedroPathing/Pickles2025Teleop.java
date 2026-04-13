@@ -77,7 +77,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double TURRET_DIAG_STICTION_VELOCITY_MAX_DEG_PER_SEC = 2.0;
     public static double TURRET_DIAG_SERVO_DEADBAND_POS_GUESS = 0.0010;
     public static long TURRET_DIAG_STICTION_MIN_TIME_MS = 120;
-    public static boolean ENABLE_SOTM_LOGGING = false;
+    public static boolean ENABLE_SOTM_LOGGING = true;
     public static long SOTM_LOG_PERIOD_MS = 25;
     public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = false;
     public static long DUMBSHOOT_RPM_LOG_PERIOD_MS = 10;
@@ -530,6 +530,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "shooter_cmd_post_vcomp," +
                                 "shooter_cmd_saturated," +
                                 "dumbshoot_timer_active," +
+                                "ball_count," +
                                 "hold_state," +
                                 "drive_cmd," +
                                 "strafe_cmd," +
@@ -1540,6 +1541,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         ShooterSubsystem.INSTANCE.getCommandPostVoltageComp(),
                         ShooterSubsystem.INSTANCE.isCommandSaturated(),
                         dumbShootTimerActive,
+                        IntakeWithSensorsSubsystem.INSTANCE.getBallCount(),
                         hold,
                         driving,
                         strafe,
