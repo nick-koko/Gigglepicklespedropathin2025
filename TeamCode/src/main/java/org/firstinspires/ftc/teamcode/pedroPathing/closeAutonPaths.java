@@ -9,7 +9,6 @@ import com.pedropathing.paths.PathChain;
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
-import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
@@ -886,9 +885,7 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     public Command CloseMoveOffLineToLever() {
         return new SequentialGroup(
-                //new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
-                //new InstantCommand(() -> TurretSubsystem.INSTANCE.SetServoCenter()),
-                new FollowPath(moveOffLineLever)
+               new FollowPath(moveOffLineLever)
 
 
         );

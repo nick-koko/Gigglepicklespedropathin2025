@@ -328,6 +328,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean sotmOmegaFilterInitialized = false;
     // True only after Start is pressed; prevents flywheel spin-up during Init.
     private boolean matchHasStarted = false;
+    private boolean turretStartupFromAuton = false;
+    private double turretStartupExpectedAngleDeg = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
     private boolean hybridPrevBbInitialized = false;
     private boolean hybridPrevBb1 = false;
     private boolean hybridPrevBb2 = false;
@@ -380,11 +382,22 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         limelight.pipelineSwitch(0);
         limelight.start();
 
-        if ((GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun)) {
+        turretStartupFromAuton = (GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun);
+        if (turretStartupFromAuton) {
             startingPose = GlobalRobotData.endAutonPose;
             GlobalRobotData.hasAutonRun = false;
         } else {
             selectAllianceSide = true;
+        }
+
+        turretStartupExpectedAngleDeg =
+                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees))
+                        ? GlobalRobotData.endAutonTurretAngleDegrees
+                        : TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+        if (turretStartupFromAuton) {
+            TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
+        } else {
+            TurretSubsystem.INSTANCE.beginStartupCentering();
         }
 
        //PedroComponent.follower().setStartingPose(startingPose);
@@ -713,6 +726,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
+        boolean turretStartupCalibrated = TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
+                turretStartupExpectedAngleDeg
+        );
 
         if (selectAllianceSide) {
             if (gamepad1.xWasPressed()) {
@@ -731,6 +747,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             } else {
                 telemetry.addLine("Favorite fruit: Raspberries!!! (Red)");
             }
+            telemetry.addData("turretStartupCal", turretStartupCalibrated);
+            telemetry.addData("turretStartupState", TurretSubsystem.INSTANCE.getStartupCalibrationStateName());
 
             telemetry.update();
 
@@ -740,6 +758,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     @Override
     public void onStartButtonPressed() {
         matchHasStarted = true;
+        TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(turretStartupExpectedAngleDeg);
         //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)

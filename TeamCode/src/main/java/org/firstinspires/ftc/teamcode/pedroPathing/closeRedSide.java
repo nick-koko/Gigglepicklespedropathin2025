@@ -51,7 +51,7 @@ public class closeRedSide extends closeAutonPaths{
     /** This method is called once at the init of the OpMode. **/
     @Override
     public void onInit() {
-        TurretSubsystem.INSTANCE.center();
+        TurretSubsystem.INSTANCE.beginStartupCentering();
         ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
         ShooterSubsystem.INSTANCE.stop();
 
@@ -67,6 +67,9 @@ public class closeRedSide extends closeAutonPaths{
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
+        boolean turretStartupCalibrated = TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
+                TurretSubsystem.INITIAL_ANGLE_DEGREES
+        );
 
             /*if (gamepad1.x) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
@@ -104,6 +107,8 @@ public class closeRedSide extends closeAutonPaths{
         telemetry.addData("Opening basket at: ", pushLever);
 
         telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
+        telemetry.addData("turretStartupCal", turretStartupCalibrated);
+        telemetry.addData("turretStartupState", TurretSubsystem.INSTANCE.getStartupCalibrationStateName());
 
         telemetry.update();
 
@@ -295,6 +300,7 @@ public class closeRedSide extends closeAutonPaths{
      * It runs all the setup actions, including building paths and starting the path system **/
     @Override
     public void onStartButtonPressed() {
+        TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
         TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(90);
         if (intAmount == 3) {
                 Close3Ball().schedule();
@@ -333,6 +339,7 @@ public class closeRedSide extends closeAutonPaths{
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
 
@@ -358,6 +365,7 @@ public class closeRedSide extends closeAutonPaths{
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+            GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }
 

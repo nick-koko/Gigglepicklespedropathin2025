@@ -118,6 +118,16 @@ public class TurretSubsystem implements Subsystem {
     private boolean turretReady = false;
     private boolean leftServoEnabled = true;
     private boolean rightServoEnabled = true;
+    private long startupCenterCommandTimeMs = 0L;
+    private double startupExpectedTurretAngleDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+
+    private enum StartupCalibrationState {
+        UNCALIBRATED,
+        WAITING_FOR_SETTLE,
+        CALIBRATED
+    }
+
+    private StartupCalibrationState startupCalibrationState = StartupCalibrationState.UNCALIBRATED;
 
     @Override
     public void initialize() {
@@ -152,18 +162,13 @@ public class TurretSubsystem implements Subsystem {
         rightServoEnabled = true;
         periodicAbsoluteEncoderReadEnabled = READ_ABSOLUTE_ENCODER_IN_PERIODIC;
         wasPeriodicAbsoluteReadEnabled = false;
+        startupCenterCommandTimeMs = 0L;
+        startupExpectedTurretAngleDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+        startupCalibrationState = StartupCalibrationState.UNCALIBRATED;
 
-        // Force the turret to mechanical "center" first so startup references
-        // are captured in a consistent sector even if drivers forgot to pre-center.
-        leftTurret.setPosition(SERVO_CENTER_POSITION);
-        rightTurret.setPosition(SERVO_CENTER_POSITION);
-        currentServoPosition = SERVO_CENTER_POSITION;
-        if (STARTUP_CENTER_SETTLE_MS > 0) {
-            long settleStartMs = System.currentTimeMillis();
-            while (System.currentTimeMillis() - settleStartMs < STARTUP_CENTER_SETTLE_MS) {
-                // Intentionally waiting for turret to settle before startup references.
-            }
-        }
+        currentLeftServoPosition = leftTurret.getPosition();
+        currentRightServoPosition = rightTurret.getPosition();
+        currentServoPosition = 0.5 * (currentLeftServoPosition + currentRightServoPosition);
 
         turretEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         turretEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -171,30 +176,17 @@ public class TurretSubsystem implements Subsystem {
         previousEncoderTicks = currentEncoderTicks;
 
         double quadRawAtStartDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
-        double absoluteTurretAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteTurretReferenceAtStartDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         absoluteRawAtStartDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
         absoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         previousAbsoluteEncoderRawDegrees = absoluteRawAtStartDegrees;
         unwrappedAbsoluteEncoderDegrees = absoluteRawAtStartDegrees;
-
-        absoluteTurretAtStartDegrees = absoluteRawToNearestTurretAngleDegrees(
-                absoluteRawAtStartDegrees,
-                STARTUP_EXPECTED_TURRET_ANGLE_DEGREES
-        );
-
-        absoluteStartupErrorDegrees =
-                absoluteTurretAtStartDegrees - STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
-        learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
-
-        absoluteEncoderTurretAngleDegrees = absoluteTurretReferenceAtStartDegrees;
+        absoluteEncoderTurretAngleDegrees = Double.NaN;
         absoluteEncoderTurretDeltaDegrees = 0.0;
 
-        quadratureOffsetDegrees = quadRawAtStartDegrees - absoluteTurretReferenceAtStartDegrees;
+        quadratureOffsetDegrees = 0.0;
         quadRawAngleDegrees = quadRawAtStartDegrees;
-        measuredAngleDegrees = quadRawAtStartDegrees - quadratureOffsetDegrees;
-
-        applyServoAngle(INITIAL_ANGLE_DEGREES);
+        measuredAngleDegrees = quadRawAtStartDegrees;
         lastLoopTimeSeconds = nowSeconds();
     }
 
@@ -211,6 +203,10 @@ public class TurretSubsystem implements Subsystem {
         if (dt <= 1e-6) return;
 
         updateMeasuredAngle(dt);
+        if (!isStartupCalibrationComplete()) {
+            turretReady = false;
+            return;
+        }
 
         correctedTargetAngleDegrees = applyTargetBias(targetAngleDegrees);
 
@@ -254,6 +250,61 @@ public class TurretSubsystem implements Subsystem {
 
     public void center() {
         setTargetAngleDegrees(0.0);
+    }
+
+    public void beginStartupCentering() {
+        double centerPosition = Range.clip(SERVO_CENTER_POSITION, MIN_SERVO_POSITION, MAX_SERVO_POSITION);
+        currentLeftServoPosition = centerPosition;
+        currentRightServoPosition = centerPosition;
+        currentServoPosition = centerPosition;
+        if (leftServoEnabled) {
+            leftTurret.setPwmEnable();
+            leftTurret.setPosition(currentLeftServoPosition);
+        } else {
+            leftTurret.setPwmDisable();
+        }
+        if (rightServoEnabled) {
+            rightTurret.setPwmEnable();
+            rightTurret.setPosition(currentRightServoPosition);
+        } else {
+            rightTurret.setPwmDisable();
+        }
+        startupCenterCommandTimeMs = System.currentTimeMillis();
+        startupCalibrationState = StartupCalibrationState.WAITING_FOR_SETTLE;
+    }
+
+    public void beginStartupCalibrationWithoutCentering() {
+        startupCenterCommandTimeMs = System.currentTimeMillis();
+        startupCalibrationState = StartupCalibrationState.WAITING_FOR_SETTLE;
+    }
+
+    public boolean updateStartupCalibrationFromExpected(double expectedTurretAngleDegrees) {
+        if (startupCalibrationState == StartupCalibrationState.CALIBRATED) {
+            return true;
+        }
+        if (startupCalibrationState == StartupCalibrationState.UNCALIBRATED) {
+            beginStartupCalibrationWithoutCentering();
+        }
+
+        long elapsedMs = System.currentTimeMillis() - startupCenterCommandTimeMs;
+        if (elapsedMs < Math.max(0L, STARTUP_CENTER_SETTLE_MS)) {
+            return false;
+        }
+
+        completeStartupCalibrationFromExpected(expectedTurretAngleDegrees);
+        return true;
+    }
+
+    public void forceStartupCalibrationFromExpected(double expectedTurretAngleDegrees) {
+        completeStartupCalibrationFromExpected(expectedTurretAngleDegrees);
+    }
+
+    public boolean isStartupCalibrationComplete() {
+        return startupCalibrationState == StartupCalibrationState.CALIBRATED;
+    }
+
+    public String getStartupCalibrationStateName() {
+        return startupCalibrationState.name();
     }
 
     /**
@@ -405,8 +456,7 @@ public class TurretSubsystem implements Subsystem {
     }
 
     public void SetServoCenter() {
-        leftTurret.setPosition(SERVO_CENTER_POSITION);
-        rightTurret.setPosition(SERVO_CENTER_POSITION);
+        beginStartupCentering();
     }
     public boolean isUsingAbsoluteEncoder() {
         return true;
@@ -418,6 +468,45 @@ public class TurretSubsystem implements Subsystem {
 
     public boolean isPeriodicAbsoluteEncoderReadEnabled() {
         return periodicAbsoluteEncoderReadEnabled;
+    }
+
+    private void completeStartupCalibrationFromExpected(double expectedTurretAngleDegrees) {
+        startupExpectedTurretAngleDegrees = expectedTurretAngleDegrees;
+
+        double rawDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
+        absoluteRawAtStartDegrees = rawDegrees;
+        absoluteEncoderRawDegrees = rawDegrees;
+        previousAbsoluteEncoderRawDegrees = rawDegrees;
+        unwrappedAbsoluteEncoderDegrees = rawDegrees;
+
+        double resolvedTurretAngleDegrees =
+                absoluteRawToNearestTurretAngleDegrees(rawDegrees, expectedTurretAngleDegrees);
+        absoluteTurretReferenceAtStartDegrees = resolvedTurretAngleDegrees;
+        absoluteEncoderTurretAngleDegrees = resolvedTurretAngleDegrees;
+        absoluteEncoderTurretDeltaDegrees = 0.0;
+
+        absoluteStartupErrorDegrees = resolvedTurretAngleDegrees - expectedTurretAngleDegrees;
+        learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
+
+        currentEncoderTicks = turretEncoder.getCurrentPosition();
+        previousEncoderTicks = currentEncoderTicks;
+        quadRawAngleDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
+        quadratureOffsetDegrees = quadRawAngleDegrees - resolvedTurretAngleDegrees;
+        measuredAngleDegrees = quadRawAngleDegrees - quadratureOffsetDegrees;
+
+        targetAngleDegrees = measuredAngleDegrees;
+        correctedTargetAngleDegrees = measuredAngleDegrees;
+        commandedAngleDegrees = measuredAngleDegrees;
+        lastServoCommandAngleDegrees = measuredAngleDegrees;
+        lastOuterLoopTrimDegrees = 0.0;
+        lastCommandDiffDegrees = 0.0;
+        lastRateLimitedStepDegrees = 0.0;
+        readyLoops = 0;
+        notReadyLoops = 0;
+        turretReady = false;
+
+        startupCenterCommandTimeMs = 0L;
+        startupCalibrationState = StartupCalibrationState.CALIBRATED;
     }
 
     private void updateMeasuredAngle(double dt) {
