@@ -82,7 +82,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = false;
     public static long DUMBSHOOT_RPM_LOG_PERIOD_MS = 10;
     public static boolean DUMBSHOOT_RPM_LOG_EVERY_LOOP = true;
-    public static long DUMBSHOOT_RPM_LOG_DURATION_MS = 1100;
+    public static long DUMBSHOOT_RPM_LOG_DURATION_MS = 1500;
     public static int BURST_PROFILE_ID = 0;
     public static long SHOOT_BLOCK_LED_STROBE_MS = 180;
     public static double SHOOT_GATE_AT_SPEED_TOLERANCE_RPM = 75.0;
@@ -118,7 +118,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean SHOT_TUNING_REQUIRE_AT_SPEED_TO_FIRE = true;
     public static double SHOT_TUNING_AT_SPEED_TOLERANCE_RPM = 75.0;
     public static double SHOT_TUNING_TARGET_X_IN = 144.0;
-    public static double SHOT_TUNING_TARGET_Y_IN = 136.0;
+    public static double SHOT_TUNING_TARGET_Y_IN = 137.0;
     public static boolean ENABLE_SHOT_INFO_LOGGING = false;
     public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
     // Dumbshoot-specific logging window based on observed burst timing:
@@ -302,7 +302,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private static final double[] SOTM_TOF_FLIGHT_TIME_SEC = {0.15, 0.20, 0.27, 0.35};
 
     // Auto-stop shooter timeout after starting a dumbShoot burst (ms)
-    public static long DUMBSHOOT_SHOOTER_TIMEOUT_MS = 750;
+    public static long DUMBSHOOT_SHOOTER_TIMEOUT_MS = 1000;
 
     public static double shooterHoodPos = 0;
     private boolean hasResults = false;
@@ -488,6 +488,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "bot_x," +
                                 "bot_y," +
                                 "bot_heading_deg," +
+                                "mt1_valid," +
+                                "mt1_x," +
+                                "mt1_y," +
+                                "mt1_heading_deg," +
                                 "target_x," +
                                 "target_y," +
                                 "field_angle_deg," +
@@ -531,6 +535,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "shooter_cmd_saturated," +
                                 "dumbshoot_timer_active," +
                                 "ball_count," +
+                                "intake_m1_ticks," +
+                                "intake_m3_ticks," +
                                 "hold_state," +
                                 "drive_cmd," +
                                 "strafe_cmd," +
@@ -774,8 +780,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
         SHOT_TUNING_TARGET_X_IN = shootingTargetLocation.getX();
         SHOT_TUNING_TARGET_Y_IN = shootingTargetLocation.getY();
-
-        TurretSubsystem.INSTANCE.center();
         sotmOmegaFilterInitialized = false;
         sotmFilteredOmegaRadPerSec = 0.0;
         prevTurretLogTargetDeg = Double.NaN;
@@ -833,11 +837,45 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         LLResult result = limelight.getLatestResult();
+        boolean mt1Valid = false;
+        double mt1PedroX = Double.NaN;
+        double mt1PedroY = Double.NaN;
+        double mt1PedroHeadingDeg = Double.NaN;
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
             yOffset = result.getTy();
             areaOffset = result.getTa();
             distanceLL = cameraHeightFromTags / (Math.tan(Math.toRadians(yOffset)));
+
+            Pose3D mt1Pose = result.getBotpose();
+            if (mt1Pose != null) {
+                double mt1xInches = DistanceUnit.METER.toInches(mt1Pose.getPosition().x);
+                double mt1yInches = DistanceUnit.METER.toInches(mt1Pose.getPosition().y);
+                Pose2D mt1Pose2d = new Pose2D(
+                        DistanceUnit.INCH,
+                        mt1xInches,
+                        mt1yInches,
+                        AngleUnit.DEGREES,
+                        mt1Pose.getOrientation().getYaw()
+                );
+                Pose mt1FtcStandardPose = PoseConverter.pose2DToPose(mt1Pose2d, InvertedFTCCoordinates.INSTANCE);
+                Pose mt1PedroPoseCandidate = new Pose(
+                        (mt1FtcStandardPose.getY() + 72),
+                        (-(mt1FtcStandardPose.getX()) + 72),
+                        mt1FtcStandardPose.getHeading() - Math.toRadians(90)
+                );
+
+                double candidateX = mt1PedroPoseCandidate.getPose().getX();
+                double candidateY = mt1PedroPoseCandidate.getPose().getY();
+                double candidateHeadingDeg = Math.toDegrees(mt1PedroPoseCandidate.getPose().getHeading());
+                if (Double.isFinite(candidateX) && Double.isFinite(candidateY) && Double.isFinite(candidateHeadingDeg)) {
+                    mt1Valid = true;
+                    mt1PedroX = candidateX;
+                    mt1PedroY = candidateY;
+                    mt1PedroHeadingDeg = candidateHeadingDeg;
+                    MT1PedroPose = mt1PedroPoseCandidate;
+                }
+            }
         }
         ODODistance = PedroComponent.follower().getPose().distanceFrom(shootingTargetLocation);
 
@@ -969,14 +1007,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (dpadUpActive && !SOTM_ENABLED) {
             adjustLimelight = true;
             if (result != null && result.isValid()) {
-                if (ODODistance < 100) {
-                    Pose3D MT1Pose = result.getBotpose();
-                    double MT1xInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().x);
-                    double MT1yInches = DistanceUnit.METER.toInches(MT1Pose.getPosition().y);
-                    Pose2D MT1Pose2d = new Pose2D(DistanceUnit.INCH, MT1xInches, MT1yInches, AngleUnit.DEGREES, MT1Pose.getOrientation().getYaw());
-                    Pose MT1FTCStandardPose = PoseConverter.pose2DToPose(MT1Pose2d, InvertedFTCCoordinates.INSTANCE);
-                    MT1PedroPose = new Pose((MT1FTCStandardPose.getY() + 72), (-(MT1FTCStandardPose.getX()) +72), MT1FTCStandardPose.getHeading() - Math.toRadians(90));
-
+                if (ODODistance < 100 && mt1Valid) {
                     PedroComponent.follower().setPose(MT1PedroPose);
                 }
                 targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
@@ -1499,6 +1530,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         botxvalue,
                         botyvalue,
                         Math.toDegrees(botHeadingRad),
+                        mt1Valid,
+                        mt1PedroX,
+                        mt1PedroY,
+                        mt1PedroHeadingDeg,
                         shootTargetX,
                         shootTargetY,
                         fieldAngleDeg,
@@ -1542,6 +1577,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         ShooterSubsystem.INSTANCE.isCommandSaturated(),
                         dumbShootTimerActive,
                         IntakeWithSensorsSubsystem.INSTANCE.getBallCount(),
+                        IntakeWithSensorsSubsystem.INSTANCE.getMotor1EncoderTicks(),
+                        IntakeWithSensorsSubsystem.INSTANCE.getMotor3EncoderTicks(),
                         hold,
                         driving,
                         strafe,
@@ -1599,11 +1636,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             //telemetry.addData("MegaTag 2 Angle", Math.toDegrees(MT2PedroPose.getPose().getHeading()));
             //telemetry.addData("MegaTag 2 X", MT2PedroPose.getPose().getX());
             //telemetry.addData("MegaTag 2 y", MT2PedroPose.getPose().getY());
-            telemetry.addData("Pedro MegaTag 1 Angle", Math.toDegrees(MT1PedroPose.getPose().getHeading()));
-            telemetry.addData("Pedro MegaTag 1 X", MT1PedroPose.getPose().getX());
-            telemetry.addData("Pedro MegaTag 1 y", MT1PedroPose.getPose().getY());
-
         }
+        telemetry.addData("MT1 valid", mt1Valid);
+        telemetry.addData("MT1 Pedro X", mt1PedroX);
+        telemetry.addData("MT1 Pedro Y", mt1PedroY);
+        telemetry.addData("MT1 Pedro Heading", mt1PedroHeadingDeg);
         telemetry.addData("ODO distance", ODODistance);
         telemetry.addData("ODO X-Location", botxvalue);
         telemetry.addData("ODO Y-Location", botyvalue);

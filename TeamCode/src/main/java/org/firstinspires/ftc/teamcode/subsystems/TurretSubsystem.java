@@ -43,7 +43,7 @@ public class TurretSubsystem implements Subsystem {
     public static double OUTER_LOOP_MAX_TRIM_DEGREES = 8.0;
     // Split commanded turret angle across servos to add slight opposing preload.
     // Set to 0.0 to disable this behavior.
-    public static double SERVO_DIFFERENTIAL_DEGREES = 0.0;
+    public static double SERVO_DIFFERENTIAL_DEGREES = 1.0;
 
     public static double POSITIVE_TARGET_BIAS_DEGREES = 0.0;
     public static double NEGATIVE_TARGET_BIAS_DEGREES = 0.0;
@@ -58,6 +58,7 @@ public class TurretSubsystem implements Subsystem {
 
     public static double STARTUP_EXPECTED_TURRET_ANGLE_DEGREES = 0.0;
     public static long STARTUP_CENTER_SETTLE_MS = 2000;
+    public static boolean STARTUP_SEND_CENTER_COMMAND = true;
     public static double ABSOLUTE_TURRET_ENCODER_MAX_VOLTAGE = 3.255;
     public static double ENCODER_TO_TURRET_RATIO = 4.8;
     public static double TURRET_ENCODER_CPR = 4096.0;
@@ -253,22 +254,18 @@ public class TurretSubsystem implements Subsystem {
     }
 
     public void beginStartupCentering() {
+        if (!STARTUP_SEND_CENTER_COMMAND) {
+            beginStartupCalibrationWithoutCentering();
+            return;
+        }
         double centerPosition = Range.clip(SERVO_CENTER_POSITION, MIN_SERVO_POSITION, MAX_SERVO_POSITION);
         currentLeftServoPosition = centerPosition;
         currentRightServoPosition = centerPosition;
         currentServoPosition = centerPosition;
-        if (leftServoEnabled) {
-            leftTurret.setPwmEnable();
-            leftTurret.setPosition(currentLeftServoPosition);
-        } else {
-            leftTurret.setPwmDisable();
-        }
-        if (rightServoEnabled) {
-            rightTurret.setPwmEnable();
-            rightTurret.setPosition(currentRightServoPosition);
-        } else {
-            rightTurret.setPwmDisable();
-        }
+        // Keep startup centering minimal: position-only command, no PWM state toggles.
+        // This matches the old stable initialization behavior.
+        leftTurret.setPosition(currentLeftServoPosition);
+        rightTurret.setPosition(currentRightServoPosition);
         startupCenterCommandTimeMs = System.currentTimeMillis();
         startupCalibrationState = StartupCalibrationState.WAITING_FOR_SETTLE;
     }
@@ -602,14 +599,12 @@ public class TurretSubsystem implements Subsystem {
         );
 
         if (leftServoEnabled) {
-            leftTurret.setPwmEnable();
             leftTurret.setPosition(currentLeftServoPosition);
         } else {
             leftTurret.setPwmDisable();
         }
 
         if (rightServoEnabled) {
-            rightTurret.setPwmEnable();
             rightTurret.setPosition(currentRightServoPosition);
         } else {
             rightTurret.setPwmDisable();

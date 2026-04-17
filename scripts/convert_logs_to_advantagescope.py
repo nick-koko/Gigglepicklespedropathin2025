@@ -23,9 +23,23 @@ OUTPUT_TIME_HEADER = "Timestamp"
 OUTPUT_LIST_HEADERS = [OUTPUT_TIME_HEADER, "Key", "Value"]
 INCHES_TO_METERS = 0.0254
 PEDRO_FIELD_CENTER_IN = 72.0
-DEFAULT_TURRET_COMPONENT_X_IN = 0.0
-DEFAULT_TURRET_COMPONENT_Y_IN = 0.0
+DEFAULT_TURRET_COMPONENT_X_IN = -6.5
+DEFAULT_TURRET_COMPONENT_Y_IN = 1.4
 DEFAULT_TURRET_COMPONENT_Z_IN = 0.0
+DEFAULT_ARTIFACT_SHOT_DELAY_MS = 200.0
+DEFAULT_ARTIFACT_TARGET_Z_IN = 42.0
+DEFAULT_ARTIFACT_SPEED_IN_PER_SEC = 150.0
+DEFAULT_ARTIFACT_LAUNCH_X_IN = DEFAULT_TURRET_COMPONENT_X_IN
+DEFAULT_ARTIFACT_LAUNCH_Y_IN = DEFAULT_TURRET_COMPONENT_Y_IN
+DEFAULT_ARTIFACT_LAUNCH_Z_IN = 16.0
+DEFAULT_ARTIFACT_HELD_Z_IN = 6.0
+DEFAULT_ARTIFACT_GROUND_Z_IN = 3.0
+DEFAULT_ARTIFACT_MODEL_OFFSET_X_IN = -2.5
+DEFAULT_ARTIFACT_MODEL_OFFSET_Y_IN = 2.45
+DEFAULT_ARTIFACT_MAX_COUNT = 3
+DEFAULT_HELD_BALL_SLOT_SPACING_IN = 2.5
+GRAVITY_M_PER_SEC2 = 9.80665
+HIDDEN_ARTIFACT_Z_M = -10.0
 
 
 @dataclass
@@ -34,6 +48,20 @@ class SourceData:
     prefix: str
     rows: List[Dict[str, str]]
     output_columns: List[str]
+
+
+@dataclass
+class ActiveArtifactShot:
+    shot_index: int
+    launch_time_sec: float
+    flight_time_sec: float
+    launch_x_m: float
+    launch_y_m: float
+    launch_z_m: float
+    target_x_m: float
+    target_y_m: float
+    target_z_m: float
+    yaw_rad: float
 
 
 def parse_args() -> argparse.Namespace:
@@ -95,6 +123,77 @@ def parse_args() -> argparse.Namespace:
         "--skip-turret-component",
         action="store_true",
         help="Disable turret component Pose3d export in field3d mode.",
+    )
+    parser.add_argument(
+        "--artifact-shot-delay-ms",
+        type=float,
+        default=DEFAULT_ARTIFACT_SHOT_DELAY_MS,
+        help="Delay between burst artifact shots (ms).",
+    )
+    parser.add_argument(
+        "--artifact-target-z-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_TARGET_Z_IN,
+        help="Artifact target impact height (inches).",
+    )
+    parser.add_argument(
+        "--artifact-speed-in-per-sec",
+        type=float,
+        default=DEFAULT_ARTIFACT_SPEED_IN_PER_SEC,
+        help="Artifact horizontal speed used for ballistic trajectory (in/s).",
+    )
+    parser.add_argument(
+        "--artifact-max-count",
+        type=int,
+        default=DEFAULT_ARTIFACT_MAX_COUNT,
+        help="Maximum number of artifact shots visualized per burst.",
+    )
+    parser.add_argument(
+        "--artifact-launch-x-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_LAUNCH_X_IN,
+        help="Robot-relative artifact launch X offset (inches, forward+).",
+    )
+    parser.add_argument(
+        "--artifact-launch-y-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_LAUNCH_Y_IN,
+        help="Robot-relative artifact launch Y offset (inches, left+).",
+    )
+    parser.add_argument(
+        "--artifact-launch-z-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_LAUNCH_Z_IN,
+        help="Artifact launch height above field plane (inches).",
+    )
+    parser.add_argument(
+        "--artifact-held-z-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_HELD_Z_IN,
+        help="Artifact held-in-robot height above field plane (inches).",
+    )
+    parser.add_argument(
+        "--artifact-ground-z-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_GROUND_Z_IN,
+        help="Artifact preview-on-ground center height above field plane (inches).",
+    )
+    parser.add_argument(
+        "--artifact-model-offset-x-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_MODEL_OFFSET_X_IN,
+        help="In-flight artifact pose X shift to center model origin (inches).",
+    )
+    parser.add_argument(
+        "--artifact-model-offset-y-in",
+        type=float,
+        default=DEFAULT_ARTIFACT_MODEL_OFFSET_Y_IN,
+        help="In-flight artifact pose Y shift to center model origin (inches).",
+    )
+    parser.add_argument(
+        "--skip-artifact-shots",
+        action="store_true",
+        help="Disable artifact shot Pose3d export in field3d mode.",
     )
     return parser.parse_args()
 
@@ -173,6 +272,23 @@ def parse_float(row: Dict[str, str], keys: Iterable[str]) -> Optional[float]:
     return None
 
 
+def parse_bool(row: Dict[str, str], keys: Iterable[str]) -> Optional[bool]:
+    for key in keys:
+        raw = normalize_value(row.get(key, ""))
+        if raw == "":
+            continue
+        lowered = raw.lower()
+        if lowered in ("true", "t", "yes", "y"):
+            return True
+        if lowered in ("false", "f", "no", "n"):
+            return False
+        try:
+            return float(raw) != 0.0
+        except ValueError:
+            continue
+    return None
+
+
 def format_legacy_array(values: Iterable[float]) -> str:
     return "[" + "; ".join(f"{value:.6f}" for value in values) + "]"
 
@@ -184,6 +300,14 @@ def normalize_angle_rad(angle: float) -> float:
 def yaw_to_quaternion_wxyz(yaw_rad: float) -> Tuple[float, float, float, float]:
     half = 0.5 * yaw_rad
     return math.cos(half), 0.0, 0.0, math.sin(half)
+
+
+def robot_relative_offset_to_world(
+    bot_x_m: float, bot_y_m: float, heading_rad: float, rel_x_m: float, rel_y_m: float
+) -> Tuple[float, float]:
+    world_x = bot_x_m + (math.cos(heading_rad) * rel_x_m) - (math.sin(heading_rad) * rel_y_m)
+    world_y = bot_y_m + (math.sin(heading_rad) * rel_x_m) + (math.cos(heading_rad) * rel_y_m)
+    return world_x, world_y
 
 
 def pedro_inches_to_ftc_decode_meters(x_in: float, y_in: float) -> Tuple[float, float]:
@@ -247,7 +371,17 @@ def convert_file_field3d(
     path: str,
     use_prefix: bool,
     turret_component_xyz_m: Tuple[float, float, float],
+    artifact_launch_xy_m: Tuple[float, float],
+    artifact_model_offset_xy_m: Tuple[float, float],
     include_turret_component: bool,
+    include_artifact_shots: bool,
+    artifact_shot_delay_sec: float,
+    artifact_launch_z_m: float,
+    artifact_held_z_m: float,
+    artifact_ground_z_m: float,
+    artifact_target_z_m: float,
+    artifact_speed_m_per_sec: float,
+    artifact_max_count: int,
 ) -> List[Dict[str, str]]:
     with open(path, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -261,11 +395,52 @@ def convert_file_field3d(
 
         prefix = infer_prefix(path)
         base = f"/{prefix}/" if use_prefix else "/"
+        rows_in = list(reader)
         rows_out: List[Dict[str, str]] = []
         has_geometry = False
         turret_x_m, turret_y_m, turret_z_m = turret_component_xyz_m
+        artifact_launch_x_m, artifact_launch_y_m = artifact_launch_xy_m
+        artifact_model_offset_x_m, artifact_model_offset_y_m = artifact_model_offset_xy_m
+        previous_dumbshoot_active = False
+        previous_ball_count: Optional[int] = None
+        active_artifact_shots: List[ActiveArtifactShot] = []
+        held_artifact_slots: List[int] = []
+        ground_artifact_slots: Dict[int, Tuple[float, float]] = {}
+        ground_artifact_pickup_rows: Dict[int, int] = {}
+        held_slot_spacing_m = DEFAULT_HELD_BALL_SLOT_SPACING_IN * INCHES_TO_METERS
+        last_bot_x_m: Optional[float] = None
+        last_bot_y_m: Optional[float] = None
+        last_heading_rad: Optional[float] = None
+        pickup_events: List[Tuple[int, float, float]] = []
+        burst_start_indices: List[int] = []
+        prev_ball_count_scan: Optional[int] = None
+        prev_dumbshoot_scan = False
+        for scan_index, scan_row in enumerate(rows_in):
+            scan_dumbshoot_active = parse_bool(scan_row, ("dumbshoot_timer_active",))
+            scan_dumbshoot_active = bool(scan_dumbshoot_active) if scan_dumbshoot_active is not None else False
+            if scan_dumbshoot_active and not prev_dumbshoot_scan:
+                burst_start_indices.append(scan_index)
+            prev_dumbshoot_scan = scan_dumbshoot_active
 
-        for row in reader:
+            scan_ball_count_value = parse_float(scan_row, ("ball_count",))
+            scan_ball_count = int(round(scan_ball_count_value)) if scan_ball_count_value is not None else None
+            if (
+                prev_ball_count_scan is not None
+                and scan_ball_count is not None
+                and scan_ball_count > prev_ball_count_scan
+            ):
+                pickup_x_in = parse_float(scan_row, ("bot_x", "x", "robot_x"))
+                pickup_y_in = parse_float(scan_row, ("bot_y", "y", "robot_y"))
+                if pickup_x_in is not None and pickup_y_in is not None:
+                    pickup_x_m, pickup_y_m = pedro_inches_to_ftc_decode_meters(pickup_x_in, pickup_y_in)
+                    pickup_events.append((scan_index, pickup_x_m, pickup_y_m))
+            if scan_ball_count is not None:
+                prev_ball_count_scan = scan_ball_count
+
+        next_pickup_event_index = 0
+        next_burst_start_pointer = 0
+
+        for row_index, row in enumerate(rows_in):
             t_sec = parse_time_seconds(row, time_key)
             if t_sec is None:
                 continue
@@ -285,6 +460,9 @@ def convert_file_field3d(
                 heading_rad = normalize_angle_rad(heading_rad + (math.pi / 2.0))
 
             if bot_x is not None and bot_y is not None and heading_rad is not None:
+                last_bot_x_m = bot_x
+                last_bot_y_m = bot_y
+                last_heading_rad = heading_rad
                 rows_out.append(
                     {
                         OUTPUT_TIME_HEADER: t_str,
@@ -376,6 +554,286 @@ def convert_file_field3d(
                     )
                     has_geometry = True
 
+            if include_artifact_shots:
+                dumbshoot_active = parse_bool(row, ("dumbshoot_timer_active",))
+                dumbshoot_active = bool(dumbshoot_active) if dumbshoot_active is not None else False
+                ball_count_value = parse_float(row, ("ball_count",))
+                current_ball_count = int(round(ball_count_value)) if ball_count_value is not None else None
+                ball_count_before_update = previous_ball_count
+                promoted_from_ground_count = 0
+
+                for slot, pickup_row in list(ground_artifact_pickup_rows.items()):
+                    if row_index < pickup_row:
+                        continue
+                    if slot not in held_artifact_slots:
+                        held_artifact_slots.append(slot)
+                        promoted_from_ground_count += 1
+                    ground_artifact_pickup_rows.pop(slot, None)
+                    ground_artifact_slots.pop(slot, None)
+
+                if current_ball_count is not None:
+                    if ball_count_before_update is None:
+                        delta_count = 0
+                    else:
+                        delta_count = current_ball_count - ball_count_before_update
+                    if delta_count > 0:
+                        remaining_additions = max(0, delta_count - promoted_from_ground_count)
+                        for _ in range(remaining_additions):
+                            used_slots = set(held_artifact_slots)
+                            used_slots.update(ground_artifact_slots.keys())
+                            used_slots.update(shot.shot_index for shot in active_artifact_shots)
+                            for slot in range(1, max(0, artifact_max_count) + 1):
+                                if slot not in used_slots:
+                                    held_artifact_slots.append(slot)
+                                    break
+                    elif delta_count < 0 and not dumbshoot_active:
+                        drop_count = min(len(held_artifact_slots), -delta_count)
+                        if drop_count > 0:
+                            held_artifact_slots = held_artifact_slots[:-drop_count]
+
+                if (
+                    dumbshoot_active
+                    and not previous_dumbshoot_active
+                    and last_bot_x_m is not None
+                    and last_bot_y_m is not None
+                    and last_heading_rad is not None
+                    and target_x is not None
+                    and target_y is not None
+                ):
+                    ground_artifact_slots.clear()
+                    ground_artifact_pickup_rows.clear()
+                    launch_slots = held_artifact_slots[:max(0, artifact_max_count)]
+                    # Conservative behavior: never launch more artifacts than we can account for as "held".
+                    # Bootstrap for logs that begin mid-match where ball_count is known but held slots
+                    # have not yet been reconstructed from pickup deltas.
+                    bootstrap_ball_count_estimate: Optional[int] = None
+                    if current_ball_count is not None and ball_count_before_update is not None:
+                        bootstrap_ball_count_estimate = max(
+                            int(current_ball_count),
+                            int(ball_count_before_update),
+                        )
+                    elif current_ball_count is not None:
+                        bootstrap_ball_count_estimate = int(current_ball_count)
+                    elif ball_count_before_update is not None:
+                        bootstrap_ball_count_estimate = int(ball_count_before_update)
+
+                    if (
+                        not launch_slots
+                        and bootstrap_ball_count_estimate is not None
+                        and bootstrap_ball_count_estimate > 0
+                    ):
+                        bootstrap_count = min(
+                            max(0, artifact_max_count),
+                            max(0, bootstrap_ball_count_estimate),
+                        )
+                        used_slots = set(shot.shot_index for shot in active_artifact_shots)
+                        for slot in range(1, max(0, artifact_max_count) + 1):
+                            if len(launch_slots) >= bootstrap_count:
+                                break
+                            if slot not in used_slots:
+                                launch_slots.append(slot)
+                                used_slots.add(slot)
+
+                    burst_ball_count_estimate: Optional[int] = None
+                    if current_ball_count is not None and ball_count_before_update is not None:
+                        burst_ball_count_estimate = max(
+                            int(current_ball_count),
+                            int(ball_count_before_update),
+                        )
+                    elif current_ball_count is not None:
+                        burst_ball_count_estimate = int(current_ball_count)
+                    elif ball_count_before_update is not None:
+                        burst_ball_count_estimate = int(ball_count_before_update)
+
+                    if burst_ball_count_estimate is not None:
+                        launch_slots = launch_slots[:max(0, burst_ball_count_estimate)]
+
+                    if launch_slots:
+
+                        launch_x_m, launch_y_m = robot_relative_offset_to_world(
+                            last_bot_x_m,
+                            last_bot_y_m,
+                            last_heading_rad,
+                            artifact_launch_x_m,
+                            artifact_launch_y_m,
+                        )
+                        launch_z_m = artifact_launch_z_m
+                        dx_m = target_x - launch_x_m
+                        dy_m = target_y - launch_y_m
+                        horizontal_distance_m = math.hypot(dx_m, dy_m)
+                        flight_time_sec = max(
+                            0.20,
+                            horizontal_distance_m / max(1e-6, artifact_speed_m_per_sec),
+                        )
+                        yaw_rad = math.atan2(dy_m, dx_m)
+
+                        for shot_idx, launch_slot in enumerate(launch_slots):
+                            active_artifact_shots.append(
+                                ActiveArtifactShot(
+                                    shot_index=launch_slot,
+                                    launch_time_sec=t_sec + (shot_idx * artifact_shot_delay_sec),
+                                    flight_time_sec=flight_time_sec,
+                                    launch_x_m=launch_x_m,
+                                    launch_y_m=launch_y_m,
+                                    launch_z_m=launch_z_m,
+                                    target_x_m=target_x,
+                                    target_y_m=target_y,
+                                    target_z_m=artifact_target_z_m,
+                                    yaw_rad=yaw_rad,
+                                )
+                            )
+                elif previous_dumbshoot_active and not dumbshoot_active:
+                    ground_artifact_slots.clear()
+                    ground_artifact_pickup_rows.clear()
+
+                if not dumbshoot_active and not active_artifact_shots:
+                    while (
+                        next_burst_start_pointer < len(burst_start_indices)
+                        and burst_start_indices[next_burst_start_pointer] <= row_index
+                    ):
+                        next_burst_start_pointer += 1
+
+                    next_burst_start_index = (
+                        burst_start_indices[next_burst_start_pointer]
+                        if next_burst_start_pointer < len(burst_start_indices)
+                        else (len(rows_in) + 1)
+                    )
+
+                    while (
+                        next_pickup_event_index < len(pickup_events)
+                        and pickup_events[next_pickup_event_index][0] <= row_index
+                    ):
+                        next_pickup_event_index += 1
+
+                    while len(ground_artifact_slots) < max(0, artifact_max_count):
+                        if next_pickup_event_index >= len(pickup_events):
+                            break
+
+                        pickup_row, pickup_x_m, pickup_y_m = pickup_events[next_pickup_event_index]
+                        if pickup_row >= next_burst_start_index:
+                            break
+
+                        used_slots = set(held_artifact_slots)
+                        used_slots.update(ground_artifact_slots.keys())
+                        used_slots.update(shot.shot_index for shot in active_artifact_shots)
+                        slot_to_fill: Optional[int] = None
+                        for slot in range(1, max(0, artifact_max_count) + 1):
+                            if slot not in used_slots:
+                                slot_to_fill = slot
+                                break
+                        if slot_to_fill is None:
+                            break
+
+                        ground_artifact_slots[slot_to_fill] = (pickup_x_m, pickup_y_m)
+                        ground_artifact_pickup_rows[slot_to_fill] = pickup_row
+                        next_pickup_event_index += 1
+
+                launched_slots = {
+                    shot.shot_index
+                    for shot in active_artifact_shots
+                    if t_sec >= shot.launch_time_sec
+                }
+                if launched_slots:
+                    held_artifact_slots = [
+                        slot for slot in held_artifact_slots if slot not in launched_slots
+                    ]
+
+                for shot_index in range(1, max(0, artifact_max_count) + 1):
+                    active_shot: Optional[ActiveArtifactShot] = None
+                    for shot in active_artifact_shots:
+                        if shot.shot_index != shot_index:
+                            continue
+                        shot_elapsed_sec = t_sec - shot.launch_time_sec
+                        if 0.0 <= shot_elapsed_sec <= shot.flight_time_sec:
+                            active_shot = shot
+                            break
+
+                    if active_shot is not None:
+                        shot_elapsed_sec = t_sec - active_shot.launch_time_sec
+                        progress = shot_elapsed_sec / max(1e-6, active_shot.flight_time_sec)
+                        pos_x_m = active_shot.launch_x_m + (
+                            (active_shot.target_x_m - active_shot.launch_x_m) * progress
+                        )
+                        pos_y_m = active_shot.launch_y_m + (
+                            (active_shot.target_y_m - active_shot.launch_y_m) * progress
+                        )
+                        launch_vz_mps = (
+                            active_shot.target_z_m
+                            - active_shot.launch_z_m
+                            + (0.5 * GRAVITY_M_PER_SEC2 * active_shot.flight_time_sec ** 2)
+                        ) / max(1e-6, active_shot.flight_time_sec)
+                        pos_z_m = (
+                            active_shot.launch_z_m
+                            + (launch_vz_mps * shot_elapsed_sec)
+                            - (0.5 * GRAVITY_M_PER_SEC2 * shot_elapsed_sec ** 2)
+                        )
+                        q_w, q_x, q_y, q_z = yaw_to_quaternion_wxyz(active_shot.yaw_rad)
+                        pose_values = (
+                            pos_x_m + artifact_model_offset_x_m,
+                            pos_y_m + artifact_model_offset_y_m,
+                            pos_z_m,
+                            q_w,
+                            q_x,
+                            q_y,
+                            q_z,
+                        )
+                    elif (
+                        shot_index in held_artifact_slots
+                        and last_bot_x_m is not None
+                        and last_bot_y_m is not None
+                        and last_heading_rad is not None
+                    ):
+                        slot_center = (artifact_max_count + 1) * 0.5
+                        slot_offset_m = (shot_index - slot_center) * held_slot_spacing_m
+                        held_x_m, held_y_m = robot_relative_offset_to_world(
+                            last_bot_x_m,
+                            last_bot_y_m,
+                            last_heading_rad,
+                            turret_x_m,
+                            turret_y_m + slot_offset_m,
+                        )
+                        q_w, q_x, q_y, q_z = yaw_to_quaternion_wxyz(last_heading_rad)
+                        pose_values = (
+                            held_x_m,
+                            held_y_m,
+                            artifact_held_z_m,
+                            q_w,
+                            q_x,
+                            q_y,
+                            q_z,
+                        )
+                    elif shot_index in ground_artifact_slots:
+                        ground_x_m, ground_y_m = ground_artifact_slots[shot_index]
+                        pose_values = (
+                            ground_x_m,
+                            ground_y_m,
+                            artifact_ground_z_m,
+                            1.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                        )
+                    else:
+                        pose_values = (0.0, 0.0, HIDDEN_ARTIFACT_Z_M, 1.0, 0.0, 0.0, 0.0)
+
+                    rows_out.append(
+                        {
+                            OUTPUT_TIME_HEADER: t_str,
+                            "Key": f"{base}ArtifactShot{shot_index}Pose3d",
+                            "Value": format_legacy_array(pose_values),
+                        }
+                    )
+                    has_geometry = True
+
+                active_artifact_shots = [
+                    shot
+                    for shot in active_artifact_shots
+                    if t_sec <= (shot.launch_time_sec + shot.flight_time_sec)
+                ]
+                previous_dumbshoot_active = dumbshoot_active
+                if current_ball_count is not None:
+                    previous_ball_count = current_ball_count
+
         if not has_geometry:
             raise ValueError(
                 f"No geometry fields found in {path}. Need pose-like columns such as "
@@ -448,7 +906,23 @@ def main() -> int:
             args.turret_component_y_in * INCHES_TO_METERS,
             args.turret_component_z_in * INCHES_TO_METERS,
         )
+        artifact_launch_xy_m = (
+            args.artifact_launch_x_in * INCHES_TO_METERS,
+            args.artifact_launch_y_in * INCHES_TO_METERS,
+        )
+        artifact_model_offset_xy_m = (
+            args.artifact_model_offset_x_in * INCHES_TO_METERS,
+            args.artifact_model_offset_y_in * INCHES_TO_METERS,
+        )
         include_turret_component = not args.skip_turret_component
+        include_artifact_shots = not args.skip_artifact_shots
+        artifact_shot_delay_sec = max(0.0, args.artifact_shot_delay_ms) / 1000.0
+        artifact_launch_z_m = args.artifact_launch_z_in * INCHES_TO_METERS
+        artifact_held_z_m = args.artifact_held_z_in * INCHES_TO_METERS
+        artifact_ground_z_m = args.artifact_ground_z_in * INCHES_TO_METERS
+        artifact_target_z_m = args.artifact_target_z_in * INCHES_TO_METERS
+        artifact_speed_m_per_sec = max(1e-6, args.artifact_speed_in_per_sec) * INCHES_TO_METERS
+        artifact_max_count = max(0, args.artifact_max_count)
         converted_list: List[Tuple[str, List[Dict[str, str]]]] = []
         for path in input_files:
             try:
@@ -459,7 +933,17 @@ def main() -> int:
                             path,
                             use_prefix=use_prefix,
                             turret_component_xyz_m=turret_component_xyz_m,
+                            artifact_launch_xy_m=artifact_launch_xy_m,
+                            artifact_model_offset_xy_m=artifact_model_offset_xy_m,
                             include_turret_component=include_turret_component,
+                            include_artifact_shots=include_artifact_shots,
+                            artifact_shot_delay_sec=artifact_shot_delay_sec,
+                            artifact_launch_z_m=artifact_launch_z_m,
+                            artifact_held_z_m=artifact_held_z_m,
+                            artifact_ground_z_m=artifact_ground_z_m,
+                            artifact_target_z_m=artifact_target_z_m,
+                            artifact_speed_m_per_sec=artifact_speed_m_per_sec,
+                            artifact_max_count=artifact_max_count,
                         ),
                     )
                 )

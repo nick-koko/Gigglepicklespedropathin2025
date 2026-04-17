@@ -37,9 +37,20 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // CONFIGURABLE CONSTANTS
     // =============================================
 
-    // Intake RPM targets
-    public static double M1_TARGET_RPM = 1800.0;
-    public static double M3_TARGET_RPM = 300.0;
+    // Intake profiles by current ball count in robot:
+    // 0 = collecting first ball, 1 = collecting second, 2 = collecting third
+    public static double M1_TARGET_RPM_BALL0 = 1800.0;
+    public static double M1_TARGET_RPM_BALL1 = 1800.0;
+    public static double M1_TARGET_RPM_BALL2 = 1200.0;
+    public static double M3_TARGET_RPM_BALL0 = 400.0;
+    public static double M3_TARGET_RPM_BALL1 = 400.0;
+    public static double M3_TARGET_RPM_BALL2 = 400.0;
+    public static double S2_INTAKE_SPEED_BALL0 = 0.7;
+    public static double S2_INTAKE_SPEED_BALL1 = 0.2;
+    public static double S2_INTAKE_SPEED_BALL2 = 0.2;
+    public static double S3_INTAKE_SPEED_BALL0 = 0.7;
+    public static double S3_INTAKE_SPEED_BALL1 = 0.2;
+    public static double S3_INTAKE_SPEED_BALL2 = 0.2;
 
     // Shoot RPM targets
     public static double M1_SHOOT_RPM = 400.0;
@@ -54,9 +65,9 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // Dumbshoot open-loop profile:
     // - motor3 starts immediately
     // - motor1 and transfer (m2 path via servos) can be delayed independently
-    public static double DUMBSHOOT_M1_POWER = 1.0;
-    public static double DUMBSHOOT_M3_POWER = 1.0;
-    public static double DUMBSHOOT_M2_POWER = 1.0; // Applied to both s2 and s3
+    public static double DUMBSHOOT_M1_POWER = 0.65;
+    public static double DUMBSHOOT_M3_POWER = 0.65;
+    public static double DUMBSHOOT_M2_POWER = 0.65; // Applied to both s2 and s3
     public static long DUMBSHOOT_DELAY_M1_MS = 0;
     public static long DUMBSHOOT_DELAY_M2_MS = 0;
     // Delay gating by distance (inches). Default 0 keeps previous behavior
@@ -70,9 +81,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // assume ball has passed (handles case where 2 balls pass together undetected)
     public static long SINGLE_BALL_FEED_TIMEOUT_MS = 1000;
 
-    // Continuous servo speeds
-    public static double S2_INTAKE_SPEED = 0.7;
-    public static double S3_INTAKE_SPEED = 0.7;
+    // Continuous transfer servo speeds by current ball count profile
     public static double S2_SHOOT_SPEED = 0.5;
     public static double S3_SHOOT_SPEED = 0.5;
 
@@ -761,6 +770,9 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     public double getMotor1RPM() { return m1.getVelocity() * 60.0 / m1TicksPerRev; }
     public double getMotor3RPM() { return m3.getVelocity() * 60.0 / m3TicksPerRev; }
+    public int getMotor1EncoderTicks() { return m1.getCurrentPosition(); }
+    public int getMotor3EncoderTicks() { return m3.getCurrentPosition(); }
+
 
     // =============================================
     // HELPER METHODS
@@ -774,9 +786,35 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
             return;
         }
 
+        int intakeProfileIndex = Math.max(0, Math.min(2, ballCount));
+        double m1TargetRpm = selectIntakeProfileValue(
+                intakeProfileIndex,
+                M1_TARGET_RPM_BALL0,
+                M1_TARGET_RPM_BALL1,
+                M1_TARGET_RPM_BALL2
+        );
+        double m3TargetRpm = selectIntakeProfileValue(
+                intakeProfileIndex,
+                M3_TARGET_RPM_BALL0,
+                M3_TARGET_RPM_BALL1,
+                M3_TARGET_RPM_BALL2
+        );
+        double s2IntakeSpeed = selectIntakeProfileValue(
+                intakeProfileIndex,
+                S2_INTAKE_SPEED_BALL0,
+                S2_INTAKE_SPEED_BALL1,
+                S2_INTAKE_SPEED_BALL2
+        );
+        double s3IntakeSpeed = selectIntakeProfileValue(
+                intakeProfileIndex,
+                S3_INTAKE_SPEED_BALL0,
+                S3_INTAKE_SPEED_BALL1,
+                S3_INTAKE_SPEED_BALL2
+        );
+
         // Calculate velocities
-        double m1Velocity = direction * rpmToTicksPerSecond(M1_TARGET_RPM, m1TicksPerRev);
-        double m3Velocity = direction * rpmToTicksPerSecond(M3_TARGET_RPM, m3TicksPerRev);
+        double m1Velocity = direction * rpmToTicksPerSecond(m1TargetRpm, m1TicksPerRev);
+        double m3Velocity = direction * rpmToTicksPerSecond(m3TargetRpm, m3TicksPerRev);
 
         // Set motors based on enabled state
         if (m1Enabled) {
@@ -786,8 +824,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         }
 
         if (m2Enabled) {
-            s2.setPower(direction * S2_INTAKE_SPEED);
-            s3.setPower(direction * S3_INTAKE_SPEED);
+            s2.setPower(direction * s2IntakeSpeed);
+            s3.setPower(direction * s3IntakeSpeed);
         } else {
             s2.setPower(0.0);
             s3.setPower(0.0);
@@ -802,6 +840,12 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     private double rpmToTicksPerSecond(double rpm, double ticksPerRev) {
         return (rpm * ticksPerRev) / 60.0;
+    }
+
+    private static double selectIntakeProfileValue(int profileIndex, double ball0Value, double ball1Value, double ball2Value) {
+        if (profileIndex <= 0) return ball0Value;
+        if (profileIndex == 1) return ball1Value;
+        return ball2Value;
     }
 
     private void enableDumbShootOpenLoop() {
