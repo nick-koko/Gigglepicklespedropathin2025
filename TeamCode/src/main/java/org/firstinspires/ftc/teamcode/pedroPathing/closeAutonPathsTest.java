@@ -108,6 +108,7 @@ public class closeAutonPathsTest extends NextFTCOpMode {
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                 ),
                 new Delay(0.75),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(false)),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -143,6 +144,7 @@ public class closeAutonPathsTest extends NextFTCOpMode {
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.2),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(true)),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
@@ -182,6 +184,7 @@ public class closeAutonPathsTest extends NextFTCOpMode {
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.2),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(true)),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),

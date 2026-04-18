@@ -51,6 +51,10 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     public static double S3_INTAKE_SPEED_BALL0 = 0.7;
     public static double S3_INTAKE_SPEED_BALL1 = 0.2;
     public static double S3_INTAKE_SPEED_BALL2 = 0.2;
+    public static double M1_HOLD_RPM_OCCUPIED = 0.0;
+    public static double M3_HOLD_RPM_OCCUPIED = -20.0;
+    public static double S2_HOLD_POWER_OCCUPIED = 0.0;
+    public static double S3_HOLD_POWER_OCCUPIED = 0.0;
 
     // Shoot RPM targets
     public static double M1_SHOOT_RPM = 400.0;
@@ -162,6 +166,16 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     @Override
     public void initialize() {
+        // IntakeWithSensorsSubsystem is a process-wide singleton (INSTANCE), so every
+        // non-static-final field persists across OpMode runs for the lifetime of the
+        // robot-controller app. Without an explicit reset, ballCount,
+        // dumbShootOpenLoopActive, shootSequenceActive, motor-enable flags, etc. all
+        // leak from a previous run. Most disruptive symptom: if a previous run ended
+        // with dumbShootOpenLoopActive==true, the very first periodic() call applies
+        // open-loop intake power before any driver input. See also the parallel reset
+        // in ShooterSubsystem.initialize().
+        resetAllRuntimeState();
+
         // Initialize motors
         m1 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "intake_motor");
         m3 = ActiveOpMode.hardwareMap().get(DcMotorEx.class, "intake_motor2");
@@ -197,6 +211,59 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         // Calculate ticks per revolution
         m1TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M1_GEAR_RATIO;
         m3TicksPerRev = ENCODER_TICKS_PER_MOTOR_REV * M3_GEAR_RATIO;
+
+        // Belt-and-suspenders: force hardware to zero now that refs are live. Protects
+        // against any path that reads stale commanded power before periodic() runs.
+        m1.setPower(0.0);
+        m3.setPower(0.0);
+        s2.setPower(0.0);
+        s3.setPower(0.0);
+    }
+
+    /**
+     * Zeros every runtime field on the singleton so a fresh OpMode init looks identical
+     * to an app-boot state. Does NOT touch the @Configurable public static tuning values;
+     * those are knobs, not state.
+     *
+     * Callers in the OpMode can still override specific fields after initialize()
+     * completes (e.g. the auton-to-teleop ballCount handoff via setBallCount).
+     */
+    private void resetAllRuntimeState() {
+        ballCount = 0;
+        m1Enabled = true;
+        m2Enabled = true;
+        m3Enabled = true;
+
+        shooting = false;
+        shootSequenceActive = false;
+        currentShot = 0;
+        shotsToFire = 0;
+        shootEndTime = 0L;
+        nextShotTime = 0L;
+        shootTimer.reset();
+
+        prevSensor0 = true;
+        prevSensor1 = true;
+        prevSensor2 = true;
+
+        isIntaking = false;
+        currentDirection = 0.0;
+        singleBallActive = false;
+
+        dumbShootOpenLoopActive = false;
+        dumbShootStartTimeMs = 0L;
+        dumbShootDistanceForDelayInches = 0.0;
+
+        shotInProgress = false;
+
+        singleBallFeedActive = false;
+        prevSensor2BrokenForSingleFeed = false;
+        singleBallFeedStartTimeMs = 0L;
+
+        multiSingleShotActive = false;
+        multiSingleShotRequested = 0;
+        multiSingleShotCompleted = 0;
+        nextMultiSingleShotStartTimeMs = 0L;
     }
 
     // =============================================
@@ -815,26 +882,28 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         // Calculate velocities
         double m1Velocity = direction * rpmToTicksPerSecond(m1TargetRpm, m1TicksPerRev);
         double m3Velocity = direction * rpmToTicksPerSecond(m3TargetRpm, m3TicksPerRev);
+        double m1HoldVelocity = rpmToTicksPerSecond(M1_HOLD_RPM_OCCUPIED, m1TicksPerRev);
+        double m3HoldVelocity = rpmToTicksPerSecond(M3_HOLD_RPM_OCCUPIED, m3TicksPerRev);
 
         // Set motors based on enabled state
         if (m1Enabled) {
             m1.setVelocity(m1Velocity);
         } else {
-            m1.setPower(0.0);
+            m1.setVelocity(m1HoldVelocity);
         }
 
         if (m2Enabled) {
             s2.setPower(direction * s2IntakeSpeed);
             s3.setPower(direction * s3IntakeSpeed);
         } else {
-            s2.setPower(0.0);
-            s3.setPower(0.0);
+            s2.setPower(S2_HOLD_POWER_OCCUPIED);
+            s3.setPower(S3_HOLD_POWER_OCCUPIED);
         }
 
         if (m3Enabled) {
             m3.setVelocity(m3Velocity);
         } else {
-            m3.setPower(0.0);
+            m3.setVelocity(m3HoldVelocity);
         }
     }
 
