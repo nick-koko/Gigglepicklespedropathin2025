@@ -79,7 +79,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static long TURRET_DIAG_STICTION_MIN_TIME_MS = 120;
     public static boolean ENABLE_SOTM_LOGGING = false;
     public static long SOTM_LOG_PERIOD_MS = 25;
-    public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = true;
+    public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = false;
     public static long DUMBSHOOT_RPM_LOG_PERIOD_MS = 5;
     public static boolean DUMBSHOOT_RPM_LOG_EVERY_LOOP = true;
     public static long DUMBSHOOT_RPM_LOG_DURATION_MS = 1500;
@@ -96,16 +96,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // more urgent visual; longer = easier to distinguish from other strobes.
     public static long TOO_CLOSE_FIRE_ATTEMPT_FLASH_PERIOD_MS = 180L;
     // Shot tuning mode: same driving/aiming flow, but manual shooter controls and KEEP/IGNORE labels.
-    public static boolean SHOT_TUNING_MODE = false;
-    public static boolean ENABLE_SHOT_TUNING_LOGGING = false;
+    public static boolean SHOT_TUNING_MODE = true;
+    public static boolean ENABLE_SHOT_TUNING_LOGGING = true;
     public static double SHOT_TUNING_RPM_STEP = 25.0;
     public static double SHOT_TUNING_HOOD_STEP = 0.005;
     public static double SHOT_TUNING_TARGET_STEP_IN = 1.0;
-    public static boolean SHOT_TUNING_REQUIRE_AT_SPEED_TO_FIRE = true;
-    public static double SHOT_TUNING_AT_SPEED_TOLERANCE_RPM = 75.0;
     public static double SHOT_TUNING_TARGET_X_IN = 144.0;
     public static double SHOT_TUNING_TARGET_Y_IN = 137.0;
-    public static boolean ENABLE_SHOT_INFO_LOGGING = true;
+    // Seed RPM applied on match start when SHOT_TUNING_MODE is enabled. Normal
+    // mode leaves targetRPM at 0 until the Limelight/ODO aim path computes one,
+    // but tuning mode disables that auto path, so without a seed here the
+    // first right-bumper spin-up would call spinUp(0) and silently disable
+    // the flywheel. Operator can still trim up/down from this baseline with
+    // gamepad 2 D-pad up/down.
+    public static double SHOT_TUNING_DEFAULT_RPM = 3500.0;
+    public static boolean ENABLE_SHOT_INFO_LOGGING = false;
     public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
     // Dumbshoot-specific logging window based on observed burst timing:
     // shot1 < 200 ms, shot2 ~150 ms later, shot3 usually ~200 ms later.
@@ -173,7 +178,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean dumbShootRpmPrevBb0 = false;
     private boolean dumbShootRpmPrevBb1 = false;
     private boolean dumbShootRpmPrevBb2 = false;
-    private boolean shotTuningFlywheelEnabled = false;
     private int shotTuningShotIdCounter = 0;
     private boolean shotTuningPendingLabel = false;
     private int shotTuningPendingShotId = 0;
@@ -197,6 +201,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean prevTuningTargetDpadRight = false;
     private boolean prevTuningRpmDpadUp = false;
     private boolean prevTuningRpmDpadDown = false;
+    private boolean prevTuningHoodDpadLeft = false;
+    private boolean prevTuningHoodDpadRight = false;
     private String shotGateLedState = "NONE";
     private double prevTurretLogTargetDeg = Double.NaN;
     private double prevTurretLogMeasuredDeg = Double.NaN;
@@ -257,7 +263,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean testShooter = false;
     public static double targetRPM = 0;
     public static double targetInitialRPM = 0;
-    public static double minDisatanceForShooting = 42.0;
+    public static double minDisatanceForShooting = 0.0; //was 42", but set to 0 for testing
 
     // SOTM Stage 3 (turret + distance-based time of flight)
     public static boolean SOTM_ENABLED = true;
@@ -332,7 +338,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shooterFollowEnabled = false;
         dumbShootTimerActive = false;
         singleShotPending = false;
-        shotTuningFlywheelEnabled = false;
         shotTuningPendingLabel = false;
         shotTuningShotIdCounter = 0;
         shooterHoodPos = 0.0;
@@ -342,6 +347,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevTuningTargetDpadRight = false;
         prevTuningRpmDpadUp = false;
         prevTuningRpmDpadDown = false;
+        prevTuningHoodDpadLeft = false;
+        prevTuningHoodDpadRight = false;
         shotGateLedState = "NONE";
         hold = false;
         prevHold = false;
@@ -796,7 +803,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         dumbShootRpmBb2FallCount = 0;
         dumbShootRpmPrevBbInitialized = false;
         lastDumbShootRpmLogMs = 0L;
-        shotTuningFlywheelEnabled = false;
         shotTuningPendingLabel = false;
         prevTuningTargetDpadUp = false;
         prevTuningTargetDpadDown = false;
@@ -804,8 +810,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevTuningTargetDpadRight = false;
         prevTuningRpmDpadUp = false;
         prevTuningRpmDpadDown = false;
+        prevTuningHoodDpadLeft = false;
+        prevTuningHoodDpadRight = false;
         shotGateLedState = "NONE";
         shooterHoodPos = ShooterSubsystem.INSTANCE.getShooterHoodPosition();
+
+        // In shot-tuning mode the auto-RPM path (Limelight / ODO distance ->
+        // calculateShooterRPMOdoDistance) is gated off so the operator can trim
+        // RPM with the D-pad. Without seeding a baseline here the first
+        // right-bumper press would call spinUp(0) and disable the flywheel,
+        // which has been observed as "flywheel won't start in tuning mode".
+        // Seed a sensible baseline so the very first spin-up is usable, then
+        // let the operator trim from there.
+        if (SHOT_TUNING_MODE) {
+            targetRPM = SHOT_TUNING_DEFAULT_RPM;
+        }
 
         logStartMs = System.currentTimeMillis();
     }
@@ -878,7 +897,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         boolean rightTriggerActive = gamepad1.right_trigger > 0.1;
         boolean rightBumperActive = gamepad1.right_bumper;
         boolean dpadUpActive = !SHOT_TUNING_MODE && gamepad1.dpad_up;
-        boolean sotmFireRequestActive = !SHOT_TUNING_MODE && (rightTriggerActive || rightBumperActive);
+        // Fire request from gamepad 1 right trigger / bumper. We allow this in shot
+        // tuning mode too so that the normal dumbShoot path runs (just with the
+        // virtual goal target and the operator's manual RPM / hood values).
+        boolean sotmFireRequestActive = rightTriggerActive || rightBumperActive;
         boolean sotmControlActive = SOTM_ENABLED && (SOTM_ALWAYS_TRACK_TARGETS || sotmFireRequestActive);
 
         if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
@@ -1118,16 +1140,22 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         // Continuously compute desired RPM from current aiming mode, but only spin flywheel
         // when explicitly enabled (left-bumper latch or 3-ball auto-enable).
+        // In shot tuning mode we skip the auto-RPM calculation so the operator's
+        // manual d-pad RPM value is preserved.
         if (!SHOT_TUNING_MODE) {
             targetRPM = sotmControlActive
                     ? calculateShooterRPMOdoDistance(shooterDistanceForBallistics)
                     : calculateShooterRPMOdoDistance(this.ODODistance);
+        }
 
-            // Allow RB/RT fire request to actively prime flywheel RPM so shoot gating can clear.
-            // This still avoids pre-spinning during Init or idle driving.
-            boolean shooterPrimeRequested = shooterFollowEnabled || sotmFireRequestActive;
-            if (matchHasStarted && shooterPrimeRequested) {
-                ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+        // Allow RB/RT fire request to actively prime flywheel RPM so shoot gating can clear.
+        // This still avoids pre-spinning during Init or idle driving. Runs in both
+        // normal and tuning mode so gamepad 1 right trigger / bumper brings the
+        // shooter up to targetRPM before firing either way.
+        boolean shooterPrimeRequested = shooterFollowEnabled || sotmFireRequestActive;
+        if (matchHasStarted && shooterPrimeRequested) {
+            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+            if (!SHOT_TUNING_MODE) {
                 adjustOdo = true;
             }
         }
@@ -1358,7 +1386,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("SOTM_tooCloseBlock", tooCloseWarningActive);
         telemetry.addData("SOTM_shotGateLedState", shotGateLedState);
         telemetry.addData("SHOT_TUNE_mode", SHOT_TUNING_MODE);
-        telemetry.addData("SHOT_TUNE_flywheelEnabled", shotTuningFlywheelEnabled);
         telemetry.addData("SHOT_TUNE_targetRPM", targetRPM);
         telemetry.addData("SHOT_TUNE_hoodPos", shooterHoodPos);
         telemetry.addData("SHOT_TUNE_targetX", SHOT_TUNING_TARGET_X_IN);
@@ -1366,7 +1393,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("SHOT_TUNE_pendingLabel", shotTuningPendingLabel);
         telemetry.addData("SHOT_TUNE_pendingShotId", shotTuningPendingShotId);
         telemetry.addData("SHOT_TUNE_controls",
-                "g2RB toggle flywheel, g2A fire, g2Y/X hood+/- , g2DpadUp/Down rpm+/- , g1Dpad target, g1X keep, g1B ignore");
+                "drive/intake/shoot like normal; g1Dpad target+/-, g2DpadUp/Down rpm+/-, g2DpadLeft/Right hood-/+, g1X keep, g1B ignore");
         telemetryM.addData("targetRPM", ShooterSubsystem.INSTANCE.getTargetRpm());
 
         if (ENABLE_TURRET_LOGGING && turretLogger != null) {
@@ -1653,11 +1680,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             labelShotTuningSample("UNRATED", "mode_exit");
         }
 
+        // Shot-tuning overlay: when SHOT_TUNING_MODE is true, the driver uses all
+        // of the normal driving / intake / shooter / dumbShoot controls, and this
+        // block layers on three overrides:
+        //   * Gamepad 2 D-pad up/down     -> adjust targetRPM in SHOT_TUNING_RPM_STEP increments
+        //   * Gamepad 2 D-pad left/right  -> adjust shooterHoodPos in SHOT_TUNING_HOOD_STEP increments
+        //   * Gamepad 1 X / B             -> label the pending shot as KEEP / IGNORE
+        // Shot-tuning sample capture happens wherever the real fire event occurs
+        // (see the dumbShoot block below). The goal target override itself
+        // (SHOT_TUNING_TARGET_X_IN / Y_IN, adjusted via gamepad 1 D-pad) is
+        // already applied earlier where shootTargetX/Y are computed.
         if (SHOT_TUNING_MODE) {
-            hold = false;
-            dumbShootTimerActive = false;
             shooterFollowEnabled = false;
-            ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
 
             boolean tuningRpmUp = gamepad2.dpad_up;
             boolean tuningRpmDown = gamepad2.dpad_down;
@@ -1671,87 +1705,48 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             prevTuningRpmDpadUp = tuningRpmUp;
             prevTuningRpmDpadDown = tuningRpmDown;
 
+            boolean tuningHoodRight = gamepad2.dpad_right;
+            boolean tuningHoodLeft = gamepad2.dpad_left;
             double hoodStep = Math.max(0.0, SHOT_TUNING_HOOD_STEP);
-            if (gamepad2.yWasPressed()) {
+            if (tuningHoodRight && !prevTuningHoodDpadRight) {
                 shooterHoodPos = Math.min(1.0, shooterHoodPos + hoodStep);
             }
-            if (gamepad2.xWasPressed()) {
+            if (tuningHoodLeft && !prevTuningHoodDpadLeft) {
                 shooterHoodPos = Math.max(0.0, shooterHoodPos - hoodStep);
             }
-
-            if (gamepad2.rightBumperWasPressed()) {
-                shotTuningFlywheelEnabled = !shotTuningFlywheelEnabled;
-            }
-            if (gamepad2.leftBumperWasPressed()) {
-                shotTuningFlywheelEnabled = false;
-            }
-
-            if (shotTuningFlywheelEnabled && matchHasStarted) {
-                ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-            } else {
-                ShooterSubsystem.INSTANCE.stop();
-            }
-
-            boolean shotTuningAtSpeed =
-                    !SHOT_TUNING_REQUIRE_AT_SPEED_TO_FIRE ||
-                    isShooterReadyForFeed(
-                            SHOT_TUNING_AT_SPEED_TOLERANCE_RPM,
-                            rpmShooter1,
-                            rpmShooter2
-                    );
-            boolean shotTuningCanFire = canShootAtGoal && shotTuningAtSpeed && !tooCloseWarningActive;
-            if (gamepad2.aWasPressed() && shotTuningCanFire) {
-                if (shotTuningPendingLabel) {
-                    labelShotTuningSample("UNRATED", "next_shot_before_label");
-                }
-                if (IntakeWithSensorsSubsystem.INSTANCE.feedSingleBallFullPower()) {
-                    shotTuningShotIdCounter++;
-                    shotTuningPendingLabel = true;
-                    shotTuningPendingShotId = shotTuningShotIdCounter;
-                    shotTuningPendingFireMs = nowMs;
-                    shotTuningPendingStartBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-                    shotTuningPendingTargetRpm = targetRPM;
-                    shotTuningPendingHoodPos = shooterHoodPos;
-                    shotTuningPendingRpm1 = rpmShooter1;
-                    shotTuningPendingRpm2 = rpmShooter2;
-                    shotTuningPendingBotX = botxvalue;
-                    shotTuningPendingBotY = botyvalue;
-                    shotTuningPendingBotHeadingDeg = Math.toDegrees(botHeadingRad);
-                    shotTuningPendingTargetX = shootTargetX;
-                    shotTuningPendingTargetY = shootTargetY;
-                    shotTuningPendingOdoDistance = ODODistance;
-                    shotTuningPendingTurretTargetDeg = TurretSubsystem.INSTANCE.getTargetAngleDegrees();
-                    shotTuningPendingTurretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
-                }
-            }
+            prevTuningHoodDpadRight = tuningHoodRight;
+            prevTuningHoodDpadLeft = tuningHoodLeft;
 
             if (gamepad1.xWasPressed() && shotTuningPendingLabel) {
                 labelShotTuningSample("KEEP", "manual_keep");
             } else if (gamepad1.bWasPressed() && shotTuningPendingLabel) {
                 labelShotTuningSample("IGNORE", "manual_ignore");
             }
+        }
 
-            maybeFinalizeShotInfoSequence(nowMs, false, leftTriggerActive);
-            singleShotPending = false;
-            shotGateLedState = "NONE";
-        } else {
+        {
             if (gamepad2.rightBumperWasPressed()) {
                 this.shoot = true;
                 // Starting a new spin-up cancels any previous dumbShoot timeout
                 dumbShootTimerActive = false;
-                if (testShooter) {
+                // In shot-tuning mode skip the auto-RPM recompute so the operator's
+                // manual d-pad RPM value is preserved. Normal mode keeps the
+                // Limelight / ODO-based RPM selection logic.
+                if (!SHOT_TUNING_MODE) {
+                    if (testShooter) {
 
-                }else if (!hasResults || this.adjustOdo) {
-                    //ShooterSubsystem.INSTANCE.setClosePID();
-                    targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
-                    //ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-                    //targetRPM = 2950;
-                } else if (hasResults && yOffset > 9.) {
-                    ShooterSubsystem.INSTANCE.setClosePID();
-                    targetRPM = calculateShooterRPM(yOffset);
-                } else if (hasResults && yOffset <= 9.) {
-                    ShooterSubsystem.INSTANCE.setFarPID();
-                    targetRPM = 4330;
+                    }else if (!hasResults || this.adjustOdo) {
+                        //ShooterSubsystem.INSTANCE.setClosePID();
+                        targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
+                        //ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+                        //targetRPM = 2950;
+                    } else if (hasResults && yOffset > 9.) {
+                        ShooterSubsystem.INSTANCE.setClosePID();
+                        targetRPM = calculateShooterRPM(yOffset);
+                    } else if (hasResults && yOffset <= 9.) {
+                        ShooterSubsystem.INSTANCE.setFarPID();
+                        targetRPM = 4330;
+                    }
                 }
                 //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
                 telemetry.addData("Target Shooter Speed", targetRPM);
@@ -1833,6 +1828,33 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(ODODistance);
                     } else {
                         ShooterSubsystem.INSTANCE.setBoostOn(useFarBoostProfile);
+                    }
+
+                    // In shot-tuning mode, capture a sample for this dumbShoot so
+                    // the driver can label it KEEP / IGNORE on gamepad 1 X / B.
+                    // Any previous unlabeled shot is auto-marked UNRATED so each
+                    // label only applies to the most-recent burst.
+                    if (SHOT_TUNING_MODE) {
+                        if (shotTuningPendingLabel) {
+                            labelShotTuningSample("UNRATED", "next_shot_before_label");
+                        }
+                        shotTuningShotIdCounter++;
+                        shotTuningPendingLabel = true;
+                        shotTuningPendingShotId = shotTuningShotIdCounter;
+                        shotTuningPendingFireMs = nowMs;
+                        shotTuningPendingStartBallCount = startBallCountBeforeDumbShoot;
+                        shotTuningPendingTargetRpm = targetRPM;
+                        shotTuningPendingHoodPos = shooterHoodPos;
+                        shotTuningPendingRpm1 = rpmShooter1;
+                        shotTuningPendingRpm2 = rpmShooter2;
+                        shotTuningPendingBotX = botxvalue;
+                        shotTuningPendingBotY = botyvalue;
+                        shotTuningPendingBotHeadingDeg = Math.toDegrees(botHeadingRad);
+                        shotTuningPendingTargetX = shootTargetX;
+                        shotTuningPendingTargetY = shootTargetY;
+                        shotTuningPendingOdoDistance = ODODistance;
+                        shotTuningPendingTurretTargetDeg = TurretSubsystem.INSTANCE.getTargetAngleDegrees();
+                        shotTuningPendingTurretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
                     }
                 }
             }  else if (leftTriggerActive && !prevLeftTriggerActive) {

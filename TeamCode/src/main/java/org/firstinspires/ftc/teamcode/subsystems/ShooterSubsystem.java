@@ -49,10 +49,10 @@ public class ShooterSubsystem implements Subsystem {
     // TIME BASED BOOST SETTINGS
     // =============================================
     public static long BOOST_DELAY_MS = 8000;   // boost activates after spinUp()
-    public static double BOOST_STAGE1_MULTIPLIER_NEAR = 1.0;
-    public static double BOOST_STAGE2_MULTIPLIER_NEAR = 1.0;
-    public static double BOOST_STAGE1_MULTIPLIER_FAR = 1.0;
-    public static double BOOST_STAGE2_MULTIPLIER_FAR = 1.0;
+    public static double BOOST_STAGE1_MULTIPLIER_NEAR = 2.0;
+    public static double BOOST_STAGE2_MULTIPLIER_NEAR = 2.0;
+    public static double BOOST_STAGE1_MULTIPLIER_FAR = 2.0;
+    public static double BOOST_STAGE2_MULTIPLIER_FAR = 2.0;
     public static boolean ENABLE_HYBRID_SHOT_FEED_BOOST = true;
     public static double HYBRID_NEAR_FAR_DISTANCE_THRESHOLD_IN = 105.0;
     public static long HYBRID_CLOSE_DT_SHOT_FEED_START_TO_BALL1_CONTACT_MS_EST = 135;
@@ -75,6 +75,22 @@ public class ShooterSubsystem implements Subsystem {
     public static boolean HYBRID_USE_BB1_FALL_FOR_BALL2 = true;
     public static boolean HYBRID_USE_BB1_FALL_FOR_BALL3 = true;
     public static boolean HYBRID_USE_BB2_FALL_FOR_BALL3 = true;
+
+    // Ball-1 composite trigger: motor-signal advance conditions for WAIT_BALL1_CONTACT
+    // in addition to the existing bb2_fall_edge edge + timer fallback. Based on the
+    // April 18, 2026 dataset (see scripts/ball1_contact_trigger_analysis_2026-04-18.md):
+    // - bb2 fall alone fires in only ~75% of sequences (misses when ball is already
+    //   past bb2 at feed start), so the motor-based branches restore 100% coverage.
+    // - On sequences where bb2 DOES fire, bb2 beats the motor signals by ~60-90 ms
+    //   and takes precedence.
+    // - On sequences where bb2 misses, the RPM-drop branch fires ~60 ms before the
+    //   timer fallback on average.
+    public static boolean HYBRID_USE_RPM_DROP_FOR_BALL1 = true;
+    public static boolean HYBRID_USE_CURRENT_SPIKE_FOR_BALL1 = true;
+    // Minimum time since shot-feed-start before the motor-based ball-1 advance
+    // conditions are allowed to fire. Prevents false positives during the feed-servo
+    // transient and while the baseline EMA is still settling.
+    public static long HYBRID_BALL1_MOTOR_TRIGGER_MIN_MS = 50L;
     public static boolean ENABLE_VOLTAGE_COMPENSATION = false;
     public static double VOLTAGE_COMP_NOMINAL_V = 12.5;
     public static double VOLTAGE_COMP_FILTER_TAU_SEC = 0.5;
@@ -83,44 +99,50 @@ public class ShooterSubsystem implements Subsystem {
     public static double VOLTAGE_COMP_MIN_VALID_V = 7.0;
 
     // =============================================
-    // RPM-DROP OBSERVER (logging-only; no control effect yet)
+    // RPM-DROP OBSERVER (also drives ball-1 composite trigger when enabled)
     // =============================================
-    // Enables maintenance of the filtered-RPM baseline and the derivative / candidate
-    // "would-have-fired" booleans. Control logic never reads these fields; they exist so
-    // post-match CSV analysis can compare trigger definitions without committing to one.
+    // Maintains a filtered-RPM baseline plus a derivative signal and boolean "candidate"
+    // flags. The flags are both logged (for post-match CSV analysis) and consumed by
+    // the hybrid ball-1 advance logic when HYBRID_USE_RPM_DROP_FOR_BALL1 is true.
     public static boolean ENABLE_RPM_DROP_OBSERVER = true;
     // First-order low-pass time constant for the baseline RPM filter (seconds).
     public static double RPM_BASELINE_FILTER_TAU_SEC = 0.08;
     // Candidate trigger: measured RPM dropped this many RPM below the active target.
+    // Not used by the ball-1 trigger (baseline delta is the primary RPM signal), but
+    // kept for observability.
     public static double RPM_DROP_CANDIDATE_TARGET_DELTA_RPM = 150.0;
     // Candidate trigger: measured RPM dropped this many RPM below the baseline captured
-    // at the moment the hybrid shot sequence started.
-    public static double RPM_DROP_CANDIDATE_BASELINE_DELTA_RPM = 100.0;
+    // at the moment the hybrid shot sequence started. Tuned from April 18 data: 150 RPM
+    // is the cleanest separation from motor/controller noise in the stable pre-contact
+    // window while still firing in the sample immediately after true contact.
+    public static double RPM_DROP_CANDIDATE_BASELINE_DELTA_RPM = 150.0;
     // Candidate trigger: d(measured RPM)/dt more negative than this threshold (RPM/sec).
-    public static double RPM_DROP_CANDIDATE_DERIVATIVE_RPM_PER_SEC = -2500.0;
+    // Tuned from April 18 data: -3000 rpm/s is roughly 2x the worst pre-contact noise
+    // sample and consistently fires ~1 sample into real ball contact.
+    public static double RPM_DROP_CANDIDATE_DERIVATIVE_RPM_PER_SEC = -3000.0;
 
     // =============================================
-    // CURRENT-SPIKE OBSERVER (logging-only; no control effect yet)
+    // CURRENT-SPIKE OBSERVER (also drives ball-1 composite trigger when enabled)
     // =============================================
-    // Enables per-loop motor current sampling and the current baseline / derivative /
-    // candidate "would-have-fired" booleans. Only adds cost if the opmode is NOT using
-    // LynxModule bulk-caching; NextFTC's BulkReadComponent makes getCurrent() essentially
-    // free because it reads from the same cached bulk transaction as encoders and digital
-    // inputs.
+    // Maintains a filtered motor-current baseline plus a derivative signal and boolean
+    // "candidate" flags. Both logged and consumed by the hybrid ball-1 advance logic
+    // when HYBRID_USE_CURRENT_SPIKE_FOR_BALL1 is true. NextFTC's BulkReadComponent
+    // makes getCurrent() essentially free because it reads from the same cached bulk
+    // transaction as encoders and digital inputs.
     public static boolean ENABLE_CURRENT_SPIKE_OBSERVER = true;
     // First-order low-pass time constant for the baseline motor-current filter (seconds).
     // Somewhat longer than the RPM baseline because the raw per-loop current reading is
     // noisier than the RPM delta.
     public static double CURRENT_BASELINE_FILTER_TAU_SEC = 0.12;
     // Candidate trigger: avg-motor-current spiked this many amps above the captured
-    // pre-shot baseline. Tune from data; a reasonable starting point is ~3-5 A since a
-    // goBILDA 5202/6000-rpm motor typically draws ~5-8 A at spin-up steady-state and
-    // spikes several amps on a ball strike.
-    public static double CURRENT_SPIKE_CANDIDATE_BASELINE_DELTA_A = 4.0;
-    // Candidate trigger: d(avg-motor-current)/dt above this threshold (A/sec). A sudden
-    // ball impact tends to produce a sharp positive current derivative; spin-up ramps
-    // produce a much gentler positive derivative.
-    public static double CURRENT_SPIKE_CANDIDATE_DERIVATIVE_A_PER_SEC = 40.0;
+    // pre-shot baseline. Tuned from April 18 data: ball contact adds ~0.3-1.5A above
+    // the stable pre-feed baseline on the near profile; 0.3A fires cleanly on the
+    // first post-contact sample without false-positiving on spin-up noise.
+    public static double CURRENT_SPIKE_CANDIDATE_BASELINE_DELTA_A = 0.3;
+    // Candidate trigger: d(avg-motor-current)/dt above this threshold (A/sec). Tuned
+    // from April 18 data: ball-contact samples reach 10-20 A/s; stable-state noise
+    // stays under ~8 A/s. 10 A/s gives the earliest reliable fire.
+    public static double CURRENT_SPIKE_CANDIDATE_DERIVATIVE_A_PER_SEC = 10.0;
 
     // =============================================
     // CONSTANTS
@@ -1028,6 +1050,33 @@ public class ShooterSubsystem implements Subsystem {
             }
         }
 
+        // Ball-1 composite motor-signal triggers. These are NOT gated by the
+        // bb-edge debouncing (they're sustained conditions, not edges) and NOT by
+        // the expected-contact window (a real RPM drop or current spike is proof of
+        // contact regardless of where in the window it happens). They fire only
+        // after a short arming delay so the feed-servo transient and the baseline
+        // EMA have time to settle. Precedence: bb2 fall above wins when present
+        // (earlier signal); these fire in the "no bb2 edge" cases.
+        if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT &&
+                sinceShotFeedStartMs >= Math.max(0L, HYBRID_BALL1_MOTOR_TRIGGER_MIN_MS)) {
+            if (HYBRID_USE_RPM_DROP_FOR_BALL1 && isRpmDropCandidateBaselineDelta()) {
+                advanceHybridShotFeedBoostPhase(nowMs, "BALL1_RPM_DROP_BASELINE", false);
+                return;
+            }
+            if (HYBRID_USE_RPM_DROP_FOR_BALL1 && isRpmDropCandidateDerivative()) {
+                advanceHybridShotFeedBoostPhase(nowMs, "BALL1_RPM_DROP_DERIVATIVE", false);
+                return;
+            }
+            if (HYBRID_USE_CURRENT_SPIKE_FOR_BALL1 && isCurrentSpikeCandidateBaselineDelta()) {
+                advanceHybridShotFeedBoostPhase(nowMs, "BALL1_CURRENT_SPIKE_BASELINE", false);
+                return;
+            }
+            if (HYBRID_USE_CURRENT_SPIKE_FOR_BALL1 && isCurrentSpikeCandidateDerivative()) {
+                advanceHybridShotFeedBoostPhase(nowMs, "BALL1_CURRENT_SPIKE_DERIVATIVE", false);
+                return;
+            }
+        }
+
         if (sinceShotFeedStartMs >= expectedContactMs + Math.max(0L, HYBRID_TIMER_FALLBACK_EXTRA_MS)) {
             if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
                 advanceHybridShotFeedBoostPhase(nowMs, "BALL1_TIMER_FALLBACK", false);
@@ -1049,7 +1098,16 @@ public class ShooterSubsystem implements Subsystem {
             hybridLastAcceptedEdgeMs = nowMs;
         }
 
+        // setBoostOn() loads the stage-1 / stage-2 multipliers but leaves
+        // boostActive = false and schedules it on the old time-based delay
+        // (BOOST_DELAY_MS, default 8000ms). That delay exists for the old
+        // non-hybrid boost path; the hybrid controller has already proven a
+        // ball just contacted the flywheel, so we force boostActive = true
+        // immediately. Without this the log shows boost_active = false for
+        // the entire burst and the multiplier never actually multiplies the
+        // PID output.
         setBoostOn(hybridShotFeedUsesFarProfile);
+        boostActive = true;
 
         if (hybridShotFeedBoostPhase == HybridShotFeedBoostPhase.WAIT_BALL1_CONTACT) {
             hybridShotFeedBoostPhase = HybridShotFeedBoostPhase.WAIT_BALL2_CONTACT;
