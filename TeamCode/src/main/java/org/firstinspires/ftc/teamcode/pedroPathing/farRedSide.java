@@ -253,6 +253,7 @@ public class farRedSide extends farAutonPaths{
      * It runs all the setup actions, including building paths and starting the path system **/
     @Override
     public void onStartButtonPressed() {
+        startAutonLogger();
         if (intAmount == 3) {
                 Close3Ball().schedule();
             }
@@ -295,6 +296,7 @@ public class farRedSide extends farAutonPaths{
     /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
         @Override
         public void onUpdate() {
+            logAutonLoop();
 
             // These loop the movements of the robot, these must be called continuously in order to work
 
@@ -310,6 +312,8 @@ public class farRedSide extends farAutonPaths{
         /** We shouldn't need this because everything should automatically disable **/
         @Override
         public void onStop() {
+            logAutonLoop();
+            saveAutonLogger();
             // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();

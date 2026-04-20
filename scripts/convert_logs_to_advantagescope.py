@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Tuple
 
 
-TIME_KEYS_PRIORITY = ("t_ms", "timestamp_ms", "time_ms", "match_t_ms")
+TIME_KEYS_PRIORITY = ("match_t_ms", "t_ms", "timestamp_ms", "time_ms")
 OUTPUT_TIME_HEADER = "Timestamp"
 OUTPUT_LIST_HEADERS = [OUTPUT_TIME_HEADER, "Key", "Value"]
 INCHES_TO_METERS = 0.0254
@@ -58,8 +58,8 @@ class ActiveArtifactShot:
     launch_x_m: float
     launch_y_m: float
     launch_z_m: float
-    target_x_m: float
-    target_y_m: float
+    impact_x_m: float
+    impact_y_m: float
     target_z_m: float
     yaw_rad: float
 
@@ -666,6 +666,12 @@ def convert_file_field3d(
                             horizontal_distance_m / max(1e-6, artifact_speed_m_per_sec),
                         )
                         yaw_rad = math.atan2(dy_m, dx_m)
+                        if turret_measured_deg is not None:
+                            yaw_rad = normalize_angle_rad(
+                                last_heading_rad + math.radians(turret_measured_deg) + math.pi
+                            )
+                        impact_x_m = launch_x_m + (math.cos(yaw_rad) * horizontal_distance_m)
+                        impact_y_m = launch_y_m + (math.sin(yaw_rad) * horizontal_distance_m)
 
                         for shot_idx, launch_slot in enumerate(launch_slots):
                             active_artifact_shots.append(
@@ -676,8 +682,8 @@ def convert_file_field3d(
                                     launch_x_m=launch_x_m,
                                     launch_y_m=launch_y_m,
                                     launch_z_m=launch_z_m,
-                                    target_x_m=target_x,
-                                    target_y_m=target_y,
+                                    impact_x_m=impact_x_m,
+                                    impact_y_m=impact_y_m,
                                     target_z_m=artifact_target_z_m,
                                     yaw_rad=yaw_rad,
                                 )
@@ -752,10 +758,10 @@ def convert_file_field3d(
                         shot_elapsed_sec = t_sec - active_shot.launch_time_sec
                         progress = shot_elapsed_sec / max(1e-6, active_shot.flight_time_sec)
                         pos_x_m = active_shot.launch_x_m + (
-                            (active_shot.target_x_m - active_shot.launch_x_m) * progress
+                            (active_shot.impact_x_m - active_shot.launch_x_m) * progress
                         )
                         pos_y_m = active_shot.launch_y_m + (
-                            (active_shot.target_y_m - active_shot.launch_y_m) * progress
+                            (active_shot.impact_y_m - active_shot.launch_y_m) * progress
                         )
                         launch_vz_mps = (
                             active_shot.target_z_m

@@ -302,6 +302,7 @@ public class closeRedSide extends closeAutonPaths{
     public void onStartButtonPressed() {
         TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
         TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(90);
+        startAutonLogger();
         if (intAmount == 3) {
                 Close3Ball().schedule();
             }
@@ -346,6 +347,7 @@ public class closeRedSide extends closeAutonPaths{
     /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
         @Override
         public void onUpdate() {
+            logAutonLoop();
 
             // These loop the movements of the robot, these must be called continuously in order to work
 
@@ -361,6 +363,8 @@ public class closeRedSide extends closeAutonPaths{
         /** We shouldn't need this because everything should automatically disable **/
         @Override
         public void onStop() {
+            logAutonLoop();
+            saveAutonLogger();
             // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();

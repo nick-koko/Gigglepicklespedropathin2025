@@ -5,10 +5,14 @@ import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.paths.PathChain;
+import com.qualcomm.robotcore.util.RobotLog;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.util.CsvLogger;
+
+import java.io.File;
 
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
@@ -27,6 +31,14 @@ public class farAutonPaths extends NextFTCOpMode{
     public static double autonShooterHoodServoPos = 0.48;
     public static double pickupBrakingStrength = 1.0;
 	public static double pickupCornerBrakingStrength = 0.1;
+    public static boolean ENABLE_AUTON_LOGGING = true;
+    public static long AUTON_LOG_PERIOD_MS = 25L;
+    public static double AUTON_SHOOTER_AT_SPEED_TOLERANCE_RPM = 75.0;
+
+    private CsvLogger autonLogger;
+    private long autonLogStartMs = 0L;
+    private long lastAutonLogMs = 0L;
+    private long lastAutonLoopMs = 0L;
 
 
     public final Pose startPoseBlue = new Pose(64, 8.5, Math.toRadians(90)); // Start Pose of our robot
@@ -171,6 +183,90 @@ public class farAutonPaths extends NextFTCOpMode{
     public Pose offLineClose;
 
     private PathChain firstshootpath, firstPickup,firstPickupEnd, secondPickup, secondPickupEnd, thirdPickup, thirdPickupEnd, TZonePickup, TZonePickupEnd, secondPickupGateLeverEnd, secondPickupGateLeverShootEnd, BZonePickup, BZonePickupEnd, moveOffLineLever, moveOffLineClose;
+
+    protected void startAutonLogger() {
+        autonLogStartMs = System.currentTimeMillis();
+        lastAutonLogMs = 0L;
+        lastAutonLoopMs = 0L;
+
+        if (!ENABLE_AUTON_LOGGING) {
+            autonLogger = null;
+            return;
+        }
+
+        autonLogger = new CsvLogger(getClass().getSimpleName() + "_auton");
+        autonLogger.start(
+                "t_ms," +
+                        "match_t_ms," +
+                        "bot_x," +
+                        "bot_y," +
+                        "bot_heading_deg," +
+                        "turret_target_deg," +
+                        "turret_measured_deg," +
+                        "shooter_target_rpm," +
+                        "shooter_rpm1," +
+                        "shooter_rpm2," +
+                        "shooter_at_speed_75," +
+                        "shooter_battery_v," +
+                        "shooter_battery_v_filtered," +
+                        "intake_active," +
+                        "intake_direction," +
+                        "intake_m1_rpm," +
+                        "intake_m3_rpm," +
+                        "ball_count," +
+                        "loop_time_ms"
+        );
+    }
+
+    protected void logAutonLoop() {
+        long nowMs = System.currentTimeMillis();
+        long loopTimeMs = (lastAutonLoopMs == 0L) ? 0L : (nowMs - lastAutonLoopMs);
+        lastAutonLoopMs = nowMs;
+
+        if (!ENABLE_AUTON_LOGGING || autonLogger == null) {
+            return;
+        }
+        if (lastAutonLogMs != 0L && nowMs - lastAutonLogMs < AUTON_LOG_PERIOD_MS) {
+            return;
+        }
+        lastAutonLogMs = nowMs;
+
+        Pose pose = PedroComponent.follower().getPose();
+        autonLogger.addRow(
+                nowMs,
+                (autonLogStartMs == 0L) ? 0L : (nowMs - autonLogStartMs),
+                pose.getX(),
+                pose.getY(),
+                Math.toDegrees(pose.getHeading()),
+                Double.NaN,
+                Double.NaN,
+                ShooterSubsystem.INSTANCE.getTargetRpm(),
+                ShooterSubsystem.INSTANCE.getShooter1RPM(),
+                ShooterSubsystem.INSTANCE.getShooter2RPM(),
+                ShooterSubsystem.INSTANCE.isAtSpeed(AUTON_SHOOTER_AT_SPEED_TOLERANCE_RPM),
+                ShooterSubsystem.INSTANCE.getBatteryVoltageRaw(),
+                ShooterSubsystem.INSTANCE.getBatteryVoltageFiltered(),
+                IntakeWithSensorsSubsystem.INSTANCE.isIntakingActive(),
+                IntakeWithSensorsSubsystem.INSTANCE.getCurrentDirection(),
+                IntakeWithSensorsSubsystem.INSTANCE.getMotor1RPM(),
+                IntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM(),
+                IntakeWithSensorsSubsystem.INSTANCE.getBallCount(),
+                loopTimeMs
+        );
+    }
+
+    protected void saveAutonLogger() {
+        if (!ENABLE_AUTON_LOGGING || autonLogger == null) {
+            return;
+        }
+
+        File savedFile = autonLogger.save();
+        if (savedFile != null) {
+            RobotLog.ii(getClass().getSimpleName(), "Auton CSV saved: " + savedFile.getAbsolutePath());
+        } else {
+            RobotLog.ww(getClass().getSimpleName(), "Auton CSV was not saved.");
+        }
+    }
 
         public void buildPaths() {
 

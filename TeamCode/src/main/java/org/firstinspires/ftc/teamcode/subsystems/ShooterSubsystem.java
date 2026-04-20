@@ -45,6 +45,13 @@ public class ShooterSubsystem implements Subsystem {
     public static boolean DISABLE_SLEW_DURING_BOOST = true;
     public static double I_ZONE = 500.0;
 
+    // Mechanical limits of the hood servo. HOOD_MAX_POS is the measured physical
+    // ceiling; raising it beyond what the mechanism can travel will not move the
+    // hood further and will cause servo buzz. Applied to every hood command path
+    // below so no caller can bypass the clamp.
+    public static double HOOD_MIN_POS = 0.0;
+    public static double HOOD_MAX_POS = 0.525;
+
     // =============================================
     // TIME BASED BOOST SETTINGS
     // =============================================
@@ -600,20 +607,20 @@ public class ShooterSubsystem implements Subsystem {
     public void driveShooterHood(double joystick) {
         double currentPosition = shooterHood.getPosition();
         double increment = -joystick * 0.01;
-        double newPosition = Range.clip(currentPosition + increment, 0.0, 1.0);
+        double newPosition = Range.clip(currentPosition + increment, HOOD_MIN_POS, HOOD_MAX_POS);
         shooterHood.setPosition(newPosition);
     }
 
     public void shooterHoodDrive(double hoodPosition) {
-        shooterHood.setPosition(Range.clip(hoodPosition, 0.0, 1.0));
+        shooterHood.setPosition(Range.clip(hoodPosition, HOOD_MIN_POS, HOOD_MAX_POS));
     }
 
     public void increaseShooterHoodPosInc() {
-        shooterHood.setPosition(Range.clip(shooterHood.getPosition() + 0.1, 0.0, 1.0));
+        shooterHood.setPosition(Range.clip(shooterHood.getPosition() + 0.1, HOOD_MIN_POS, HOOD_MAX_POS));
     }
 
     public void decreaseShooterHoodPosInc() {
-        shooterHood.setPosition(Range.clip(shooterHood.getPosition() - 0.1, 0.0, 1.0));
+        shooterHood.setPosition(Range.clip(shooterHood.getPosition() - 0.1, HOOD_MIN_POS, HOOD_MAX_POS));
     }
 
     public void increaseShooterRPMBy10() {

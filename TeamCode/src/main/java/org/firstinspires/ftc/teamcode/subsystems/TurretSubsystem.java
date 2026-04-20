@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
+import com.qualcomm.robotcore.util.RobotLog;
 import com.qualcomm.robotcore.util.Range;
 
 import dev.nextftc.core.subsystems.Subsystem;
@@ -18,6 +19,7 @@ import dev.nextftc.ftc.ActiveOpMode;
 public class TurretSubsystem implements Subsystem {
     public static final TurretSubsystem INSTANCE = new TurretSubsystem();
     private TurretSubsystem() {}
+    private static final String STARTUP_LOG_TAG = "TurretStartup";
 
     // =========================
     // Hardware names
@@ -121,6 +123,7 @@ public class TurretSubsystem implements Subsystem {
     private boolean rightServoEnabled = true;
     private long startupCenterCommandTimeMs = 0L;
     private double startupExpectedTurretAngleDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+    private long lastStartupLogTimeMs = 0L;
 
     private enum StartupCalibrationState {
         UNCALIBRATED,
@@ -165,6 +168,7 @@ public class TurretSubsystem implements Subsystem {
         wasPeriodicAbsoluteReadEnabled = false;
         startupCenterCommandTimeMs = 0L;
         startupExpectedTurretAngleDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+        lastStartupLogTimeMs = 0L;
         startupCalibrationState = StartupCalibrationState.UNCALIBRATED;
 
         currentLeftServoPosition = leftTurret.getPosition();
@@ -189,6 +193,7 @@ public class TurretSubsystem implements Subsystem {
         quadRawAngleDegrees = quadRawAtStartDegrees;
         measuredAngleDegrees = quadRawAtStartDegrees;
         lastLoopTimeSeconds = nowSeconds();
+        logStartupState("initialize", startupExpectedTurretAngleDegrees, 0L);
     }
 
     @Override
@@ -268,11 +273,13 @@ public class TurretSubsystem implements Subsystem {
         rightTurret.setPosition(currentRightServoPosition);
         startupCenterCommandTimeMs = System.currentTimeMillis();
         startupCalibrationState = StartupCalibrationState.WAITING_FOR_SETTLE;
+        logStartupState("begin_centering", startupExpectedTurretAngleDegrees, 0L);
     }
 
     public void beginStartupCalibrationWithoutCentering() {
         startupCenterCommandTimeMs = System.currentTimeMillis();
         startupCalibrationState = StartupCalibrationState.WAITING_FOR_SETTLE;
+        logStartupState("begin_no_center", startupExpectedTurretAngleDegrees, 0L);
     }
 
     public boolean updateStartupCalibrationFromExpected(double expectedTurretAngleDegrees) {
@@ -285,6 +292,7 @@ public class TurretSubsystem implements Subsystem {
 
         long elapsedMs = System.currentTimeMillis() - startupCenterCommandTimeMs;
         if (elapsedMs < Math.max(0L, STARTUP_CENTER_SETTLE_MS)) {
+            maybeLogStartupWaitState(expectedTurretAngleDegrees, elapsedMs);
             return false;
         }
 
@@ -504,6 +512,7 @@ public class TurretSubsystem implements Subsystem {
 
         startupCenterCommandTimeMs = 0L;
         startupCalibrationState = StartupCalibrationState.CALIBRATED;
+        logStartupState("startup_calibrated", expectedTurretAngleDegrees, 0L);
     }
 
     private void updateMeasuredAngle(double dt) {
@@ -629,6 +638,43 @@ public class TurretSubsystem implements Subsystem {
     private static double absoluteVoltageToRawDegrees(double voltage) {
         double clippedVoltage = Range.clip(voltage, 0.0, ABSOLUTE_TURRET_ENCODER_MAX_VOLTAGE);
         return (clippedVoltage / ABSOLUTE_TURRET_ENCODER_MAX_VOLTAGE) * 360.0;
+    }
+
+    private void maybeLogStartupWaitState(double expectedTurretAngleDegrees, long elapsedMs) {
+        long nowMs = System.currentTimeMillis();
+        if (lastStartupLogTimeMs == 0L || nowMs - lastStartupLogTimeMs >= 250L) {
+            logStartupState("waiting_for_settle", expectedTurretAngleDegrees, elapsedMs);
+        }
+    }
+
+    private void logStartupState(String phase, double expectedTurretAngleDegrees, long settleElapsedMs) {
+        double absoluteVoltage = readAbsoluteEncoderVoltage();
+        double absoluteRawDegreesNow = absoluteVoltageToRawDegrees(absoluteVoltage);
+        RobotLog.ii(
+                STARTUP_LOG_TAG,
+                "phase=%s state=%s expectedDeg=%.2f absVoltage=%.4f absRawDeg=%.2f absResolvedDeg=%.2f " +
+                        "quadRawDeg=%.2f measuredDeg=%.2f quadOffsetDeg=%.2f startupErrDeg=%.2f encoderTicks=%d settleMs=%d",
+                phase,
+                startupCalibrationState.name(),
+                expectedTurretAngleDegrees,
+                absoluteVoltage,
+                absoluteRawDegreesNow,
+                absoluteEncoderTurretAngleDegrees,
+                quadRawAngleDegrees,
+                measuredAngleDegrees,
+                quadratureOffsetDegrees,
+                absoluteStartupErrorDegrees,
+                currentEncoderTicks,
+                settleElapsedMs
+        );
+        lastStartupLogTimeMs = System.currentTimeMillis();
+    }
+
+    private double readAbsoluteEncoderVoltage() {
+        if (absoluteTurretEncoder == null) {
+            return Double.NaN;
+        }
+        return absoluteTurretEncoder.getVoltage();
     }
 
     private static double absoluteRawToNearestTurretAngleDegrees(double absoluteRawDegrees, double expectedTurretAngleDegrees) {

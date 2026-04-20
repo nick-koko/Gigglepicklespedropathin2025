@@ -28,6 +28,10 @@ import org.firstinspires.ftc.teamcode.subsystems.LEDControlSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.shot.ShotCalibrationTable;
+import org.firstinspires.ftc.teamcode.subsystems.shot.ShotSample;
+import org.firstinspires.ftc.teamcode.subsystems.shot.ShotSolution;
+import org.firstinspires.ftc.teamcode.subsystems.shot.ShootingZones;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -56,7 +60,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         );
     }
 
-    public static Pose startingPoseBlue = new Pose(32.5, 134.375, Math.toRadians(180)); //See ExampleAuto to understand how to use this
+    public static Pose startingPoseBlue = new Pose(32.5, 134.0, Math.toRadians(180)); //See ExampleAuto to understand how to use this
     public static Pose startingPoseRed = startingPoseBlue.mirror();
     public static Pose startingPose = startingPoseBlue;
 
@@ -77,7 +81,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double TURRET_DIAG_STICTION_VELOCITY_MAX_DEG_PER_SEC = 2.0;
     public static double TURRET_DIAG_SERVO_DEADBAND_POS_GUESS = 0.0010;
     public static long TURRET_DIAG_STICTION_MIN_TIME_MS = 120;
-    public static boolean ENABLE_SOTM_LOGGING = false;
+    public static boolean ENABLE_SOTM_LOGGING = true;
     public static long SOTM_LOG_PERIOD_MS = 25;
     public static boolean ENABLE_DUMBSHOOT_RPM_LOGGING = false;
     public static long DUMBSHOOT_RPM_LOG_PERIOD_MS = 5;
@@ -96,20 +100,26 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // more urgent visual; longer = easier to distinguish from other strobes.
     public static long TOO_CLOSE_FIRE_ATTEMPT_FLASH_PERIOD_MS = 180L;
     // Shot tuning mode: same driving/aiming flow, but manual shooter controls and KEEP/IGNORE labels.
-    public static boolean SHOT_TUNING_MODE = true;
-    public static boolean ENABLE_SHOT_TUNING_LOGGING = true;
+    public static boolean SHOT_TUNING_MODE = false;
+    public static boolean ENABLE_SHOT_TUNING_LOGGING = false;
     public static double SHOT_TUNING_RPM_STEP = 25.0;
     public static double SHOT_TUNING_HOOD_STEP = 0.005;
     public static double SHOT_TUNING_TARGET_STEP_IN = 1.0;
     public static double SHOT_TUNING_TARGET_X_IN = 144.0;
     public static double SHOT_TUNING_TARGET_Y_IN = 137.0;
     // Seed RPM applied on match start when SHOT_TUNING_MODE is enabled. Normal
-    // mode leaves targetRPM at 0 until the Limelight/ODO aim path computes one,
-    // but tuning mode disables that auto path, so without a seed here the
-    // first right-bumper spin-up would call spinUp(0) and silently disable
-    // the flywheel. Operator can still trim up/down from this baseline with
+    // mode leaves targetRPM at 0 until the table lookup computes one, but
+    // tuning mode disables that auto path, so without a seed here the first
+    // right-bumper spin-up would call spinUp(0) and silently disable the
+    // flywheel. Operator can still trim up/down from this baseline with
     // gamepad 2 D-pad up/down.
     public static double SHOT_TUNING_DEFAULT_RPM = 3500.0;
+    // Calibration-session controls. Purely informational telemetry overlay: the
+    // robot never auto-drives. Driver steers to each pinned waypoint by eye,
+    // uses CAL_drift_in / CAL_locked feedback to park, then tunes and fires.
+    public static int CAL_POINT_INDEX = 0;
+    public static boolean CAL_SESSION_ACTIVE = false;
+    public static double CAL_WAYPOINT_LOCKED_RADIUS_IN = 2.0;
     public static boolean ENABLE_SHOT_INFO_LOGGING = false;
     public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
     // Dumbshoot-specific logging window based on observed burst timing:
@@ -195,6 +205,16 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private double shotTuningPendingOdoDistance = 0.0;
     private double shotTuningPendingTurretTargetDeg = 0.0;
     private double shotTuningPendingTurretMeasuredDeg = 0.0;
+    private int shotTuningPendingCalPointIndex = -1;
+    private double shotTuningPendingTargetPointX = Double.NaN;
+    private double shotTuningPendingTargetPointY = Double.NaN;
+    private String shotTuningPendingZone = "OUT";
+    private double shotTuningPendingTableRpm = 0.0;
+    private double shotTuningPendingTableHood = 0.0;
+    private double shotTuningPendingTableAimX = 0.0;
+    private double shotTuningPendingTableAimY = 0.0;
+    private boolean prevCalPointDec = false;
+    private boolean prevCalPointInc = false;
     private boolean prevTuningTargetDpadUp = false;
     private boolean prevTuningTargetDpadDown = false;
     private boolean prevTuningTargetDpadLeft = false;
@@ -349,6 +369,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevTuningRpmDpadDown = false;
         prevTuningHoodDpadLeft = false;
         prevTuningHoodDpadRight = false;
+        prevCalPointDec = false;
+        prevCalPointInc = false;
         shotGateLedState = "NONE";
         hold = false;
         prevHold = false;
@@ -475,6 +497,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "mt1_x," +
                                 "mt1_y," +
                                 "mt1_heading_deg," +
+                                "mt2_valid," +
+                                "mt2_x," +
+                                "mt2_y," +
+                                "mt2_heading_deg," +
                                 "target_x," +
                                 "target_y," +
                                 "field_angle_deg," +
@@ -722,7 +748,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "turret_measured_deg_label," +
                                 "boost_active_label," +
                                 "second_boost_active_label," +
-                                "boost_override_label"
+                                "boost_override_label," +
+                                "cal_point_index," +
+                                "target_point_x," +
+                                "target_point_y," +
+                                "zone," +
+                                "table_rpm_fire," +
+                                "table_hood_fire," +
+                                "table_aim_x_fire," +
+                                "table_aim_y_fire"
                 );
             } else {
                 shotTuningLogger = null;
@@ -812,16 +846,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevTuningRpmDpadDown = false;
         prevTuningHoodDpadLeft = false;
         prevTuningHoodDpadRight = false;
+        prevCalPointDec = false;
+        prevCalPointInc = false;
         shotGateLedState = "NONE";
         shooterHoodPos = ShooterSubsystem.INSTANCE.getShooterHoodPosition();
 
-        // In shot-tuning mode the auto-RPM path (Limelight / ODO distance ->
-        // calculateShooterRPMOdoDistance) is gated off so the operator can trim
-        // RPM with the D-pad. Without seeding a baseline here the first
-        // right-bumper press would call spinUp(0) and disable the flywheel,
-        // which has been observed as "flywheel won't start in tuning mode".
-        // Seed a sensible baseline so the very first spin-up is usable, then
-        // let the operator trim from there.
+        // In shot-tuning mode the auto-RPM path (ShotCalibrationTable lookup)
+        // is gated off so the operator can trim RPM with the D-pad. Without
+        // seeding a baseline here the first right-bumper press would call
+        // spinUp(0) and disable the flywheel, which has been observed as
+        // "flywheel won't start in tuning mode". Seed a sensible baseline so
+        // the very first spin-up is usable, then let the operator trim from
+        // there.
         if (SHOT_TUNING_MODE) {
             targetRPM = SHOT_TUNING_DEFAULT_RPM;
         }
@@ -848,11 +884,26 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
         }
 
+        Pose currentBotPose = PedroComponent.follower().getPose();
+        double botHeadingRad = currentBotPose.getHeading();
+        double botxvalue = currentBotPose.getX(); //gettingxvalue :D
+        double botyvalue = currentBotPose.getY(); //gettingyvalue :D
+
+        // MegaTag 2 expects the robot yaw in FTC-standard field coordinates.
+        // In this codebase, Pedro heading is offset from FTC-standard by -90 deg,
+        // so the inverse transform for the yaw we feed Limelight is +90 deg.
+        double limelightRobotYawDeg = normalizeDegrees(Math.toDegrees(botHeadingRad) + 90.0);
+        limelight.updateRobotOrientation(limelightRobotYawDeg);
+
         LLResult result = limelight.getLatestResult();
         boolean mt1Valid = false;
         double mt1PedroX = Double.NaN;
         double mt1PedroY = Double.NaN;
         double mt1PedroHeadingDeg = Double.NaN;
+        boolean mt2Valid = false;
+        double mt2PedroX = Double.NaN;
+        double mt2PedroY = Double.NaN;
+        double mt2PedroHeadingDeg = Double.NaN;
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
             yOffset = result.getTy();
@@ -861,31 +912,30 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
             Pose3D mt1Pose = result.getBotpose();
             if (mt1Pose != null) {
-                double mt1xInches = DistanceUnit.METER.toInches(mt1Pose.getPosition().x);
-                double mt1yInches = DistanceUnit.METER.toInches(mt1Pose.getPosition().y);
-                Pose2D mt1Pose2d = new Pose2D(
-                        DistanceUnit.INCH,
-                        mt1xInches,
-                        mt1yInches,
-                        AngleUnit.DEGREES,
-                        mt1Pose.getOrientation().getYaw()
-                );
-                Pose mt1FtcStandardPose = PoseConverter.pose2DToPose(mt1Pose2d, InvertedFTCCoordinates.INSTANCE);
-                Pose mt1PedroPoseCandidate = new Pose(
-                        (mt1FtcStandardPose.getY() + 72),
-                        (-(mt1FtcStandardPose.getX()) + 72),
-                        mt1FtcStandardPose.getHeading() - Math.toRadians(90)
-                );
-
+                Pose mt1PedroPoseCandidate = convertLimelightBotposeToPedro(mt1Pose);
                 double candidateX = mt1PedroPoseCandidate.getPose().getX();
                 double candidateY = mt1PedroPoseCandidate.getPose().getY();
-                double candidateHeadingDeg = Math.toDegrees(mt1PedroPoseCandidate.getPose().getHeading());
+                double candidateHeadingDeg = normalizeDegrees(Math.toDegrees(mt1PedroPoseCandidate.getPose().getHeading()));
                 if (Double.isFinite(candidateX) && Double.isFinite(candidateY) && Double.isFinite(candidateHeadingDeg)) {
                     mt1Valid = true;
                     mt1PedroX = candidateX;
                     mt1PedroY = candidateY;
                     mt1PedroHeadingDeg = candidateHeadingDeg;
                     MT1PedroPose = mt1PedroPoseCandidate;
+                }
+            }
+
+            Pose3D mt2Pose = result.getBotpose_MT2();
+            if (mt2Pose != null) {
+                Pose mt2PedroPoseCandidate = convertLimelightBotposeToPedro(mt2Pose);
+                double candidateX = mt2PedroPoseCandidate.getPose().getX();
+                double candidateY = mt2PedroPoseCandidate.getPose().getY();
+                double candidateHeadingDeg = normalizeDegrees(Math.toDegrees(mt2PedroPoseCandidate.getPose().getHeading()));
+                if (Double.isFinite(candidateX) && Double.isFinite(candidateY) && Double.isFinite(candidateHeadingDeg)) {
+                    mt2Valid = true;
+                    mt2PedroX = candidateX;
+                    mt2PedroY = candidateY;
+                    mt2PedroHeadingDeg = candidateHeadingDeg;
                 }
             }
         }
@@ -907,14 +957,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             driving *= -1;
             strafe *= -1;
         }
-        Pose currentBotPose = PedroComponent.follower().getPose();
-        double botHeadingRad = currentBotPose.getHeading();
-        double botxvalue = currentBotPose.getX(); //gettingxvalue :D
-        double botyvalue = currentBotPose.getY(); //gettingyvalue :D
-
-        Pose ftcCoordPose   = currentBotPose.getAsCoordinateSystem(InvertedFTCCoordinates.INSTANCE);
-        limelight.updateRobotOrientation(Math.toDegrees(ftcCoordPose.getHeading()));
-
         if (SHOT_TUNING_MODE) {
             boolean tuningTargetUp = gamepad1.dpad_up;
             boolean tuningTargetDown = gamepad1.dpad_down;
@@ -939,12 +981,27 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             prevTuningTargetDpadRight = tuningTargetRight;
         }
 
-        double shootTargetX = SHOT_TUNING_MODE
-                ? SHOT_TUNING_TARGET_X_IN
-                : shootingTargetLocation.getX();
-        double shootTargetY = SHOT_TUNING_MODE
-                ? SHOT_TUNING_TARGET_Y_IN
-                : (botyvalue > 106 ? shootingTargetLocation.getY() - 1 : shootingTargetLocation.getY() + 3);
+        // Single source of truth for every non-tuning shot: the calibration
+        // table is looked up once per loop from the current robot pose and its
+        // rpm / hood / aim values feed RPM selection (here-and-below), the
+        // aim plumbed into the turret (immediately below), and hood position
+        // (near the end of onUpdate). shotSol is guaranteed non-null whenever
+        // SHOT_TUNING_MODE is false because lookup() always returns something.
+        ShotSolution tableShotSol = ShotCalibrationTable.active().lookup(botxvalue, botyvalue);
+        ShotSolution shotSol = null;
+        if (!SHOT_TUNING_MODE) {
+            shotSol = tableShotSol;
+        }
+
+        double shootTargetX;
+        double shootTargetY;
+        if (SHOT_TUNING_MODE) {
+            shootTargetX = SHOT_TUNING_TARGET_X_IN;
+            shootTargetY = SHOT_TUNING_TARGET_Y_IN;
+        } else {
+            shootTargetX = shotSol.aimX;
+            shootTargetY = shotSol.aimY;
+        }
 
         // Vector from robot -> target
         double dx = shootTargetX - botxvalue;
@@ -1006,7 +1063,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 turretSpeedGateSatisfied &&
                 turretReadyGateSatisfied;
         boolean sotmFireGateSatisfied = !sotmControlActive || sotmResult.valid;
-        boolean canShootAtGoal = turretAimGateSatisfied && sotmFireGateSatisfied;
+        boolean canShootAtGoal = true;
+                //turretAimGateSatisfied && sotmFireGateSatisfied;
 
 
         double angletangent = 0;
@@ -1025,7 +1083,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 if (ODODistance < 100 && mt1Valid) {
                     PedroComponent.follower().setPose(MT1PedroPose);
                 }
-                targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
+                // RPM no longer comes from this path; the shot calibration table
+                // drives RPM selection below. This block is kept for pose reset
+                // (MT1) and legacy heading-assist turret rotation only.
 
                 if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
                     List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
@@ -1138,14 +1198,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             shooterFollowEnabled = false;
         }
 
-        // Continuously compute desired RPM from current aiming mode, but only spin flywheel
-        // when explicitly enabled (left-bumper latch or 3-ball auto-enable).
-        // In shot tuning mode we skip the auto-RPM calculation so the operator's
-        // manual d-pad RPM value is preserved.
+        // Continuously read RPM from the calibration table at the current pose
+        // and only spin the flywheel when explicitly enabled (left-bumper latch
+        // or 3-ball auto-enable). In shot tuning mode we keep the operator's
+        // manual d-pad RPM value. SOTM moving-shot compensation is not applied
+        // here; the table is evaluated at the current pose. If/when SOTM is
+        // revived, it should project a future (x, y) and look that up instead.
         if (!SHOT_TUNING_MODE) {
-            targetRPM = sotmControlActive
-                    ? calculateShooterRPMOdoDistance(shooterDistanceForBallistics)
-                    : calculateShooterRPMOdoDistance(this.ODODistance);
+            targetRPM = shotSol.rpm;
         }
 
         // Allow RB/RT fire request to actively prime flywheel RPM so shoot gating can clear.
@@ -1313,10 +1373,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         updateShotInfoBreakbeamTracking(nowMs, bb0, bb1, bb2);
         maybeLogDumbShootRpmSample(nowMs, bb0, bb1, bb2, rpmShooter1, rpmShooter2);
 
-        telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
-        telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
-        telemetryM.addData("BB_sensor1", bb1 ? 1 : 0);
-        telemetryM.addData("BB_sensor2", bb2 ? 1 : 0);
+        if (!SHOT_TUNING_MODE) {
+            telemetryM.addData("ballCount", IntakeWithSensorsSubsystem.INSTANCE.getBallCount());
+            telemetryM.addData("BB_sensor0", bb0 ? 1 : 0);
+            telemetryM.addData("BB_sensor1", bb1 ? 1 : 0);
+            telemetryM.addData("BB_sensor2", bb2 ? 1 : 0);
+        }
 
         // =============================================
         // DEBUG: Intake state flags for troubleshooting
@@ -1335,66 +1397,78 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("INT_multiDone", IntakeWithSensorsSubsystem.INSTANCE.getMultiSingleShotCompleted());
 
         double loopTimeMs = timer.getMs();
-        telemetryM.addData("LoopTime_ms", loopTimeMs);
-        telemetry.addData("rotate", rotate);
-        telemetry.addData("turretTargetDeg", TurretSubsystem.INSTANCE.getTargetAngleDegrees());
-        telemetry.addData("turretMeasuredDeg", TurretSubsystem.INSTANCE.getMeasuredAngleDegrees());
-        telemetry.addData("fieldAngleDeg", fieldAngleDeg);
-        telemetry.addData("angleErrorDeg", angleErrorDeg);
-        telemetry.addData("turretReady", TurretSubsystem.INSTANCE.isTurretReady());
-        telemetry.addData("boostActive", ShooterSubsystem.INSTANCE.boostActive);
-        telemetry.addData("shooterFollowEnabled", shooterFollowEnabled);
-        telemetry.addData("SOTM_active", sotmControlActive);
-        telemetry.addData("SOTM_valid", sotmResult.valid);
-        telemetry.addData("SOTM_leadApplied", sotmResult.leadApplied);
-        telemetry.addData("SOTM_speed", sotmResult.speedInPerSec);
-        telemetry.addData("SOTM_totalTofSec", sotmResult.totalTimeSeconds);
-        telemetry.addData("SOTM_leadX", sotmResult.leadXInches);
-        telemetry.addData("SOTM_leadY", sotmResult.leadYInches);
-        telemetry.addData("SOTM_radialVel", sotmResult.radialVelocityInPerSec);
-        telemetry.addData("SOTM_omegaRawDegS", Math.toDegrees(sotmOmegaRawRadPerSec));
-        telemetry.addData("SOTM_omegaFiltDegS", Math.toDegrees(sotmOmegaRadPerSec));
-        telemetry.addData("SOTM_effectiveDist", sotmResult.effectiveDistanceInches);
-        telemetry.addData("SOTM_turretAimDeg", sotmResult.turretRobotRelativeAimDeg);
-        telemetry.addData("SOTM_turretLagCompDeg", sotmResult.turretLagCompensationDeg);
-        telemetry.addData("SOTM_turretGate", turretAimGateSatisfied);
-        telemetry.addData("SOTM_turretGoalErrDeg", turretGoalErrorDeg);
-        telemetry.addData("SOTM_turretConstraintErrDeg", turretConstraintErrorDeg);
-        telemetry.addData("SOTM_turretReachable", turretTargetReachable);
-        telemetry.addData("SOTM_turretSpeedDegS", turretMeasuredVelDegPerSec);
-        telemetry.addData("SOTM_turretSpeedGate", turretSpeedGateSatisfied);
-        telemetry.addData("SOTM_fireGate", sotmFireGateSatisfied);
-        telemetry.addData("SOTM_canShootGate", canShootAtGoal);
-        telemetry.addData("SOTM_shooterAtSpeed75", shooterAtSpeed75);
-        telemetry.addData("SHOOT_batteryV", ShooterSubsystem.INSTANCE.getBatteryVoltageRaw());
-        telemetry.addData("SHOOT_batteryVFiltered", ShooterSubsystem.INSTANCE.getBatteryVoltageFiltered());
-        telemetry.addData("SHOOT_voltageCompGain", ShooterSubsystem.INSTANCE.getVoltageCompGain());
-        telemetry.addData("SHOOT_cmdPreVComp", ShooterSubsystem.INSTANCE.getCommandPreVoltageComp());
-        telemetry.addData("SHOOT_cmdPostVComp", ShooterSubsystem.INSTANCE.getCommandPostVoltageComp());
-        telemetry.addData("SHOOT_cmdSaturated", ShooterSubsystem.INSTANCE.isCommandSaturated());
-        telemetry.addData("SHOOT_boostMult1", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1());
-        telemetry.addData("SHOOT_boostMult2", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2());
-        telemetry.addData("SHOOT_burstProfileId", BURST_PROFILE_ID);
-        telemetry.addData("HYBRID_feedBoostActive", ShooterSubsystem.INSTANCE.isHybridShotFeedBoostActive());
-        telemetry.addData("HYBRID_phase", ShooterSubsystem.INSTANCE.getHybridShotFeedBoostPhaseName());
-        telemetry.addData("HYBRID_tSinceShotFeedStartMs",
-                ShooterSubsystem.INSTANCE.getHybridTimeSinceShotFeedStartMs());
-        telemetry.addData("HYBRID_expectedContactMs", ShooterSubsystem.INSTANCE.getHybridExpectedContactMsForCurrentPhase());
-        telemetry.addData("HYBRID_preBoostAmountActive", ShooterSubsystem.INSTANCE.getActivePreBoostAmount());
-        telemetry.addData("HYBRID_lastAdvanceReason", ShooterSubsystem.INSTANCE.getHybridLastAdvanceReason());
-        telemetry.addData("HYBRID_lastAdvanceRelMs", ShooterSubsystem.INSTANCE.getHybridLastAdvanceAtRelMs());
-        telemetry.addData("SOTM_tooCloseBlock", tooCloseWarningActive);
-        telemetry.addData("SOTM_shotGateLedState", shotGateLedState);
-        telemetry.addData("SHOT_TUNE_mode", SHOT_TUNING_MODE);
-        telemetry.addData("SHOT_TUNE_targetRPM", targetRPM);
-        telemetry.addData("SHOT_TUNE_hoodPos", shooterHoodPos);
-        telemetry.addData("SHOT_TUNE_targetX", SHOT_TUNING_TARGET_X_IN);
-        telemetry.addData("SHOT_TUNE_targetY", SHOT_TUNING_TARGET_Y_IN);
-        telemetry.addData("SHOT_TUNE_pendingLabel", shotTuningPendingLabel);
-        telemetry.addData("SHOT_TUNE_pendingShotId", shotTuningPendingShotId);
-        telemetry.addData("SHOT_TUNE_controls",
-                "drive/intake/shoot like normal; g1Dpad target+/-, g2DpadUp/Down rpm+/-, g2DpadLeft/Right hood-/+, g1X keep, g1B ignore");
-        telemetryM.addData("targetRPM", ShooterSubsystem.INSTANCE.getTargetRpm());
+        if (SHOT_TUNING_MODE) {
+            telemetry.addData("bot_x", String.format("%.1f", botxvalue));
+            telemetry.addData("bot_y", String.format("%.1f", botyvalue));
+            telemetry.addData("bot_heading_deg", String.format("%.1f", Math.toDegrees(botHeadingRad)));
+            telemetry.addData("rpm_target", String.format("%.0f", targetRPM));
+            telemetry.addData("hood_target", String.format("%.3f", shooterHoodPos));
+            telemetry.addData("target_x", String.format("%.1f", SHOT_TUNING_TARGET_X_IN));
+            telemetry.addData("target_y", String.format("%.1f", SHOT_TUNING_TARGET_Y_IN));
+            telemetry.addData("turret_deg", String.format("%.1f", TurretSubsystem.INSTANCE.getMeasuredAngleDegrees()));
+            telemetry.addData("table_rpm", String.format("%.0f", tableShotSol.rpm));
+            telemetry.addData("table_hood", String.format("%.3f", tableShotSol.hoodPos));
+            telemetry.addData("table_target", String.format("(%.1f, %.1f)", tableShotSol.aimX, tableShotSol.aimY));
+        } else {
+            telemetryM.addData("LoopTime_ms", loopTimeMs);
+            telemetry.addData("rotate", rotate);
+            telemetry.addData("turretTargetDeg", TurretSubsystem.INSTANCE.getTargetAngleDegrees());
+            telemetry.addData("turretMeasuredDeg", TurretSubsystem.INSTANCE.getMeasuredAngleDegrees());
+            telemetry.addData("fieldAngleDeg", fieldAngleDeg);
+            telemetry.addData("angleErrorDeg", angleErrorDeg);
+            telemetry.addData("turretReady", TurretSubsystem.INSTANCE.isTurretReady());
+            telemetry.addData("boostActive", ShooterSubsystem.INSTANCE.boostActive);
+            telemetry.addData("shooterFollowEnabled", shooterFollowEnabled);
+            telemetry.addData("SOTM_active", sotmControlActive);
+            telemetry.addData("SOTM_valid", sotmResult.valid);
+            telemetry.addData("SOTM_leadApplied", sotmResult.leadApplied);
+            telemetry.addData("SOTM_speed", sotmResult.speedInPerSec);
+            telemetry.addData("SOTM_totalTofSec", sotmResult.totalTimeSeconds);
+            telemetry.addData("SOTM_leadX", sotmResult.leadXInches);
+            telemetry.addData("SOTM_leadY", sotmResult.leadYInches);
+            telemetry.addData("SOTM_radialVel", sotmResult.radialVelocityInPerSec);
+            telemetry.addData("SOTM_omegaRawDegS", Math.toDegrees(sotmOmegaRawRadPerSec));
+            telemetry.addData("SOTM_omegaFiltDegS", Math.toDegrees(sotmOmegaRadPerSec));
+            telemetry.addData("SOTM_effectiveDist", sotmResult.effectiveDistanceInches);
+            telemetry.addData("SOTM_turretAimDeg", sotmResult.turretRobotRelativeAimDeg);
+            telemetry.addData("SOTM_turretLagCompDeg", sotmResult.turretLagCompensationDeg);
+            telemetry.addData("SOTM_turretGate", turretAimGateSatisfied);
+            telemetry.addData("SOTM_turretGoalErrDeg", turretGoalErrorDeg);
+            telemetry.addData("SOTM_turretConstraintErrDeg", turretConstraintErrorDeg);
+            telemetry.addData("SOTM_turretReachable", turretTargetReachable);
+            telemetry.addData("SOTM_turretSpeedDegS", turretMeasuredVelDegPerSec);
+            telemetry.addData("SOTM_turretSpeedGate", turretSpeedGateSatisfied);
+            telemetry.addData("SOTM_fireGate", sotmFireGateSatisfied);
+            telemetry.addData("SOTM_canShootGate", canShootAtGoal);
+            telemetry.addData("SOTM_shooterAtSpeed75", shooterAtSpeed75);
+            telemetry.addData("SHOOT_batteryV", ShooterSubsystem.INSTANCE.getBatteryVoltageRaw());
+            telemetry.addData("SHOOT_batteryVFiltered", ShooterSubsystem.INSTANCE.getBatteryVoltageFiltered());
+            telemetry.addData("SHOOT_voltageCompGain", ShooterSubsystem.INSTANCE.getVoltageCompGain());
+            telemetry.addData("SHOOT_cmdPreVComp", ShooterSubsystem.INSTANCE.getCommandPreVoltageComp());
+            telemetry.addData("SHOOT_cmdPostVComp", ShooterSubsystem.INSTANCE.getCommandPostVoltageComp());
+            telemetry.addData("SHOOT_cmdSaturated", ShooterSubsystem.INSTANCE.isCommandSaturated());
+            telemetry.addData("SHOOT_boostMult1", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier1());
+            telemetry.addData("SHOOT_boostMult2", ShooterSubsystem.INSTANCE.getActiveBoostMultiplier2());
+            telemetry.addData("SHOOT_burstProfileId", BURST_PROFILE_ID);
+            telemetry.addData("HYBRID_feedBoostActive", ShooterSubsystem.INSTANCE.isHybridShotFeedBoostActive());
+            telemetry.addData("HYBRID_phase", ShooterSubsystem.INSTANCE.getHybridShotFeedBoostPhaseName());
+            telemetry.addData("HYBRID_tSinceShotFeedStartMs",
+                    ShooterSubsystem.INSTANCE.getHybridTimeSinceShotFeedStartMs());
+            telemetry.addData("HYBRID_expectedContactMs", ShooterSubsystem.INSTANCE.getHybridExpectedContactMsForCurrentPhase());
+            telemetry.addData("HYBRID_preBoostAmountActive", ShooterSubsystem.INSTANCE.getActivePreBoostAmount());
+            telemetry.addData("HYBRID_lastAdvanceReason", ShooterSubsystem.INSTANCE.getHybridLastAdvanceReason());
+            telemetry.addData("HYBRID_lastAdvanceRelMs", ShooterSubsystem.INSTANCE.getHybridLastAdvanceAtRelMs());
+            telemetry.addData("SOTM_tooCloseBlock", tooCloseWarningActive);
+            telemetry.addData("SOTM_shotGateLedState", shotGateLedState);
+            if (shotSol != null) {
+                telemetry.addData("TABLE_rpm", String.format("%.0f", shotSol.rpm));
+                telemetry.addData("TABLE_hood", String.format("%.3f", shotSol.hoodPos));
+                telemetry.addData("TABLE_aim", String.format("(%.1f, %.1f)", shotSol.aimX, shotSol.aimY));
+                telemetry.addData("TABLE_nearest_in", String.format("%.2f", shotSol.nearestDistanceIn));
+                telemetry.addData("TABLE_extrapolated", shotSol.extrapolated ? "YES" : "no");
+            }
+            telemetryM.addData("targetRPM", ShooterSubsystem.INSTANCE.getTargetRpm());
+        }
 
         if (ENABLE_TURRET_LOGGING && turretLogger != null) {
             long nowLogMs = System.currentTimeMillis();
@@ -1560,6 +1634,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         mt1PedroX,
                         mt1PedroY,
                         mt1PedroHeadingDeg,
+                        mt2Valid,
+                        mt2PedroX,
+                        mt2PedroY,
+                        mt2PedroHeadingDeg,
                         shootTargetX,
                         shootTargetY,
                         fieldAngleDeg,
@@ -1637,36 +1715,20 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             telemetry.addData("ty", result.getTy());
             telemetry.addData("LL distance", distanceLL);
             Pose3D MT2Pose = result.getBotpose_MT2();
-            //telemetry.addData("MegaTag 2 Raw Angle", MT2Pose.getOrientation().getYaw());
-            //telemetry.addData("MegaTag 2 Raw X", MT2Pose.getPosition().x);
-            //telemetry.addData("MegaTag 2 Raw y", MT2Pose.getPosition().y);
-//            telemetry.addData("MegaTag 1 Raw Angle", MT2Pose.getOrientation().getYaw());
-//            telemetry.addData("MegaTag 1 Raw X", MT1Pose.getPosition().x);
-//            telemetry.addData("MegaTag 1 Raw y", MT1Pose.getPosition().y);
-
-            //double MT2xInches = DistanceUnit.METER.toInches(MT2Pose.getPosition().x);
-            //double MT2yInches = DistanceUnit.METER.toInches(MT2Pose.getPosition().y);
-
-            //Pose MT2FTCStandardPose = PoseConverter.pose2DToPose(MT2Pose2d, InvertedFTCCoordinates.INSTANCE);
-
-            //Pose MT2PedroPose = MT2FTCStandardPose.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
-            //MT1FTCStandardPose.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
-
-            //telemetry.addData("MegaTag 2 Angle", Math.toDegrees(MT2PedroPose.getPose().getHeading()));
-            //telemetry.addData("MegaTag 2 X", MT2PedroPose.getPose().getX());
-            //telemetry.addData("MegaTag 2 y", MT2PedroPose.getPose().getY());
-            //telemetry.addData("STD MegaTag 1 Angle", Math.toDegrees(MT1FTCStandardPose.getPose().getHeading()));
-            //telemetry.addData("STD MegaTag 1 X", MT1FTCStandardPose.getPose().getX());
-            //telemetry.addData("STD MegaTag 1 y", MT1FTCStandardPose.getPose().getY());
-
-            //telemetry.addData("MegaTag 2 Angle", Math.toDegrees(MT2PedroPose.getPose().getHeading()));
-            //telemetry.addData("MegaTag 2 X", MT2PedroPose.getPose().getX());
-            //telemetry.addData("MegaTag 2 y", MT2PedroPose.getPose().getY());
+            if (MT2Pose != null) {
+                telemetry.addData("MT2 Raw Angle", MT2Pose.getOrientation().getYaw());
+                telemetry.addData("MT2 Raw X", MT2Pose.getPosition().x);
+                telemetry.addData("MT2 Raw Y", MT2Pose.getPosition().y);
+            }
         }
         telemetry.addData("MT1 valid", mt1Valid);
         telemetry.addData("MT1 Pedro X", mt1PedroX);
         telemetry.addData("MT1 Pedro Y", mt1PedroY);
         telemetry.addData("MT1 Pedro Heading", mt1PedroHeadingDeg);
+        telemetry.addData("MT2 valid", mt2Valid);
+        telemetry.addData("MT2 Pedro X", mt2PedroX);
+        telemetry.addData("MT2 Pedro Y", mt2PedroY);
+        telemetry.addData("MT2 Pedro Heading", mt2PedroHeadingDeg);
         telemetry.addData("ODO distance", ODODistance);
         telemetry.addData("ODO X-Location", botxvalue);
         telemetry.addData("ODO Y-Location", botyvalue);
@@ -1717,6 +1779,24 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             prevTuningHoodDpadRight = tuningHoodRight;
             prevTuningHoodDpadLeft = tuningHoodLeft;
 
+            // Calibration-session waypoint advance. gamepad 1 back/start steps
+            // CAL_POINT_INDEX down/up through the table, clamped to the valid
+            // range. Only acts when CAL_SESSION_ACTIVE is true so casual tuning
+            // outside a session does not accidentally move the pinned point.
+            int tableSize = ShotCalibrationTable.active().size();
+            boolean calDecNow = gamepad1.back;
+            boolean calIncNow = gamepad1.start;
+            if (CAL_SESSION_ACTIVE) {
+                if (calDecNow && !prevCalPointDec) {
+                    CAL_POINT_INDEX = Math.max(0, CAL_POINT_INDEX - 1);
+                }
+                if (calIncNow && !prevCalPointInc) {
+                    CAL_POINT_INDEX = Math.min(tableSize - 1, CAL_POINT_INDEX + 1);
+                }
+            }
+            prevCalPointDec = calDecNow;
+            prevCalPointInc = calIncNow;
+
             if (gamepad1.xWasPressed() && shotTuningPendingLabel) {
                 labelShotTuningSample("KEEP", "manual_keep");
             } else if (gamepad1.bWasPressed() && shotTuningPendingLabel) {
@@ -1730,23 +1810,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 // Starting a new spin-up cancels any previous dumbShoot timeout
                 dumbShootTimerActive = false;
                 // In shot-tuning mode skip the auto-RPM recompute so the operator's
-                // manual d-pad RPM value is preserved. Normal mode keeps the
-                // Limelight / ODO-based RPM selection logic.
-                if (!SHOT_TUNING_MODE) {
-                    if (testShooter) {
-
-                    }else if (!hasResults || this.adjustOdo) {
-                        //ShooterSubsystem.INSTANCE.setClosePID();
-                        targetRPM = calculateShooterRPMOdoDistance(this.ODODistance);
-                        //ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-                        //targetRPM = 2950;
-                    } else if (hasResults && yOffset > 9.) {
-                        ShooterSubsystem.INSTANCE.setClosePID();
-                        targetRPM = calculateShooterRPM(yOffset);
-                    } else if (hasResults && yOffset <= 9.) {
-                        ShooterSubsystem.INSTANCE.setFarPID();
-                        targetRPM = 4330;
-                    }
+                // manual d-pad RPM value is preserved. testShooter also preserves
+                // whatever targetRPM was set manually. Normal mode re-pulls from
+                // the table at the current pose (shotSol was computed earlier
+                // this loop).
+                if (!SHOT_TUNING_MODE && !testShooter) {
+                    targetRPM = shotSol.rpm;
                 }
                 //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
                 telemetry.addData("Target Shooter Speed", targetRPM);
@@ -1855,6 +1924,26 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         shotTuningPendingOdoDistance = ODODistance;
                         shotTuningPendingTurretTargetDeg = TurretSubsystem.INSTANCE.getTargetAngleDegrees();
                         shotTuningPendingTurretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+                        // Capture the calibration-table view of this shot. Uses the
+                        // actual fire-time pose (not the pinned waypoint) so the
+                        // analysis script can compare operator-adjusted values vs
+                        // what the table would have produced at the parked-pose.
+                        ShotSolution fireSol = ShotCalibrationTable.active().lookup(botxvalue, botyvalue);
+                        shotTuningPendingTableRpm = fireSol.rpm;
+                        shotTuningPendingTableHood = fireSol.hoodPos;
+                        shotTuningPendingTableAimX = fireSol.aimX;
+                        shotTuningPendingTableAimY = fireSol.aimY;
+                        shotTuningPendingZone = ShootingZones.zoneLabel(botxvalue, botyvalue);
+                        if (CAL_SESSION_ACTIVE) {
+                            shotTuningPendingCalPointIndex = CAL_POINT_INDEX;
+                            ShotSample target = ShotCalibrationTable.active().sampleAt(CAL_POINT_INDEX);
+                            shotTuningPendingTargetPointX = target.x;
+                            shotTuningPendingTargetPointY = target.y;
+                        } else {
+                            shotTuningPendingCalPointIndex = -1;
+                            shotTuningPendingTargetPointX = Double.NaN;
+                            shotTuningPendingTargetPointY = Double.NaN;
+                        }
                     }
                 }
             }  else if (leftTriggerActive && !prevLeftTriggerActive) {
@@ -1915,19 +2004,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             // Keep manual hood value in shot tuning mode.
         } else if (testShooter) {
             // Do nothing
-        } else if (sotmControlActive) {
-            this.shooterHoodPos = calculateShooterHoodOdoDistance(shooterDistanceForBallistics);
-        } else if (hasResults && !adjustOdo) {  //if limelight doesn't have results then use ODO Distance - Thinking that it would be better to always use ODO distance unless pressing a button to use limelight?
-            //this.shooterHoodPos = getHoodPositionFromDistance(this.ODODistance);
-            //this.shooterHoodPos = 0.05;
-//        } else{
-            this.shooterHoodPos = getHoodPosition(yOffset);
-
+        } else {
+            this.shooterHoodPos = shotSol.hoodPos;
         }
-        else{
-            this.shooterHoodPos = calculateShooterHoodOdoDistance(this.ODODistance);
-        }
-//        }
         ShooterSubsystem.INSTANCE.shooterHoodDrive(this.shooterHoodPos);
 
         telemetryM.update(telemetry);
@@ -2043,7 +2122,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 TurretSubsystem.INSTANCE.getMeasuredAngleDegrees(),
                 ShooterSubsystem.INSTANCE.boostActive,
                 ShooterSubsystem.INSTANCE.secondBoostActive,
-                ShooterSubsystem.INSTANCE.boostOverride
+                ShooterSubsystem.INSTANCE.boostOverride,
+                shotTuningPendingCalPointIndex,
+                shotTuningPendingTargetPointX,
+                shotTuningPendingTargetPointY,
+                shotTuningPendingZone,
+                shotTuningPendingTableRpm,
+                shotTuningPendingTableHood,
+                shotTuningPendingTableAimX,
+                shotTuningPendingTableAimY
         );
 
         shotTuningPendingLabel = false;
@@ -2665,131 +2752,36 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         return delta;
     }
 
+    private static double normalizeDegrees(double angleDegrees) {
+        while (angleDegrees >= 180.0) angleDegrees -= 360.0;
+        while (angleDegrees < -180.0) angleDegrees += 360.0;
+        return angleDegrees;
+    }
+
+    private static Pose convertLimelightBotposeToPedro(Pose3D botpose) {
+        double xInches = DistanceUnit.METER.toInches(botpose.getPosition().x);
+        double yInches = DistanceUnit.METER.toInches(botpose.getPosition().y);
+        Pose2D pose2d = new Pose2D(
+                DistanceUnit.INCH,
+                xInches,
+                yInches,
+                AngleUnit.DEGREES,
+                botpose.getOrientation().getYaw()
+        );
+        Pose ftcStandardPose = PoseConverter.pose2DToPose(pose2d, InvertedFTCCoordinates.INSTANCE);
+        return new Pose(
+                (ftcStandardPose.getY() + 72),
+                (-(ftcStandardPose.getX()) + 72),
+                ftcStandardPose.getHeading() - Math.toRadians(90)
+        );
+    }
+
     private double normalizeRadians(double angle) {
         while (angle > Math.PI) angle -= 2.0 * Math.PI;
         while (angle < -Math.PI) angle += 2.0 * Math.PI;
         return angle;
     }
 
-    public static double calculateShooterRPMOdoDistance(double odoDistance) {
-        //odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 :
-//        return  odoDistance > 110 ? 16.9425 * odoDistance + 1990.45 : 16.9425 * odoDistance + 1984.45;
-        return  odoDistance > 110 ? 16.9425 * odoDistance + 1950.45 : 16.6925 * odoDistance + 1990.45;
-    }
-
-    public static double calculateShooterHoodOdoDistance(double odoDistance) {
-        double hoodPos = 0.00585 * odoDistance - 0.14;
-
-        if (hoodPos < 0) return 0;
-        if (hoodPos > 0.5) return 0.5;
-        return hoodPos;
-    }
-    //OLD STUFF
-    public static double calculateShooterRPM(double yOffset) {
-        if (yOffset > 17)
-            return 3350;
-
-        double rpm = 0;
-        if (yOffset >= 17 && yOffset < 18) {
-            rpm = -117.65 * yOffset + 5385.3;
-        }
-        else if (yOffset >= 16 && yOffset < 17) {
-            rpm = 23.685 * yOffset + 3022.5;
-        }
-        else if (yOffset >= 15 && yOffset < 16) {
-            rpm = 26.838 * Math.pow(yOffset, 2) -
-                    871.7 * yOffset + 10466;
-        }
-        else if (yOffset >= 14 && yOffset < 15) {
-            rpm = -127.72 * yOffset + 5433.5;
-
-        }
-        else if (yOffset >= 13 && yOffset < 14) {
-            rpm = -152.89 * yOffset + 5697.3;
-        }
-        else if (yOffset >= 12 && yOffset < 13) {
-            rpm = -167.96 * yOffset + 5830.5;
-        }
-        else if (yOffset >= 11 && yOffset < 12) {
-            rpm = -14.425 * yOffset + 3956.9;
-        }
-        else if (yOffset >= 10 && yOffset < 11) {
-            rpm = -89.495 * yOffset + 4836.9;
-        }
-        else if (yOffset >= 9 && yOffset < 10) {
-            rpm = 4000;
-        }
-        else{
-            rpm = 4250;
-        }
-
-        return rpm;
-    }
-
-    public static double getHoodPosition(double yOffset) {
-
-        if (yOffset >= 17.08) {
-            return 0.3;
-        }
-
-        // Small 0.3 dip around 16.14
-        if (yOffset >= 16.3 && yOffset <= 16.) {
-            return 0.3;
-        }
-
-        // Small 0.3 dip around 14.18
-        if (yOffset >= 14.3 && yOffset <= 14.) {
-            return 0.3;
-        }
-
-        // --- 0.5 region (12.3 → 12.0 generalized) ---
-        if (yOffset > 12.0 && yOffset < 12.9) {
-            return 0.5;
-        }
-
-        // --- Main 0.4 region (everything else inside your measured range) ---
-        if (yOffset >= 9.6) {
-            return 0.4;
-        }
-
-        if (yOffset >= 10 && yOffset < 11) {
-            return 0.5;
-        }
-
-        if (yOffset >= 11 && yOffset < 12) {
-            return 0.5;
-        }
-
-        if (yOffset <= 10) {
-            return 0.5;
-        }
-
-        // --- Below recorded range, assume last known ---
-        return 0.4;
-    }
-
-    public static double getHoodPositionFromDistance(double distanceIn) {
-
-        double distanceMm = distanceIn * 25.4;
-        // Default hood position if distance is outside known range
-        double hoodPos = 0.35;
-
-        if (distanceMm <= 1379) {          // 1282–1379 mm
-            hoodPos = 0.2;
-        } else if (distanceMm <= 1637) {   // 1626–1637 mm
-            hoodPos = 0.3;
-        } else if (distanceMm <= 1910) {   // 1850–1910 mm
-            hoodPos = 0.4;
-        } else if (distanceMm <= 2299) {   // 2105–2299 mm
-            hoodPos = 0.3;
-        } else if (distanceMm <= 2552) {   // 2552 mm
-            hoodPos = 0.4;
-        } else if (distanceMm > 2552) {    // 2945 mm
-            hoodPos = 0.5;
-        }
-
-        return hoodPos;
-    }
 }
 
 
