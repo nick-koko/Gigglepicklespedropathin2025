@@ -64,7 +64,7 @@ public class closeAutonPaths extends NextFTCOpMode{
     private long lastAutonLogMs = 0L;
     private long lastAutonLoopMs = 0L;
 
-    public final Pose startPoseBlue = new Pose(31.5, 134.375, Math.toRadians(270)); // Start Pose of our robot
+    public final Pose startPoseBlue = new Pose(31.5, 134.0, Math.toRadians(270)); // Start Pose of our robot
     private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
     private final Pose pickup1PoseBlue = new Pose(40, 88.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right

@@ -61,7 +61,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         );
     }
 
-    public static Pose startingPoseBlue = new Pose(32.5, 134.0, Math.toRadians(180)); //See ExampleAuto to understand how to use this
+    public static Pose startingPoseBlue = new Pose(31.5, 134.0, Math.toRadians(270)); //See ExampleAuto to understand how to use this
     public static Pose startingPoseRed = startingPoseBlue.mirror();
     public static Pose startingPose = startingPoseBlue;
 

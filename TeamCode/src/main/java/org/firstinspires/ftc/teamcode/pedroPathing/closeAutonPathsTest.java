@@ -25,7 +25,7 @@ public class closeAutonPathsTest extends NextFTCOpMode {
     public static double pickupBrakingStrength = 1.0;
 
     // Start and scoring poses
-    public final Pose startPoseBlue = new Pose(32.5, 134.375, Math.toRadians(180));
+    public final Pose startPoseBlue = new Pose(31.5, 134.0, Math.toRadians(270));
     private final Pose scorePoseClose = new Pose(33.0, 107.0, Math.toRadians(128));
     private final Pose scorePoseFar = new Pose(56.730, 81.502, Math.toRadians(130));
 
