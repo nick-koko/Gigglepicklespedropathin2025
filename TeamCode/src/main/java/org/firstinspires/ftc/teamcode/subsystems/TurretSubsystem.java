@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import android.os.SystemClock;
+
 import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -7,6 +9,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 import com.qualcomm.robotcore.util.RobotLog;
 import com.qualcomm.robotcore.util.Range;
+
+import java.util.Arrays;
 
 import dev.nextftc.core.subsystems.Subsystem;
 import dev.nextftc.ftc.ActiveOpMode;
@@ -283,6 +287,10 @@ public class TurretSubsystem implements Subsystem {
     }
 
     public boolean updateStartupCalibrationFromExpected(double expectedTurretAngleDegrees) {
+        return updateStartupCalibrationFromExpected(expectedTurretAngleDegrees, STARTUP_CENTER_SETTLE_MS);
+    }
+
+    public boolean updateStartupCalibrationFromExpected(double expectedTurretAngleDegrees, long settleMs) {
         if (startupCalibrationState == StartupCalibrationState.CALIBRATED) {
             return true;
         }
@@ -291,7 +299,7 @@ public class TurretSubsystem implements Subsystem {
         }
 
         long elapsedMs = System.currentTimeMillis() - startupCenterCommandTimeMs;
-        if (elapsedMs < Math.max(0L, STARTUP_CENTER_SETTLE_MS)) {
+        if (elapsedMs < Math.max(0L, settleMs)) {
             maybeLogStartupWaitState(expectedTurretAngleDegrees, elapsedMs);
             return false;
         }
@@ -302,6 +310,19 @@ public class TurretSubsystem implements Subsystem {
 
     public void forceStartupCalibrationFromExpected(double expectedTurretAngleDegrees) {
         completeStartupCalibrationFromExpected(expectedTurretAngleDegrees);
+    }
+
+    public void forceStartupCalibrationFromExpectedSampled(
+            double expectedTurretAngleDegrees,
+            int sampleCount,
+            long sampleIntervalMs
+    ) {
+        double sampledRawDegrees = sampleAbsoluteEncoderRawDegrees(sampleCount, sampleIntervalMs);
+        completeStartupCalibrationFromRawDegrees(
+                expectedTurretAngleDegrees,
+                sampledRawDegrees,
+                "startup_calibrated_sampled"
+        );
     }
 
     public boolean isStartupCalibrationComplete() {
@@ -476,9 +497,20 @@ public class TurretSubsystem implements Subsystem {
     }
 
     private void completeStartupCalibrationFromExpected(double expectedTurretAngleDegrees) {
+        completeStartupCalibrationFromRawDegrees(
+                expectedTurretAngleDegrees,
+                absoluteVoltageToRawDegrees(readAbsoluteEncoderVoltage()),
+                "startup_calibrated"
+        );
+    }
+
+    private void completeStartupCalibrationFromRawDegrees(
+            double expectedTurretAngleDegrees,
+            double rawDegrees,
+            String logPhase
+    ) {
         startupExpectedTurretAngleDegrees = expectedTurretAngleDegrees;
 
-        double rawDegrees = absoluteVoltageToRawDegrees(absoluteTurretEncoder.getVoltage());
         absoluteRawAtStartDegrees = rawDegrees;
         absoluteEncoderRawDegrees = rawDegrees;
         previousAbsoluteEncoderRawDegrees = rawDegrees;
@@ -512,7 +544,7 @@ public class TurretSubsystem implements Subsystem {
 
         startupCenterCommandTimeMs = 0L;
         startupCalibrationState = StartupCalibrationState.CALIBRATED;
-        logStartupState("startup_calibrated", expectedTurretAngleDegrees, 0L);
+        logStartupState(logPhase, expectedTurretAngleDegrees, 0L);
     }
 
     private void updateMeasuredAngle(double dt) {
@@ -640,6 +672,35 @@ public class TurretSubsystem implements Subsystem {
         return (clippedVoltage / ABSOLUTE_TURRET_ENCODER_MAX_VOLTAGE) * 360.0;
     }
 
+    private double sampleAbsoluteEncoderRawDegrees(int requestedSampleCount, long requestedSampleIntervalMs) {
+        int sampleCount = Math.max(1, requestedSampleCount);
+        long sampleIntervalMs = Math.max(0L, requestedSampleIntervalMs);
+
+        double[] unwrappedSamples = new double[sampleCount];
+        double previousRawDegrees = absoluteVoltageToRawDegrees(readAbsoluteEncoderVoltage());
+        double unwrappedRawDegrees = previousRawDegrees;
+        unwrappedSamples[0] = unwrappedRawDegrees;
+
+        for (int i = 1; i < sampleCount; i++) {
+            if (sampleIntervalMs > 0L) {
+                SystemClock.sleep(sampleIntervalMs);
+            }
+            double currentRawDegrees = absoluteVoltageToRawDegrees(readAbsoluteEncoderVoltage());
+            unwrappedRawDegrees += smallestWrappedDeltaDegrees(currentRawDegrees, previousRawDegrees);
+            unwrappedSamples[i] = unwrappedRawDegrees;
+            previousRawDegrees = currentRawDegrees;
+        }
+
+        double[] sortedSamples = Arrays.copyOf(unwrappedSamples, unwrappedSamples.length);
+        Arrays.sort(sortedSamples);
+        double medianUnwrappedDegrees = sortedSamples[sortedSamples.length / 2];
+        if ((sortedSamples.length % 2) == 0) {
+            medianUnwrappedDegrees =
+                    0.5 * (sortedSamples[(sortedSamples.length / 2) - 1] + sortedSamples[sortedSamples.length / 2]);
+        }
+        return wrapRawDegrees0To360(medianUnwrappedDegrees);
+    }
+
     private void maybeLogStartupWaitState(double expectedTurretAngleDegrees, long elapsedMs) {
         long nowMs = System.currentTimeMillis();
         if (lastStartupLogTimeMs == 0L || nowMs - lastStartupLogTimeMs >= 250L) {
@@ -711,6 +772,14 @@ public class TurretSubsystem implements Subsystem {
 
     private static double turretCountsPerDegree() {
         return Math.max(1e-6, TURRET_ENCODER_COUNTS_PER_DEGREE);
+    }
+
+    private static double wrapRawDegrees0To360(double angleDegrees) {
+        double wrapped = angleDegrees % 360.0;
+        if (wrapped < 0.0) {
+            wrapped += 360.0;
+        }
+        return wrapped;
     }
 
     private static double wrapDegrees(double angleDegrees) {

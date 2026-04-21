@@ -33,6 +33,7 @@ import org.firstinspires.ftc.teamcode.subsystems.shot.ShotSample;
 import org.firstinspires.ftc.teamcode.subsystems.shot.ShotSolution;
 import org.firstinspires.ftc.teamcode.subsystems.shot.ShootingZones;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -235,6 +236,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
     public static Pose blueShootingTarget = redShootingTarget.mirror();
     Pose MT1PedroPose = new Pose();
+    private static final int LIMELIGHT_VISION_HISTORY_CAPACITY = 8;
+    private final double[] limelightVisionDxHistory = new double[LIMELIGHT_VISION_HISTORY_CAPACITY];
+    private final double[] limelightVisionDyHistory = new double[LIMELIGHT_VISION_HISTORY_CAPACITY];
+    private final double[] limelightVisionDhHistoryDeg = new double[LIMELIGHT_VISION_HISTORY_CAPACITY];
+    private int limelightVisionHistoryNextIdx = 0;
+    private int limelightVisionHistoryFill = 0;
+    private double limelightVisionBiasXIn = 0.0;
+    private double limelightVisionBiasYIn = 0.0;
+    private double limelightVisionBiasHeadingDeg = 0.0;
 
     // Adjust these from Panels at runtime
     public static boolean hold = false;
@@ -313,6 +323,25 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private static final double[] SOTM_TOF_DISTANCE_IN = {60.0, 80.0, 100.0, 120.0};
     private static final double[] SOTM_TOF_FLIGHT_TIME_SEC = {0.15, 0.20, 0.27, 0.35};
 
+    // Limelight translation-only fusion. MT2 is the default source because the
+    // current validation log shows it clustering tighter than MT1. Heading
+    // stays on the robot yaw sensor by default; enable heading only after
+    // logging proves it is helpful.
+    public static boolean LIMELIGHT_VISION_BLEND_ENABLED = true;
+    public static int LIMELIGHT_VISION_BLEND_SOURCE = 2; // 1 = MT1, 2 = MT2
+    public static boolean LIMELIGHT_VISION_BLEND_USE_HEADING = false;
+    public static int LIMELIGHT_VISION_BIAS_WINDOW = 5;
+    public static double LIMELIGHT_VISION_MAX_TRANSLATION_ERROR_IN = 10.0;
+    public static double LIMELIGHT_VISION_MAX_HEADING_ERROR_DEG = 10.0;
+    public static double LIMELIGHT_VISION_MAX_DELTA_FROM_HISTORY_IN = 6.0;
+    public static double LIMELIGHT_VISION_BLEND_ALPHA_MOVING = 0.05;
+    public static double LIMELIGHT_VISION_BLEND_ALPHA_SLOW = 0.12;
+    public static double LIMELIGHT_VISION_BLEND_ALPHA_STATIONARY = 0.25;
+    public static double LIMELIGHT_VISION_SPEED_SLOW_IN_PER_SEC = 8.0;
+    public static double LIMELIGHT_VISION_SPEED_STATIONARY_IN_PER_SEC = 2.5;
+    public static double LIMELIGHT_VISION_OMEGA_SLOW_DEG_PER_SEC = 35.0;
+    public static double LIMELIGHT_VISION_OMEGA_STATIONARY_DEG_PER_SEC = 10.0;
+
     // Auto-stop shooter timeout after starting a dumbShoot burst (ms)
     public static long DUMBSHOOT_SHOOTER_TIMEOUT_MS = 1000;
 
@@ -350,6 +379,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean matchHasStarted = false;
     private boolean turretStartupFromAuton = false;
     private double turretStartupExpectedAngleDeg = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+    // Teleop init time on the field is often under a second, so use a short
+    // startup settle here and fall back to a short sampled absolute read at Start
+    // if init did not finish calibration in time.
+    public static long TELEOP_TURRET_STARTUP_SETTLE_MS = 250L;
+    public static int TELEOP_TURRET_START_SAMPLE_COUNT = 5;
+    public static long TELEOP_TURRET_START_SAMPLE_INTERVAL_MS = 10L;
     @Override
     public void onInit() {
         matchHasStarted = false;
@@ -375,6 +410,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         hold = false;
         prevHold = false;
         ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
+        resetLimelightVisionBlendState();
 
         limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
@@ -501,6 +537,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "mt2_x," +
                                 "mt2_y," +
                                 "mt2_heading_deg," +
+                                "ll_blend_source," +
+                                "ll_pose_valid," +
+                                "ll_pose_accepted," +
+                                "ll_raw_dx_in," +
+                                "ll_raw_dy_in," +
+                                "ll_raw_dist_in," +
+                                "ll_raw_heading_err_deg," +
+                                "ll_bias_x_in," +
+                                "ll_bias_y_in," +
+                                "ll_bias_heading_deg," +
+                                "ll_blend_alpha," +
                                 "target_x," +
                                 "target_y," +
                                 "field_angle_deg," +
@@ -768,7 +815,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     @Override
     public void onWaitForStart() {
         boolean turretStartupCalibrated = TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
-                turretStartupExpectedAngleDeg
+                turretStartupExpectedAngleDeg,
+                TELEOP_TURRET_STARTUP_SETTLE_MS
         );
 
         if (selectAllianceSide) {
@@ -799,7 +847,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     @Override
     public void onStartButtonPressed() {
         matchHasStarted = true;
-        TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(turretStartupExpectedAngleDeg);
+        if (!TurretSubsystem.INSTANCE.isStartupCalibrationComplete()) {
+            TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpectedSampled(
+                    turretStartupExpectedAngleDeg,
+                    TELEOP_TURRET_START_SAMPLE_COUNT,
+                    TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
+            );
+        }
         //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)
@@ -904,6 +958,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double mt2PedroX = Double.NaN;
         double mt2PedroY = Double.NaN;
         double mt2PedroHeadingDeg = Double.NaN;
+        String limelightBlendSource = "MT2";
+        boolean limelightBlendPoseValid = false;
+        boolean limelightBlendPoseAccepted = false;
+        double limelightBlendRawDxIn = Double.NaN;
+        double limelightBlendRawDyIn = Double.NaN;
+        double limelightBlendRawDistIn = Double.NaN;
+        double limelightBlendRawHeadingErrDeg = Double.NaN;
+        double limelightBlendAlpha = 0.0;
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
             yOffset = result.getTy();
@@ -938,6 +1000,102 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     mt2PedroHeadingDeg = candidateHeadingDeg;
                 }
             }
+        }
+        Vector limelightVisionVelocity = PedroComponent.follower().getVelocity();
+        double limelightVisionSpeedInPerSec = limelightVisionVelocity.getMagnitude();
+        double limelightVisionOmegaDegPerSec = Math.toDegrees(PedroComponent.follower().poseTracker.getAngularVelocity());
+
+        limelightBlendSource = (LIMELIGHT_VISION_BLEND_SOURCE == 1) ? "MT1" : "MT2";
+        double selectedVisionX = Double.NaN;
+        double selectedVisionY = Double.NaN;
+        double selectedVisionHeadingDeg = Double.NaN;
+        if (LIMELIGHT_VISION_BLEND_SOURCE == 1) {
+            limelightBlendPoseValid = mt1Valid;
+            selectedVisionX = mt1PedroX;
+            selectedVisionY = mt1PedroY;
+            selectedVisionHeadingDeg = mt1PedroHeadingDeg;
+        } else {
+            limelightBlendPoseValid = mt2Valid;
+            selectedVisionX = mt2PedroX;
+            selectedVisionY = mt2PedroY;
+            selectedVisionHeadingDeg = mt2PedroHeadingDeg;
+        }
+
+        if (limelightBlendPoseValid) {
+            limelightBlendRawDxIn = selectedVisionX - botxvalue;
+            limelightBlendRawDyIn = selectedVisionY - botyvalue;
+            limelightBlendRawDistIn = Math.hypot(limelightBlendRawDxIn, limelightBlendRawDyIn);
+            limelightBlendRawHeadingErrDeg =
+                    normalizeDegrees(selectedVisionHeadingDeg - Math.toDegrees(botHeadingRad));
+
+            boolean translationOk = limelightBlendRawDistIn <= Math.max(0.0, LIMELIGHT_VISION_MAX_TRANSLATION_ERROR_IN);
+            boolean headingOk = Math.abs(limelightBlendRawHeadingErrDeg) <=
+                    Math.max(0.0, LIMELIGHT_VISION_MAX_HEADING_ERROR_DEG);
+            boolean historyOk = true;
+            if (limelightVisionHistoryFill >= 3) {
+                double historyDx = getRecentVisionHistoryMedian(limelightVisionDxHistory);
+                double historyDy = getRecentVisionHistoryMedian(limelightVisionDyHistory);
+                double historyDeltaDist = Math.hypot(
+                        limelightBlendRawDxIn - historyDx,
+                        limelightBlendRawDyIn - historyDy
+                );
+                historyOk = historyDeltaDist <= Math.max(0.0, LIMELIGHT_VISION_MAX_DELTA_FROM_HISTORY_IN);
+            }
+
+            limelightBlendPoseAccepted =
+                    LIMELIGHT_VISION_BLEND_ENABLED &&
+                    translationOk &&
+                    headingOk &&
+                    historyOk;
+
+            if (limelightBlendPoseAccepted) {
+                pushLimelightVisionHistory(
+                        limelightBlendRawDxIn,
+                        limelightBlendRawDyIn,
+                        limelightBlendRawHeadingErrDeg
+                );
+                double filteredDx = getRecentVisionHistoryMedian(limelightVisionDxHistory);
+                double filteredDy = getRecentVisionHistoryMedian(limelightVisionDyHistory);
+                double filteredDh = getRecentVisionHistoryMedian(limelightVisionDhHistoryDeg);
+
+                if (limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_STATIONARY_IN_PER_SEC) &&
+                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_STATIONARY_DEG_PER_SEC)) {
+                    limelightBlendAlpha = LIMELIGHT_VISION_BLEND_ALPHA_STATIONARY;
+                } else if (limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_SLOW_IN_PER_SEC) &&
+                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_SLOW_DEG_PER_SEC)) {
+                    limelightBlendAlpha = LIMELIGHT_VISION_BLEND_ALPHA_SLOW;
+                } else {
+                    limelightBlendAlpha = LIMELIGHT_VISION_BLEND_ALPHA_MOVING;
+                }
+
+                limelightVisionBiasXIn += limelightBlendAlpha * (filteredDx - limelightVisionBiasXIn);
+                limelightVisionBiasYIn += limelightBlendAlpha * (filteredDy - limelightVisionBiasYIn);
+                if (LIMELIGHT_VISION_BLEND_USE_HEADING) {
+                    limelightVisionBiasHeadingDeg += limelightBlendAlpha * (filteredDh - limelightVisionBiasHeadingDeg);
+                }
+            }
+        }
+
+        if (LIMELIGHT_VISION_BLEND_ENABLED &&
+                (Math.abs(limelightVisionBiasXIn) > 1e-6 ||
+                        Math.abs(limelightVisionBiasYIn) > 1e-6 ||
+                        (LIMELIGHT_VISION_BLEND_USE_HEADING && Math.abs(limelightVisionBiasHeadingDeg) > 1e-6))) {
+            double correctedHeadingRad = botHeadingRad;
+            if (LIMELIGHT_VISION_BLEND_USE_HEADING) {
+                correctedHeadingRad = normalizeRadians(
+                        botHeadingRad + Math.toRadians(limelightVisionBiasHeadingDeg)
+                );
+            }
+            Pose correctedPose = new Pose(
+                    botxvalue + limelightVisionBiasXIn,
+                    botyvalue + limelightVisionBiasYIn,
+                    correctedHeadingRad
+            );
+            PedroComponent.follower().setPose(correctedPose);
+            currentBotPose = correctedPose;
+            botHeadingRad = correctedHeadingRad;
+            botxvalue = correctedPose.getX();
+            botyvalue = correctedPose.getY();
         }
         ODODistance = PedroComponent.follower().getPose().distanceFrom(shootingTargetLocation);
 
@@ -1075,17 +1233,26 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             PedroComponent.follower().setPose(new Pose(71, 8, Math.toRadians(270)));
         }
 
+        // MT1 emergency relocalization stays available even when SOTM is enabled.
+        // This is the rescue path for cases where odometry / heading become bad
+        // enough that MT2 translation-only blending can no longer be trusted.
+        if (dpadUpActive && result != null && result.isValid() && ODODistance < 100 && mt1Valid) {
+            PedroComponent.follower().setPose(MT1PedroPose);
+            currentBotPose = MT1PedroPose;
+            botHeadingRad = MT1PedroPose.getHeading();
+            botxvalue = MT1PedroPose.getX();
+            botyvalue = MT1PedroPose.getY();
+            resetLimelightVisionBlendState();
+        }
+
         // Legacy limelight heading-assist block.
         // Keep it only when SOTM is disabled, otherwise it fights moving-shot turret targeting.
         if (dpadUpActive && !SOTM_ENABLED) {
             adjustLimelight = true;
             if (result != null && result.isValid()) {
-                if (ODODistance < 100 && mt1Valid) {
-                    PedroComponent.follower().setPose(MT1PedroPose);
-                }
                 // RPM no longer comes from this path; the shot calibration table
-                // drives RPM selection below. This block is kept for pose reset
-                // (MT1) and legacy heading-assist turret rotation only.
+                // drives RPM selection below. This block is kept only for legacy
+                // heading-assist turret rotation.
 
                 if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
                     List<LLResultTypes.FiducialResult> tag24Results = result.getFiducialResults().stream()
@@ -1638,6 +1805,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         mt2PedroX,
                         mt2PedroY,
                         mt2PedroHeadingDeg,
+                        limelightBlendSource,
+                        limelightBlendPoseValid,
+                        limelightBlendPoseAccepted,
+                        limelightBlendRawDxIn,
+                        limelightBlendRawDyIn,
+                        limelightBlendRawDistIn,
+                        limelightBlendRawHeadingErrDeg,
+                        limelightVisionBiasXIn,
+                        limelightVisionBiasYIn,
+                        limelightVisionBiasHeadingDeg,
+                        limelightBlendAlpha,
                         shootTargetX,
                         shootTargetY,
                         fieldAngleDeg,
@@ -1729,6 +1907,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("MT2 Pedro X", mt2PedroX);
         telemetry.addData("MT2 Pedro Y", mt2PedroY);
         telemetry.addData("MT2 Pedro Heading", mt2PedroHeadingDeg);
+        telemetry.addData("LL Blend Source", limelightBlendSource);
+        telemetry.addData("LL Blend Valid", limelightBlendPoseValid);
+        telemetry.addData("LL Blend Accepted", limelightBlendPoseAccepted);
+        telemetry.addData("LL Blend dX", limelightBlendRawDxIn);
+        telemetry.addData("LL Blend dY", limelightBlendRawDyIn);
+        telemetry.addData("LL Blend Dist", limelightBlendRawDistIn);
+        telemetry.addData("LL Blend dH", limelightBlendRawHeadingErrDeg);
+        telemetry.addData("LL Bias X", limelightVisionBiasXIn);
+        telemetry.addData("LL Bias Y", limelightVisionBiasYIn);
+        telemetry.addData("LL Bias H", limelightVisionBiasHeadingDeg);
+        telemetry.addData("LL Blend Alpha", limelightBlendAlpha);
         telemetry.addData("ODO distance", ODODistance);
         telemetry.addData("ODO X-Location", botxvalue);
         telemetry.addData("ODO Y-Location", botyvalue);
@@ -2774,6 +2963,51 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 (-(ftcStandardPose.getX()) + 72),
                 ftcStandardPose.getHeading() - Math.toRadians(90)
         );
+    }
+
+    private void resetLimelightVisionBlendState() {
+        Arrays.fill(limelightVisionDxHistory, 0.0);
+        Arrays.fill(limelightVisionDyHistory, 0.0);
+        Arrays.fill(limelightVisionDhHistoryDeg, 0.0);
+        limelightVisionHistoryNextIdx = 0;
+        limelightVisionHistoryFill = 0;
+        limelightVisionBiasXIn = 0.0;
+        limelightVisionBiasYIn = 0.0;
+        limelightVisionBiasHeadingDeg = 0.0;
+    }
+
+    private void pushLimelightVisionHistory(double dxIn, double dyIn, double dhDeg) {
+        limelightVisionDxHistory[limelightVisionHistoryNextIdx] = dxIn;
+        limelightVisionDyHistory[limelightVisionHistoryNextIdx] = dyIn;
+        limelightVisionDhHistoryDeg[limelightVisionHistoryNextIdx] = dhDeg;
+        limelightVisionHistoryNextIdx =
+                (limelightVisionHistoryNextIdx + 1) % LIMELIGHT_VISION_HISTORY_CAPACITY;
+        limelightVisionHistoryFill = Math.min(
+                LIMELIGHT_VISION_HISTORY_CAPACITY,
+                limelightVisionHistoryFill + 1
+        );
+    }
+
+    private double getRecentVisionHistoryMedian(double[] history) {
+        int count = Math.min(
+                Math.max(1, LIMELIGHT_VISION_BIAS_WINDOW),
+                Math.min(limelightVisionHistoryFill, LIMELIGHT_VISION_HISTORY_CAPACITY)
+        );
+        if (count <= 0) {
+            return 0.0;
+        }
+        double[] values = new double[count];
+        for (int i = 0; i < count; i++) {
+            int historyIdx = limelightVisionHistoryNextIdx - count + i;
+            while (historyIdx < 0) historyIdx += LIMELIGHT_VISION_HISTORY_CAPACITY;
+            values[i] = history[historyIdx % LIMELIGHT_VISION_HISTORY_CAPACITY];
+        }
+        Arrays.sort(values);
+        int mid = count / 2;
+        if ((count & 1) == 1) {
+            return values[mid];
+        }
+        return 0.5 * (values[mid - 1] + values[mid]);
     }
 
     private double normalizeRadians(double angle) {
