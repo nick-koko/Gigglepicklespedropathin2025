@@ -12,6 +12,7 @@ import com.pedropathing.ftc.InvertedFTCCoordinates;
 import com.pedropathing.ftc.PoseConverter;
 import com.pedropathing.geometry.BezierPoint;
 import com.pedropathing.geometry.Pose;
+import com.pedropathing.localization.PoseTracker;
 import com.pedropathing.math.Vector;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.hardware.limelightvision.LLResult;
@@ -62,7 +63,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     }
 
     public static Pose startingPoseBlue = new Pose(31.5, 134.0, Math.toRadians(270)); //See ExampleAuto to understand how to use this
-    public static Pose startingPoseRed = startingPoseBlue.mirror();
+    public static Pose startingPoseRed = startingPoseBlue.mirror(144);
     public static Pose startingPose = startingPoseBlue;
 
     // logging variables
@@ -235,6 +236,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
     public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
     public static Pose blueShootingTarget = redShootingTarget.mirror();
+    // Field width fed to Pose.mirror(width) when flipping blue-authored
+    // calibration lookups onto the red side. Matches the mirror width used
+    // everywhere else in the project (startingPoseRed, autopath mirroring,
+    // etc.); exposed as public static so it can be adjusted per-event if a
+    // field is built slightly over- or under-sized.
+    public static double FIELD_WIDTH_IN = 144.0;
     Pose MT1PedroPose = new Pose();
     private static final int LIMELIGHT_VISION_HISTORY_CAPACITY = 8;
     private final double[] limelightVisionDxHistory = new double[LIMELIGHT_VISION_HISTORY_CAPACITY];
@@ -245,6 +252,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private double limelightVisionBiasXIn = 0.0;
     private double limelightVisionBiasYIn = 0.0;
     private double limelightVisionBiasHeadingDeg = 0.0;
+    private double limelightVisionLastNudgeXIn = 0.0;
+    private double limelightVisionLastNudgeYIn = 0.0;
+    private double limelightVisionLastNudgeHeadingDeg = 0.0;
+    private int limelightVisionLoopsSinceApply = Integer.MAX_VALUE / 2;
+    private int limelightVisionConsecutiveAccepts = 0;
 
     // Adjust these from Panels at runtime
     public static boolean hold = false;
@@ -331,19 +343,62 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static int LIMELIGHT_VISION_BLEND_SOURCE = 2; // 1 = MT1, 2 = MT2
     public static boolean LIMELIGHT_VISION_BLEND_USE_HEADING = false;
     public static int LIMELIGHT_VISION_BIAS_WINDOW = 5;
-    public static double LIMELIGHT_VISION_MAX_TRANSLATION_ERROR_IN = 10.0;
+    // Plausibility caps. Previously 10" translation / 6" history delta were
+    // too tight: log analysis showed ~45% of valid-pose frames being rejected
+    // on the translation cap whenever the robot had already drifted past 10"
+    // (the exact case we want to correct) and the history-delta cap blocked
+    // the big-innovation recovery right after a bump. Widening these lets
+    // real-world drift and collision offsets flow through, while the
+    // consecutive-accepts + history median still protect us against single
+    // noisy frames.
+    public static double LIMELIGHT_VISION_MAX_TRANSLATION_ERROR_IN = 24.0;
     public static double LIMELIGHT_VISION_MAX_HEADING_ERROR_DEG = 10.0;
-    public static double LIMELIGHT_VISION_MAX_DELTA_FROM_HISTORY_IN = 6.0;
+    public static double LIMELIGHT_VISION_MAX_DELTA_FROM_HISTORY_IN = 10.0;
     public static double LIMELIGHT_VISION_BLEND_ALPHA_MOVING = 0.05;
-    public static double LIMELIGHT_VISION_BLEND_ALPHA_SLOW = 0.12;
-    public static double LIMELIGHT_VISION_BLEND_ALPHA_STATIONARY = 0.25;
+    public static double LIMELIGHT_VISION_BLEND_ALPHA_SLOW = 0.15;
+    public static double LIMELIGHT_VISION_BLEND_ALPHA_STATIONARY = 0.35;
+    // Escalated alpha when the raw vision delta is large AND speed/omega are
+    // under the stationary-or-slow caps. This is the "recover from a bump"
+    // path: when the robot has been physically displaced, we want to pull
+    // odometry back toward vision faster than the normal gentle trim. The
+    // consecutive-accepts gate still guarantees the large error is repeatable
+    // before we act on it.
+    public static double LIMELIGHT_VISION_BLEND_LARGE_ERROR_IN = 5.0;
+    public static double LIMELIGHT_VISION_BLEND_ALPHA_LARGE_ERROR = 0.6;
     public static double LIMELIGHT_VISION_SPEED_SLOW_IN_PER_SEC = 8.0;
     public static double LIMELIGHT_VISION_SPEED_STATIONARY_IN_PER_SEC = 2.5;
     public static double LIMELIGHT_VISION_OMEGA_SLOW_DEG_PER_SEC = 35.0;
     public static double LIMELIGHT_VISION_OMEGA_STATIONARY_DEG_PER_SEC = 10.0;
+    // Throttle + streak gates on the actual setPose() call. Even after the raw
+    // sample is "accepted" we only re-localize Pedro when:
+    //   - at least MIN_LOOPS_BETWEEN_APPLIES have passed since the last apply
+    //     (avoid fighting Pinpoint's internal integration every loop), AND
+    //   - at least MIN_CONSECUTIVE_ACCEPTS recent samples in a row passed the
+    //     plausibility + history gates (avoid reacting to a single noisy tag),
+    //     AND
+    //   - current speed/omega are under the hard apply caps (never slam the
+    //     pose while the robot is actively driving fast).
+    // MT2 only produces a valid sample on frames where the goal tag is in
+    // view (~5% of loops in recent logs), so a streak of 3 rarely completes
+    // before the tag drops out again. A streak of 2 is the minimum that still
+    // guarantees the sample wasn't a single-frame glitch.
+    public static int LIMELIGHT_VISION_BLEND_MIN_LOOPS_BETWEEN_APPLIES = 12;
+    public static int LIMELIGHT_VISION_BLEND_MIN_CONSECUTIVE_ACCEPTS = 2;
+    public static double LIMELIGHT_VISION_BLEND_MAX_APPLY_SPEED_IN_PER_SEC = 16.0;
+    public static double LIMELIGHT_VISION_BLEND_MAX_APPLY_OMEGA_DEG_PER_SEC = 60.0;
 
     // Auto-stop shooter timeout after starting a dumbShoot burst (ms)
-    public static long DUMBSHOOT_SHOOTER_TIMEOUT_MS = 1000;
+    public static long DUMBSHOOT_SHOOTER_TIMEOUT_MS = 1200;
+    // After the shooter timeout fires we stop every motor, but we do NOT immediately
+    // re-validate ball count + re-enter intakeForward. Doing so in the same loop tick
+    // means a ball that was still physically mid-transit through the transfer (or
+    // just bounced off the decelerating flywheel) is instantly detected at sensor2,
+    // ballCount jumps to 1, m3Enabled goes false, and intakeForward commands m3 to
+    // M3_HOLD_RPM_OCCUPIED (-20 RPM reverse) - which actively pulls a not-yet-shot
+    // ball back down the transfer and strands it. We instead hold all motors at zero
+    // for this settle window so the last ball has time to fully exit (or fully drop
+    // to a sensor) before validation runs.
+    public static long DUMBSHOOT_POST_SHOT_SETTLE_MS = 250;
 
     public static double shooterHoodPos = 0;
     private boolean hasResults = false;
@@ -360,6 +415,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // State for auto-stopping shooter after dumbShoot
     private boolean dumbShootTimerActive = false;
     private long dumbShootStartTimeMs = 0L;
+    // Settle phase: true while we have already stopped shooter+intake after a
+    // dumbShoot burst but are waiting DUMBSHOOT_POST_SHOT_SETTLE_MS before
+    // validating ball count and re-entering intakeForward.
+    private boolean dumbShootSettleActive = false;
+    private long dumbShootSettleStartMs = 0L;
     // True while the robot is inside minDisatanceForShooting. Used as a fire-gate by
     // shot-trigger code further down the loop; LED presentation is independent.
     private boolean tooCloseWarningActive = false;
@@ -392,6 +452,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         ShooterSubsystem.INSTANCE.stop();
         shooterFollowEnabled = false;
         dumbShootTimerActive = false;
+        dumbShootSettleActive = false;
         singleShotPending = false;
         shotTuningPendingLabel = false;
         shotTuningShotIdCounter = 0;
@@ -537,9 +598,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "mt2_x," +
                                 "mt2_y," +
                                 "mt2_heading_deg," +
+                                "ll_blend_enabled," +
                                 "ll_blend_source," +
                                 "ll_pose_valid," +
                                 "ll_pose_accepted," +
+                                "ll_pose_applied," +
+                                "ll_gate_reason," +
+                                "ll_consecutive_accepts," +
+                                "ll_loops_since_apply," +
                                 "ll_raw_dx_in," +
                                 "ll_raw_dy_in," +
                                 "ll_raw_dist_in," +
@@ -547,6 +613,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                                 "ll_bias_x_in," +
                                 "ll_bias_y_in," +
                                 "ll_bias_heading_deg," +
+                                "ll_nudge_x_in," +
+                                "ll_nudge_y_in," +
+                                "ll_nudge_heading_deg," +
                                 "ll_blend_alpha," +
                                 "target_x," +
                                 "target_y," +
@@ -926,16 +995,31 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         long nowMs = System.currentTimeMillis();
         TurretSubsystem.INSTANCE.setPeriodicAbsoluteEncoderReadEnabled(ENABLE_TURRET_LOGGING);
 
-        // Auto-stop shooter and intake after a dumbShoot burst has been active long enough
+        // Phase 1: dumbShoot burst has reached its timeout. Stop shooter + intake and
+        // start a settle window. Do NOT validate ball count or call intakeForward yet -
+        // a ball may still be mid-transit and an immediate intakeForward would command
+        // m3 to reverse at M3_HOLD_RPM_OCCUPIED, pulling it back.
         if (dumbShootTimerActive &&
                 nowMs - dumbShootStartTimeMs >= DUMBSHOOT_SHOOTER_TIMEOUT_MS) {
             ShooterSubsystem.INSTANCE.stop();
             IntakeWithSensorsSubsystem.INSTANCE.stop();
-            IntakeWithSensorsSubsystem.INSTANCE.validateBallCountAfterShoot();
-            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();
             dumbShootTimerActive = false;
             shooterFollowEnabled = false;
             ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
+            dumbShootSettleActive = true;
+            dumbShootSettleStartMs = nowMs;
+        }
+
+        // Phase 2: settle window has elapsed. Now read sensors (they're stable) and
+        // re-arm the intake. If the last ball is genuinely stuck at sensor2 after the
+        // settle, validation will correctly set ballCount=1 and intakeForward will hold
+        // it; if the ball fully exited, sensors are clear and ballCount stays 0 so the
+        // next intake cycle starts clean.
+        if (dumbShootSettleActive &&
+                nowMs - dumbShootSettleStartMs >= DUMBSHOOT_POST_SHOT_SETTLE_MS) {
+            IntakeWithSensorsSubsystem.INSTANCE.validateBallCountAfterShoot();
+            IntakeWithSensorsSubsystem.INSTANCE.intakeForward();
+            dumbShootSettleActive = false;
         }
 
         Pose currentBotPose = PedroComponent.follower().getPose();
@@ -961,11 +1045,16 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         String limelightBlendSource = "MT2";
         boolean limelightBlendPoseValid = false;
         boolean limelightBlendPoseAccepted = false;
+        boolean limelightBlendPoseApplied = false;
         double limelightBlendRawDxIn = Double.NaN;
         double limelightBlendRawDyIn = Double.NaN;
         double limelightBlendRawDistIn = Double.NaN;
         double limelightBlendRawHeadingErrDeg = Double.NaN;
         double limelightBlendAlpha = 0.0;
+        // Per-loop reason string surfaced to log + telemetry so the team can see
+        // at a glance why a frame was (or was not) accepted/applied. Default is
+        // "disabled" until we flow through the gate logic below.
+        String limelightBlendGateReason = LIMELIGHT_VISION_BLEND_ENABLED ? "no_tag" : "disabled";
         if (result != null && result.isValid()) {
             xOffset = result.getTx();
             yOffset = result.getTy();
@@ -1054,48 +1143,139 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         limelightBlendRawDyIn,
                         limelightBlendRawHeadingErrDeg
                 );
-                double filteredDx = getRecentVisionHistoryMedian(limelightVisionDxHistory);
-                double filteredDy = getRecentVisionHistoryMedian(limelightVisionDyHistory);
-                double filteredDh = getRecentVisionHistoryMedian(limelightVisionDhHistoryDeg);
+                limelightVisionConsecutiveAccepts++;
 
-                if (limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_STATIONARY_IN_PER_SEC) &&
-                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_STATIONARY_DEG_PER_SEC)) {
+                boolean isStationary =
+                        limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_STATIONARY_IN_PER_SEC) &&
+                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_STATIONARY_DEG_PER_SEC);
+                boolean isSlow =
+                        limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_SLOW_IN_PER_SEC) &&
+                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_SLOW_DEG_PER_SEC);
+                boolean isLargeError = limelightBlendRawDistIn >=
+                        Math.max(0.0, LIMELIGHT_VISION_BLEND_LARGE_ERROR_IN);
+
+                if (isLargeError && (isStationary || isSlow)) {
+                    // Big displacement detected and we're not driving hard -
+                    // treat this as a bump/collision recovery and pull faster.
+                    limelightBlendAlpha = LIMELIGHT_VISION_BLEND_ALPHA_LARGE_ERROR;
+                } else if (isStationary) {
                     limelightBlendAlpha = LIMELIGHT_VISION_BLEND_ALPHA_STATIONARY;
-                } else if (limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_SLOW_IN_PER_SEC) &&
-                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_SLOW_DEG_PER_SEC)) {
+                } else if (isSlow) {
                     limelightBlendAlpha = LIMELIGHT_VISION_BLEND_ALPHA_SLOW;
                 } else {
                     limelightBlendAlpha = LIMELIGHT_VISION_BLEND_ALPHA_MOVING;
                 }
-
-                limelightVisionBiasXIn += limelightBlendAlpha * (filteredDx - limelightVisionBiasXIn);
-                limelightVisionBiasYIn += limelightBlendAlpha * (filteredDy - limelightVisionBiasYIn);
-                if (LIMELIGHT_VISION_BLEND_USE_HEADING) {
-                    limelightVisionBiasHeadingDeg += limelightBlendAlpha * (filteredDh - limelightVisionBiasHeadingDeg);
+                limelightBlendGateReason = "accept";
+            } else {
+                limelightVisionConsecutiveAccepts = 0;
+                if (!LIMELIGHT_VISION_BLEND_ENABLED) {
+                    limelightBlendGateReason = "disabled";
+                } else if (!translationOk) {
+                    limelightBlendGateReason = "translation";
+                } else if (!headingOk) {
+                    limelightBlendGateReason = "heading";
+                } else {
+                    limelightBlendGateReason = "history";
                 }
+            }
+        } else {
+            limelightVisionConsecutiveAccepts = 0;
+            limelightBlendGateReason = LIMELIGHT_VISION_BLEND_ENABLED ? "no_tag" : "disabled";
+        }
+
+        // Apply gate: even when the raw sample is accepted, throttle actual
+        // corrections to avoid fighting Pinpoint's internal integrator. Require
+        // a streak of good frames and a hard speed cap so we never re-localize
+        // while actively driving fast. Heading is only touched if the user
+        // explicitly opts in via LIMELIGHT_VISION_BLEND_USE_HEADING.
+        if (LIMELIGHT_VISION_BLEND_ENABLED) {
+            limelightVisionLoopsSinceApply++;
+        }
+        boolean throttleOk = limelightVisionLoopsSinceApply >=
+                Math.max(1, LIMELIGHT_VISION_BLEND_MIN_LOOPS_BETWEEN_APPLIES);
+        boolean streakOk = limelightVisionConsecutiveAccepts >=
+                Math.max(1, LIMELIGHT_VISION_BLEND_MIN_CONSECUTIVE_ACCEPTS);
+        boolean speedOk = limelightVisionSpeedInPerSec <=
+                Math.max(0.0, LIMELIGHT_VISION_BLEND_MAX_APPLY_SPEED_IN_PER_SEC);
+        boolean omegaOk = Math.abs(limelightVisionOmegaDegPerSec) <=
+                Math.max(0.0, LIMELIGHT_VISION_BLEND_MAX_APPLY_OMEGA_DEG_PER_SEC);
+
+        // Reset per-loop nudge each iteration. Cumulative correction lives in
+        // PoseTracker's x/y offsets, not in a code-side variable, so there is
+        // no persistent state here that can runaway.
+        limelightVisionLastNudgeXIn = 0.0;
+        limelightVisionLastNudgeYIn = 0.0;
+        limelightVisionLastNudgeHeadingDeg = 0.0;
+
+        // If accepted but blocked from applying, overwrite "accept" reason
+        // with the narrower apply-gate that failed, so logs show the true
+        // bottleneck rather than silently saying "accept" every frame.
+        if (limelightBlendPoseAccepted) {
+            if (!throttleOk) {
+                limelightBlendGateReason = "throttle";
+            } else if (!streakOk) {
+                limelightBlendGateReason = "streak";
+            } else if (!speedOk) {
+                limelightBlendGateReason = "speed";
+            } else if (!omegaOk) {
+                limelightBlendGateReason = "omega";
             }
         }
 
         if (LIMELIGHT_VISION_BLEND_ENABLED &&
-                (Math.abs(limelightVisionBiasXIn) > 1e-6 ||
-                        Math.abs(limelightVisionBiasYIn) > 1e-6 ||
-                        (LIMELIGHT_VISION_BLEND_USE_HEADING && Math.abs(limelightVisionBiasHeadingDeg) > 1e-6))) {
-            double correctedHeadingRad = botHeadingRad;
-            if (LIMELIGHT_VISION_BLEND_USE_HEADING) {
-                correctedHeadingRad = normalizeRadians(
-                        botHeadingRad + Math.toRadians(limelightVisionBiasHeadingDeg)
-                );
+                limelightBlendPoseAccepted &&
+                throttleOk && streakOk && speedOk && omegaOk) {
+            // Use Pedro's PoseTracker x/y offset as the persistent correction
+            // instead of calling follower.setPose(). setPose() routes through
+            // localizer.setPose() and Pinpoint-style localizers track heading
+            // as a delta from an internal reference; rewriting that reference
+            // every loop nudges the heading state even when we hand back the
+            // same value. PoseTracker offsets are pure post-hoc trims added
+            // by applyOffset() in getPose(): the localizer keeps ticking
+            // undisturbed, and getPose() returns raw + offset.
+            double filteredDx = getRecentVisionHistoryMedian(limelightVisionDxHistory);
+            double filteredDy = getRecentVisionHistoryMedian(limelightVisionDyHistory);
+            double filteredDh = getRecentVisionHistoryMedian(limelightVisionDhHistoryDeg);
+
+            double nudgeX = limelightBlendAlpha * filteredDx;
+            double nudgeY = limelightBlendAlpha * filteredDy;
+            double nudgeHeadingDeg = LIMELIGHT_VISION_BLEND_USE_HEADING
+                    ? limelightBlendAlpha * filteredDh
+                    : 0.0;
+
+            if (Math.abs(nudgeX) > 1e-6 || Math.abs(nudgeY) > 1e-6 ||
+                    (LIMELIGHT_VISION_BLEND_USE_HEADING && Math.abs(nudgeHeadingDeg) > 1e-6)) {
+                PoseTracker pt = PedroComponent.follower().poseTracker;
+                pt.setXOffset(pt.getXOffset() + nudgeX);
+                pt.setYOffset(pt.getYOffset() + nudgeY);
+                if (LIMELIGHT_VISION_BLEND_USE_HEADING) {
+                    pt.setHeadingOffset(pt.getHeadingOffset() + Math.toRadians(nudgeHeadingDeg));
+                }
+
+                // Refresh local copies so downstream code in this loop sees
+                // the corrected pose.
+                currentBotPose = PedroComponent.follower().getPose();
+                botxvalue = currentBotPose.getX();
+                botyvalue = currentBotPose.getY();
+                botHeadingRad = currentBotPose.getHeading();
+
+                limelightVisionLastNudgeXIn = nudgeX;
+                limelightVisionLastNudgeYIn = nudgeY;
+                limelightVisionLastNudgeHeadingDeg = nudgeHeadingDeg;
+                limelightBlendPoseApplied = true;
+                limelightVisionLoopsSinceApply = 0;
             }
-            Pose correctedPose = new Pose(
-                    botxvalue + limelightVisionBiasXIn,
-                    botyvalue + limelightVisionBiasYIn,
-                    correctedHeadingRad
-            );
-            PedroComponent.follower().setPose(correctedPose);
-            currentBotPose = correctedPose;
-            botHeadingRad = correctedHeadingRad;
-            botxvalue = correctedPose.getX();
-            botyvalue = correctedPose.getY();
+        }
+
+        // Surface the cumulative PoseTracker offsets (what is actually being
+        // added to every getPose() call) for logging / telemetry. This is the
+        // ground truth of "how much Limelight correction is currently in
+        // effect" because it is the only persistent correction state.
+        {
+            PoseTracker pt = PedroComponent.follower().poseTracker;
+            limelightVisionBiasXIn = pt.getXOffset();
+            limelightVisionBiasYIn = pt.getYOffset();
+            limelightVisionBiasHeadingDeg = Math.toDegrees(pt.getHeadingOffset());
         }
         ODODistance = PedroComponent.follower().getPose().distanceFrom(shootingTargetLocation);
 
@@ -1145,7 +1325,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // aim plumbed into the turret (immediately below), and hood position
         // (near the end of onUpdate). shotSol is guaranteed non-null whenever
         // SHOT_TUNING_MODE is false because lookup() always returns something.
-        ShotSolution tableShotSol = ShotCalibrationTable.active().lookup(botxvalue, botyvalue);
+        ShotSolution tableShotSol = lookupShotForAlliance(botxvalue, botyvalue);
         ShotSolution shotSol = null;
         if (!SHOT_TUNING_MODE) {
             shotSol = tableShotSol;
@@ -1236,7 +1416,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // MT1 emergency relocalization stays available even when SOTM is enabled.
         // This is the rescue path for cases where odometry / heading become bad
         // enough that MT2 translation-only blending can no longer be trusted.
-        if (dpadUpActive && result != null && result.isValid() && ODODistance < 100 && mt1Valid) {
+        if (dpadUpActive && result != null && result.isValid() && mt1Valid) {
             PedroComponent.follower().setPose(MT1PedroPose);
             currentBotPose = MT1PedroPose;
             botHeadingRad = MT1PedroPose.getHeading();
@@ -1805,9 +1985,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         mt2PedroX,
                         mt2PedroY,
                         mt2PedroHeadingDeg,
+                        LIMELIGHT_VISION_BLEND_ENABLED,
                         limelightBlendSource,
                         limelightBlendPoseValid,
                         limelightBlendPoseAccepted,
+                        limelightBlendPoseApplied,
+                        limelightBlendGateReason,
+                        limelightVisionConsecutiveAccepts,
+                        limelightVisionLoopsSinceApply,
                         limelightBlendRawDxIn,
                         limelightBlendRawDyIn,
                         limelightBlendRawDistIn,
@@ -1815,6 +2000,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         limelightVisionBiasXIn,
                         limelightVisionBiasYIn,
                         limelightVisionBiasHeadingDeg,
+                        limelightVisionLastNudgeXIn,
+                        limelightVisionLastNudgeYIn,
+                        limelightVisionLastNudgeHeadingDeg,
                         limelightBlendAlpha,
                         shootTargetX,
                         shootTargetY,
@@ -1910,13 +2098,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("LL Blend Source", limelightBlendSource);
         telemetry.addData("LL Blend Valid", limelightBlendPoseValid);
         telemetry.addData("LL Blend Accepted", limelightBlendPoseAccepted);
+        telemetry.addData("LL Blend Applied", limelightBlendPoseApplied);
+        telemetry.addData("LL Blend Gate", limelightBlendGateReason);
         telemetry.addData("LL Blend dX", limelightBlendRawDxIn);
         telemetry.addData("LL Blend dY", limelightBlendRawDyIn);
         telemetry.addData("LL Blend Dist", limelightBlendRawDistIn);
         telemetry.addData("LL Blend dH", limelightBlendRawHeadingErrDeg);
-        telemetry.addData("LL Bias X", limelightVisionBiasXIn);
-        telemetry.addData("LL Bias Y", limelightVisionBiasYIn);
-        telemetry.addData("LL Bias H", limelightVisionBiasHeadingDeg);
+        telemetry.addData("LL Offset X (cum)", limelightVisionBiasXIn);
+        telemetry.addData("LL Offset Y (cum)", limelightVisionBiasYIn);
+        telemetry.addData("LL Offset H (cum)", limelightVisionBiasHeadingDeg);
+        telemetry.addData("LL Nudge X", limelightVisionLastNudgeXIn);
+        telemetry.addData("LL Nudge Y", limelightVisionLastNudgeYIn);
+        telemetry.addData("LL Nudge H", limelightVisionLastNudgeHeadingDeg);
+        telemetry.addData("LL Applied", limelightBlendPoseApplied);
+        telemetry.addData("LL Streak", limelightVisionConsecutiveAccepts);
+        telemetry.addData("LL Loops Since Apply", limelightVisionLoopsSinceApply);
         telemetry.addData("LL Blend Alpha", limelightBlendAlpha);
         telemetry.addData("ODO distance", ODODistance);
         telemetry.addData("ODO X-Location", botxvalue);
@@ -1998,6 +2194,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 this.shoot = true;
                 // Starting a new spin-up cancels any previous dumbShoot timeout
                 dumbShootTimerActive = false;
+                dumbShootSettleActive = false;
                 // In shot-tuning mode skip the auto-RPM recompute so the operator's
                 // manual d-pad RPM value is preserved. testShooter also preserves
                 // whatever targetRPM was set manually. Normal mode re-pulls from
@@ -2012,6 +2209,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             } else if (gamepad2.leftBumperWasPressed()) {
                 ShooterSubsystem.INSTANCE.stop();
                 dumbShootTimerActive = false;
+                dumbShootSettleActive = false;
                 shooterFollowEnabled = false;
                 ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
                 //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
@@ -2066,7 +2264,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 hold = rightTriggerActive;
 
                 boolean useFarBoostProfile = ODODistance >= ShooterSubsystem.HYBRID_NEAR_FAR_DISTANCE_THRESHOLD_IN;
-                if (canFireTriggerShot && !dumbShootTimerActive) {
+                if (canFireTriggerShot && !dumbShootTimerActive && !dumbShootSettleActive) {
                     int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
                     ShooterSubsystem.INSTANCE.boostOverride = false;
                     IntakeWithSensorsSubsystem.INSTANCE.setDumbShootDistanceForDelayInches(ODODistance);
@@ -2147,6 +2345,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 ShooterSubsystem.INSTANCE.stop();
                 shooterFollowEnabled = false;
                 dumbShootTimerActive = false;
+                dumbShootSettleActive = false;
                 ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
                 this.hasResults = false;
                 LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
@@ -2947,6 +3146,42 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         return angleDegrees;
     }
 
+    /**
+     * Look up the calibration table for the given robot pose, transparently
+     * mirroring in and out when the alliance is RED. The calibration samples
+     * are all authored in BLUE-side coordinates: aim points cluster near
+     * {@code x ≈ 0, y ≈ 130} (the blue goal). For RED we reflect the robot
+     * pose across the field centerline before lookup, then reflect the
+     * returned aim point back, so the same table drives both sides.
+     * Uses Pedro's {@link Pose#mirror(double)} so the mirror axis stays
+     * consistent with everywhere else we flip red/blue poses, and the
+     * field-width argument lets us retune if an event's field is sized
+     * slightly differently than the nominal 144".
+     * RPM and hood position are invariant under the mirror (distance to the
+     * mirrored goal equals distance to the real goal), so they pass through
+     * unchanged.
+     */
+    private static ShotSolution lookupShotForAlliance(double botX, double botY) {
+        boolean isRed = GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED;
+        if (!isRed) {
+            return ShotCalibrationTable.active().lookup(botX, botY);
+        }
+        Pose mirroredBot = new Pose(botX, botY, 0.0).mirror(FIELD_WIDTH_IN);
+        ShotSolution sol = ShotCalibrationTable.active()
+                .lookup(mirroredBot.getX(), mirroredBot.getY());
+        Pose mirroredAim = new Pose(sol.aimX, sol.aimY, 0.0).mirror(FIELD_WIDTH_IN);
+        return new ShotSolution(
+                sol.rpm,
+                sol.hoodPos,
+                mirroredAim.getX(),
+                mirroredAim.getY(),
+                sol.sourceIdxs,
+                sol.weights,
+                sol.extrapolated,
+                sol.nearestDistanceIn
+        );
+    }
+
     private static Pose convertLimelightBotposeToPedro(Pose3D botpose) {
         double xInches = DistanceUnit.METER.toInches(botpose.getPosition().x);
         double yInches = DistanceUnit.METER.toInches(botpose.getPosition().y);
@@ -2974,6 +3209,23 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         limelightVisionBiasXIn = 0.0;
         limelightVisionBiasYIn = 0.0;
         limelightVisionBiasHeadingDeg = 0.0;
+        limelightVisionLastNudgeXIn = 0.0;
+        limelightVisionLastNudgeYIn = 0.0;
+        limelightVisionLastNudgeHeadingDeg = 0.0;
+        limelightVisionLoopsSinceApply = Integer.MAX_VALUE / 2;
+        limelightVisionConsecutiveAccepts = 0;
+        // Also clear any trim the PoseTracker currently has applied so the
+        // next correction starts from a clean slate (important after dpad-up
+        // emergency full-pose reset, which already zeroes offsets internally,
+        // and on opmode init).
+        try {
+            PoseTracker pt = PedroComponent.follower().poseTracker;
+            pt.setXOffset(0.0);
+            pt.setYOffset(0.0);
+            pt.setHeadingOffset(0.0);
+        } catch (Exception ignored) {
+            // Follower may not be initialized yet on very early calls.
+        }
     }
 
     private void pushLimelightVisionHistory(double dxIn, double dyIn, double dhDeg) {

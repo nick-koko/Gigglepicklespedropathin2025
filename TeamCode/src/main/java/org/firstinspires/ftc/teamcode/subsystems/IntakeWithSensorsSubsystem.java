@@ -41,7 +41,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     // 0 = collecting first ball, 1 = collecting second, 2 = collecting third
     public static double M1_TARGET_RPM_BALL0 = 1800.0;
     public static double M1_TARGET_RPM_BALL1 = 1800.0;
-    public static double M1_TARGET_RPM_BALL2 = 1200.0;
+    public static double M1_TARGET_RPM_BALL2 = 1600.0;
     public static double M3_TARGET_RPM_BALL0 = 400.0;
     public static double M3_TARGET_RPM_BALL1 = 400.0;
     public static double M3_TARGET_RPM_BALL2 = 400.0;

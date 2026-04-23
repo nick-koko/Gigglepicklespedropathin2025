@@ -17,12 +17,11 @@ import java.io.File;
 
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
+import dev.nextftc.core.commands.delays.WaitUntil;
 import dev.nextftc.core.commands.groups.ParallelGroup;
-import dev.nextftc.core.commands.groups.ParallelRaceGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.commands.utility.InstantCommand;
 import dev.nextftc.core.commands.utility.LambdaCommand;
-
 import dev.nextftc.extensions.pedro.FollowPath;
 import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.NextFTCOpMode;
@@ -46,9 +45,11 @@ import dev.nextftc.ftc.NextFTCOpMode;
  */
 @Configurable
 //@Autonomous(name = "closeBlueSide", group = "Comp")
-public class closeAutonPaths extends NextFTCOpMode{
+public class closeAutonPaths_Worlds extends NextFTCOpMode{
     public static double autonShooterRPM = 2900.0;
+    public static double nearAutonShooterRPM = 2975.0;
     public static double autonShooterHoodServoPos = 0.10;
+    public static double nearAutonShooterHoodServoPos = 0.10;
     public static double pickupBrakingStrength = 1.0;
     public static double pickupCornerBrakingStrength = 0.5;
     public static double firstGatePushDelay = 0.0;
@@ -65,7 +66,8 @@ public class closeAutonPaths extends NextFTCOpMode{
     private long lastAutonLoopMs = 0L;
 
     public final Pose startPoseBlue = new Pose(31.5, 134.0, Math.toRadians(270)); // Start Pose of our robot
-    private final Pose scorePoseCloseBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    private final Pose scorePoseCloseBlue = new Pose(48, 129, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    private final Pose scorePoseFarBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
     private final Pose pickup1PoseBlue = new Pose(40, 88.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1CP1Blue = new Pose(46.5, 97, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -74,7 +76,7 @@ public class closeAutonPaths extends NextFTCOpMode{
     private final Pose pickup1EndPoseBlue = new Pose(24, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1GateLeverEndPoseBlue = new Pose(24, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
-    private final Pose pickup1GateLeverPushPoseBlue = new Pose(24.5, 75, Math.toRadians(180));
+    private final Pose pickup1GateLeverPushPoseBlue = new Pose(23, 75, Math.toRadians(180));
     private final Pose pickup1GateLeverPushCP1Blue = new Pose(30.5, 82, Math.toRadians(180));
     private final Pose pickup1GateLeverPushCP2Blue = new Pose( 27, 76, Math.toRadians(180));
 
@@ -432,31 +434,60 @@ public class closeAutonPaths extends NextFTCOpMode{
             // if we want to change braking for a pathchain, then use .setNoDeceleration() or .setBrakingStrength(double set) after a path is added
             firstshootpath=PedroComponent.follower().pathBuilder()
                     .addPath(
-                            new BezierLine(startPose,scorePoseClose)
+                    new BezierCurve(
+                            new Pose(31.500, 134.000),
+                            new Pose(47.820, 129.186),
+                            new Pose(53.074, 119.594),
+                            new Pose(49.950, 111.127)                    )
+                    )
+                    .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(225),.75)
+
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(49.950, 111.127),
+                                    new Pose(42.653, 100.823))
 
                     )
-                    .setLinearHeadingInterpolation(startPose.getHeading(), scorePoseClose.getHeading())
+                     .setLinearHeadingInterpolation(Math.toRadians(225), Math.toRadians(225))
+                    .setNoDeceleration()
                     .build();
 
             firstPickup= PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    scorePoseClose,
-                                    pickup1CP1,
-                                    pickup1CP2,
-                                    pickup1Pose
+                                    new Pose(42.653, 100.823),
+                                    new Pose(50.649, 95.489),
+                                    new Pose(51.719, 82.533)
                             )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup1Pose.getHeading(),.75)
+                    ).setTangentHeadingInterpolation()
+                    .setNoDeceleration()
+                    .addPath(
+                            new BezierCurve(
+                                    new Pose(51.719, 82.533),
+                                    new Pose(51.716, 76.761),
+                                    new Pose(52.500, 66.000),
+                                    new Pose(40.000, 65.000)
+                            )
+                    ).setTangentHeadingInterpolation()
                     .setNoDeceleration()
                     .build();
 
             firstPickupEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup1Pose, pickup1EndPose))
-                    .setLinearHeadingInterpolation(pickup1Pose.getHeading(), pickup1EndPose.getHeading())
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(40.000, 65.000),
 
-                    .addPath(new BezierLine(pickup1EndPose, scorePoseClose))
-                    .setLinearHeadingInterpolation(pickup1EndPose.getHeading(), scorePoseClose.getHeading())
+                                    new Pose(17.000, 60.000)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+
+                    .addPath(
+                            new BezierLine(
+                                    new Pose(17.000, 60.000),
+
+                                    new Pose(54.425, 88.844)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(235))
                     .setBrakingStrength(pickupBrakingStrength)
                     .build();
 
@@ -673,6 +704,23 @@ public class closeAutonPaths extends NextFTCOpMode{
                 new Delay(0.75),  //Could replace this with shooting a ball
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 new Delay(0.50),
+                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+        );
+    }
+
+    public Command CloseShootMovingPreload() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new FollowPath(firstshootpath, false, 0.5),
+                        new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(nearAutonShooterRPM)),
+                        new SequentialGroup(
+                                new WaitUntil(() -> PedroComponent.follower().getPathCompletion() >= 0.90),
+                                //new Delay(1.50),  //Could replace this with shooting a ball
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                                new Delay(0.50)
+                                )
+                ),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
         );
