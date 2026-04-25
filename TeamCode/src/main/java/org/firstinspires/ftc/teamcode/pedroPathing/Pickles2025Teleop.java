@@ -252,6 +252,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_ZONE_B_RPM_OFFSET = 0.0;
     public static double SHOT_ZONE_B_TARGET_X_OFFSET_IN = 0.0;
     public static double SHOT_ZONE_B_TARGET_Y_OFFSET_IN = 0.0;
+
+    private boolean rpmLimitEnabled = false;
+    private boolean prevX = false;
     Pose MT1PedroPose = new Pose();
     private static final int LIMELIGHT_VISION_HISTORY_CAPACITY = 8;
     private final double[] limelightVisionDxHistory = new double[LIMELIGHT_VISION_HISTORY_CAPACITY];
@@ -320,15 +323,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // SOTM Stage 3 (turret + distance-based time of flight)
     public static boolean SOTM_ENABLED = true;
     public static double SOTM_MIN_SPEED_IN_PER_SEC = 2.0;
-    public static double SOTM_LEAD_GAIN = 1.0;
-    public static double SOTM_MAX_LEAD_IN = 15.0;
-    public static double SOTM_ANGULAR_LEAD_GAIN = 0.25;
+    public static double SOTM_LEAD_GAIN = 2.2;
+    public static double SOTM_MAX_LEAD_IN = 36.0;
+    public static double SOTM_ANGULAR_LEAD_GAIN = 0.6;
     public static double SOTM_OMEGA_FILTER_ALPHA = 0.2;
     // Separate turret-lag feedforward layer (independent from SOTM lead-point math).
     // Equivalent concept to: turretTarget += angularVelocity * kVF.
     public static boolean SOTM_TURRET_LAG_COMP_ENABLED = true;
-    public static double SOTM_TURRET_LAG_COMP_SEC = 0.10;
-    public static double SOTM_TURRET_LAG_COMP_MAX_DEG = 12.0;
+    public static double SOTM_TURRET_LAG_COMP_SEC = 0.22;
+    public static double SOTM_TURRET_LAG_COMP_MAX_DEG = 25.0;
     // When true, keep SOTM solution (turret + ballistic distance) live all the time.
     public static boolean SOTM_ALWAYS_TRACK_TARGETS = true;
     // Legacy toggle (intentionally unused now): flywheel enable is controlled only by
@@ -344,6 +347,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SOTM_ESTIMATED_BALL_SPEED_IN_PER_SEC = 300.0;
     private static final double[] SOTM_TOF_DISTANCE_IN = {60.0, 80.0, 100.0, 120.0};
     private static final double[] SOTM_TOF_FLIGHT_TIME_SEC = {0.15, 0.20, 0.27, 0.35};
+
+    public static boolean SOTM_RPM_DIRECTION_COMP_ENABLED = true;
+    public static double SOTM_RPM_TOWARD_GOAL_MULT = 0.80;
+    public static double SOTM_RPM_AWAY_FROM_GOAL_MULT = 1.20;
+    public static double SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC = 3.0;
+
+    // Hold gamepad1.x to cap RPM to the “top of triangle” limit.
+    public static boolean SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = true;
+    public static double SOTM_TOP_TRIANGLE_RPM_LIMIT = 3600.0;
 
     // Limelight translation-only fusion. MT2 is the default source because the
     // current validation log shows it clustering tighter than MT1. Heading
@@ -1043,6 +1055,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double limelightRobotYawDeg = normalizeDegrees(Math.toDegrees(botHeadingRad) + 90.0);
         limelight.updateRobotOrientation(limelightRobotYawDeg);
 
+        boolean xPressed = gamepad1.x;
+
+        if (xPressed && !prevX) {
+            rpmLimitEnabled = !rpmLimitEnabled; // toggle
+        }
+
+        prevX = xPressed;
+
         LLResult result = limelight.getLatestResult();
         boolean mt1Valid = false;
         double mt1PedroX = Double.NaN;
@@ -1387,8 +1407,24 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 sotmControlActive
         );
 
+        if (!SHOT_TUNING_MODE) {
+            targetRPM = applySotmRpmCompensation(
+                    shotSol.rpm,
+                    sotmResult.radialVelocityInPerSec,
+                    rpmLimitEnabled
+            );
+        }
+
+        if (sotmResult.valid && (sotmControlActive || SOTM_ALWAYS_TRACK_TARGETS)) {
+            TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(
+                    sotmResult.turretRobotRelativeAimDeg
+            );
+        } else {
+            TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(angleErrorDeg);
+        }
+
         // Always track with turret. When SOTM is active and moving, this target is lead-compensated.
-        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(sotmResult.turretRobotRelativeAimDeg);
+        //TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(sotmResult.turretRobotRelativeAimDeg);
         double shooterDistanceForBallistics = sotmResult.distanceForBallisticsInches;
         double turretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         double turretMeasuredVelDegPerSec = TurretSubsystem.INSTANCE.getMeasuredVelocityDegPerSec();
@@ -1563,9 +1599,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // manual d-pad RPM value. SOTM moving-shot compensation is not applied
         // here; the table is evaluated at the current pose. If/when SOTM is
         // revived, it should project a future (x, y) and look that up instead.
-        if (!SHOT_TUNING_MODE) {
-            targetRPM = shotSol.rpm;
-        }
+//        if (!SHOT_TUNING_MODE) {
+//            targetRPM = shotSol.rpm;
+//        }
 
         // Allow RB/RT fire request to actively prime flywheel RPM so shoot gating can clear.
         // This still avoids pre-spinning during Init or idle driving. Runs in both
@@ -3324,6 +3360,32 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         while (angle > Math.PI) angle -= 2.0 * Math.PI;
         while (angle < -Math.PI) angle += 2.0 * Math.PI;
         return angle;
+    }
+
+    private double applySotmRpmCompensation(
+            double baseRpm,
+            double radialVelocityInPerSec,
+            boolean topTriangleLimitButtonHeld
+    ) {
+        double rpm = baseRpm;
+
+        if (SOTM_RPM_DIRECTION_COMP_ENABLED &&
+                Math.abs(radialVelocityInPerSec) >= SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC) {
+
+            if (radialVelocityInPerSec > 0.0) {
+                // Positive radial velocity = robot is driving TOWARD the goal.
+                rpm *= 0.9;
+            } else {
+                // Negative radial velocity = robot is driving AWAY from the goal.
+                rpm *= 1.5;
+            }
+        }
+
+        if (SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED && topTriangleLimitButtonHeld) {
+            rpm = Math.min(rpm, 3800);
+        }
+
+        return Math.max(0.0, rpm);
     }
 
 }
