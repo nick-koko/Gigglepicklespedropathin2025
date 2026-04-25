@@ -242,6 +242,16 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // etc.); exposed as public static so it can be adjusted per-event if a
     // field is built slightly over- or under-sized.
     public static double FIELD_WIDTH_IN = 144.0;
+    // Per-zone global trim on top of the calibration table. This lets the team
+    // nudge all A-zone ("far") or B-zone ("near") shots together at an event
+    // without editing every row in ShotCalibrationTable. RPM is additive and
+    // aim X/Y are field-inch deltas from the table's returned target point.
+    public static double SHOT_ZONE_A_RPM_OFFSET = 0.0;
+    public static double SHOT_ZONE_A_TARGET_X_OFFSET_IN = 0.0;
+    public static double SHOT_ZONE_A_TARGET_Y_OFFSET_IN = 0.0;
+    public static double SHOT_ZONE_B_RPM_OFFSET = 0.0;
+    public static double SHOT_ZONE_B_TARGET_X_OFFSET_IN = 0.0;
+    public static double SHOT_ZONE_B_TARGET_Y_OFFSET_IN = 0.0;
     Pose MT1PedroPose = new Pose();
     private static final int LIMELIGHT_VISION_HISTORY_CAPACITY = 8;
     private final double[] limelightVisionDxHistory = new double[LIMELIGHT_VISION_HISTORY_CAPACITY];
@@ -1320,12 +1330,17 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         // Single source of truth for every non-tuning shot: the calibration
-        // table is looked up once per loop from the current robot pose and its
-        // rpm / hood / aim values feed RPM selection (here-and-below), the
-        // aim plumbed into the turret (immediately below), and hood position
-        // (near the end of onUpdate). shotSol is guaranteed non-null whenever
-        // SHOT_TUNING_MODE is false because lookup() always returns something.
-        ShotSolution tableShotSol = lookupShotForAlliance(botxvalue, botyvalue);
+        // table is looked up once per loop from the current robot pose, then
+        // zone-wide trims are applied on top. The resulting rpm / hood / aim
+        // values feed RPM selection (here-and-below), the aim plumbed into the
+        // turret (immediately below), and hood position (near the end of
+        // onUpdate). shotSol is guaranteed non-null whenever SHOT_TUNING_MODE
+        // is false because lookup() always returns something.
+        ShotSolution tableShotSol = applyShotZoneOffsets(
+                botxvalue,
+                botyvalue,
+                lookupShotForAlliance(botxvalue, botyvalue)
+        );
         ShotSolution shotSol = null;
         if (!SHOT_TUNING_MODE) {
             shotSol = tableShotSol;
@@ -3179,6 +3194,43 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 sol.weights,
                 sol.extrapolated,
                 sol.nearestDistanceIn
+        );
+    }
+
+    /**
+     * Apply a configurable global delta on top of the table solution for the
+     * legal shooting zone that contains the current robot pose. OUT-of-zone
+     * poses are left unchanged so diagnostics near boundaries do not get an
+     * unexpected trim.
+     */
+    private static ShotSolution applyShotZoneOffsets(double botX, double botY, ShotSolution baseSol) {
+        String zone = ShootingZones.zoneLabel(botX, botY);
+        double rpmOffset = 0.0;
+        double aimXOffset = 0.0;
+        double aimYOffset = 0.0;
+        if ("A".equals(zone)) {
+            rpmOffset = SHOT_ZONE_A_RPM_OFFSET;
+            aimXOffset = SHOT_ZONE_A_TARGET_X_OFFSET_IN;
+            aimYOffset = SHOT_ZONE_A_TARGET_Y_OFFSET_IN;
+        } else if ("B".equals(zone)) {
+            rpmOffset = SHOT_ZONE_B_RPM_OFFSET;
+            aimXOffset = SHOT_ZONE_B_TARGET_X_OFFSET_IN;
+            aimYOffset = SHOT_ZONE_B_TARGET_Y_OFFSET_IN;
+        }
+        if (Math.abs(rpmOffset) < 1e-6 &&
+                Math.abs(aimXOffset) < 1e-6 &&
+                Math.abs(aimYOffset) < 1e-6) {
+            return baseSol;
+        }
+        return new ShotSolution(
+                baseSol.rpm + rpmOffset,
+                baseSol.hoodPos,
+                baseSol.aimX + aimXOffset,
+                baseSol.aimY + aimYOffset,
+                baseSol.sourceIdxs,
+                baseSol.weights,
+                baseSol.extrapolated,
+                baseSol.nearestDistanceIn
         );
     }
 

@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import android.os.SystemClock;
 
 import com.bylazar.configurables.annotations.Configurable;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.Servo;
@@ -13,6 +14,7 @@ import com.qualcomm.robotcore.util.Range;
 import java.util.Arrays;
 
 import dev.nextftc.core.subsystems.Subsystem;
+import dev.nextftc.extensions.pedro.PedroComponent;
 import dev.nextftc.ftc.ActiveOpMode;
 
 /**
@@ -136,6 +138,9 @@ public class TurretSubsystem implements Subsystem {
     }
 
     private StartupCalibrationState startupCalibrationState = StartupCalibrationState.UNCALIBRATED;
+    private boolean fieldPointAimActive = false;
+    private double fieldPointTargetXIn = 0.0;
+    private double fieldPointTargetYIn = 0.0;
 
     @Override
     public void initialize() {
@@ -174,6 +179,9 @@ public class TurretSubsystem implements Subsystem {
         startupExpectedTurretAngleDegrees = STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
         lastStartupLogTimeMs = 0L;
         startupCalibrationState = StartupCalibrationState.UNCALIBRATED;
+        fieldPointAimActive = false;
+        fieldPointTargetXIn = 0.0;
+        fieldPointTargetYIn = 0.0;
 
         currentLeftServoPosition = leftTurret.getPosition();
         currentRightServoPosition = rightTurret.getPosition();
@@ -218,6 +226,10 @@ public class TurretSubsystem implements Subsystem {
             return;
         }
 
+        if (fieldPointAimActive) {
+            updateFieldPointAimFromPose(PedroComponent.follower().getPose());
+        }
+
         correctedTargetAngleDegrees = applyTargetBias(targetAngleDegrees);
 
         double maxMoveDegrees = Math.max(0.0, RATE_LIMIT_DEG_PER_SEC) * dt;
@@ -251,6 +263,39 @@ public class TurretSubsystem implements Subsystem {
     }
 
     public void setTargetAngleDegrees(double angleDegrees) {
+        setTargetAngleDegreesInternal(angleDegrees, true);
+    }
+
+    public void aimAtFieldPoint(double fieldXIn, double fieldYIn) {
+        fieldPointTargetXIn = fieldXIn;
+        fieldPointTargetYIn = fieldYIn;
+        fieldPointAimActive = true;
+    }
+
+    public void aimAtFieldPoint(Pose fieldPose) {
+        aimAtFieldPoint(fieldPose.getX(), fieldPose.getY());
+    }
+
+    public void clearFieldPointAim() {
+        fieldPointAimActive = false;
+    }
+
+    public boolean isFieldPointAimActive() {
+        return fieldPointAimActive;
+    }
+
+    public double getFieldPointTargetXIn() {
+        return fieldPointTargetXIn;
+    }
+
+    public double getFieldPointTargetYIn() {
+        return fieldPointTargetYIn;
+    }
+
+    private void setTargetAngleDegreesInternal(double angleDegrees, boolean clearFieldPointAim) {
+        if (clearFieldPointAim) {
+            fieldPointAimActive = false;
+        }
         targetAngleDegrees = Range.clip(
                 angleDegrees,
                 MIN_SERVO_ROTATION_DEGREES,
@@ -510,7 +555,6 @@ public class TurretSubsystem implements Subsystem {
             String logPhase
     ) {
         startupExpectedTurretAngleDegrees = expectedTurretAngleDegrees;
-
         absoluteRawAtStartDegrees = rawDegrees;
         absoluteEncoderRawDegrees = rawDegrees;
         previousAbsoluteEncoderRawDegrees = rawDegrees;
@@ -534,6 +578,7 @@ public class TurretSubsystem implements Subsystem {
         targetAngleDegrees = measuredAngleDegrees;
         correctedTargetAngleDegrees = measuredAngleDegrees;
         commandedAngleDegrees = measuredAngleDegrees;
+        fieldPointAimActive = false;
         lastServoCommandAngleDegrees = measuredAngleDegrees;
         lastOuterLoopTrimDegrees = 0.0;
         lastCommandDiffDegrees = 0.0;
@@ -661,6 +706,15 @@ public class TurretSubsystem implements Subsystem {
         return targetDegrees;
     }
 
+    private void updateFieldPointAimFromPose(Pose robotPose) {
+        double dx = fieldPointTargetXIn - robotPose.getX();
+        double dy = fieldPointTargetYIn - robotPose.getY();
+        double fieldAngleRadians = Math.atan2(dy, dx);
+        double robotRelativeAngleDegrees = Math.toDegrees(wrapRadians(fieldAngleRadians - robotPose.getHeading()));
+        double turretTargetDegrees = convertRobotFrontRelativeToTurretDegrees(robotRelativeAngleDegrees);
+        setTargetAngleDegreesInternal(turretTargetDegrees, false);
+    }
+
     private static double angleDegreesToServoPosition(double angleDegrees, double servoCommandOffsetDegrees) {
         double correctedAngleDegrees = angleDegrees - servoCommandOffsetDegrees;
         double unclippedPosition = SERVO_CENTER_POSITION - (correctedAngleDegrees / TURRET_TRAVEL_DEGREES);
@@ -786,6 +840,13 @@ public class TurretSubsystem implements Subsystem {
         double wrapped = angleDegrees;
         while (wrapped > 180.0) wrapped -= 360.0;
         while (wrapped < -180.0) wrapped += 360.0;
+        return wrapped;
+    }
+
+    private static double wrapRadians(double angleRadians) {
+        double wrapped = angleRadians;
+        while (wrapped > Math.PI) wrapped -= (2.0 * Math.PI);
+        while (wrapped < -Math.PI) wrapped += (2.0 * Math.PI);
         return wrapped;
     }
 

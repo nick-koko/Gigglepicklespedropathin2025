@@ -50,7 +50,7 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
     @Override
     public void onInit() {
         TurretSubsystem.INSTANCE.beginStartupCentering();
-        ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
+        ShooterSubsystem.INSTANCE.shooterHoodDrive(nearAutonShooterHoodServoPos);
         ShooterSubsystem.INSTANCE.stop();
 
         GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
@@ -123,9 +123,23 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
     public Command Close6Ball() {
         return new SequentialGroup(
                 CloseShootMovingPreload(),
-                CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
-                CloseMoveOffLine()
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndShoot2ndRow()
+                //CloseMoveOffLine()
+        );
+
+    }
+    public Command Close6BallStraight() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                CloseGoTo2ndPickupLineStraight(),
+                ClosePickupAndShoot2ndRow(),
+                HitGateWithIntake(),
+                IntakeFromGate(),
+                IntakeFromGateShoot()
+
+                //ClosePickupAndShootFirstRow()
+                //CloseMoveOffLine()
         );
 
     }
@@ -299,13 +313,16 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
     @Override
     public void onStartButtonPressed() {
         TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
-        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(-85);
         startAutonLogger();
         if (intAmount == 3) {
                 Close3Ball().schedule();
             }
             else if (intAmount == 6){
-                Close6Ball().schedule();
+                if (pushLever == 1) {
+                    Close6BallStraight().schedule();
+                } else {
+                    Close6Ball().schedule();
+                }
             }
             else if (intAmount == 9){
                 Close9Ball().schedule();

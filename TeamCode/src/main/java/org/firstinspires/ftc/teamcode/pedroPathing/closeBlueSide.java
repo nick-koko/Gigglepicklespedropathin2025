@@ -298,7 +298,7 @@ public class closeBlueSide extends closeAutonPaths{
     @Override
     public void onStartButtonPressed() {
         TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
-        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(-90);
+        TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(-85);
         startAutonLogger();
         if (intAmount == 3) {
                 Close3Ball().schedule();
