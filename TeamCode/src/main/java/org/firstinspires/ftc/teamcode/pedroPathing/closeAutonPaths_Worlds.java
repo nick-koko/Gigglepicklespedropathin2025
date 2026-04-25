@@ -19,6 +19,7 @@ import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
 import dev.nextftc.core.commands.delays.WaitUntil;
 import dev.nextftc.core.commands.groups.ParallelGroup;
+import dev.nextftc.core.commands.groups.ParallelRaceGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.commands.utility.InstantCommand;
 import dev.nextftc.core.commands.utility.LambdaCommand;
@@ -48,7 +49,7 @@ import dev.nextftc.ftc.NextFTCOpMode;
 public class closeAutonPaths_Worlds extends NextFTCOpMode{
     public static double autonShooterRPM = 3200.0;
     public static double nearAutonShooterRPM = 3300.0;
-    public static double autonShooterHoodServoPos = 0.525;
+    public static double autonShooterHoodServoPos = 0.45;
     public static double nearAutonShooterHoodServoPos = 0.22;
     public static double nearShootingMoving_x = 25.0;
     public static double nearShootingMoving_y = 144;
@@ -62,6 +63,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     public static boolean ENABLE_AUTON_LOGGING = true;
     public static long AUTON_LOG_PERIOD_MS = 25L;
     public static double AUTON_SHOOTER_AT_SPEED_TOLERANCE_RPM = 75.0;
+    public static boolean AUTON_USE_HYBRID_DUMBSHOOT_BOOST = true;
 
     private CsvLogger autonLogger;
     private long autonLogStartMs = 0L;
@@ -73,10 +75,10 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose scorePoseFarBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
     private final Pose pickup1PoseBlue = new Pose(40, 88.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
-    private final Pose pickup1CP1Blue = new Pose(46.5, 97, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickup1CP2Blue = new Pose( 48.5, 90, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup1CP1Blue = new Pose(45.0, 85.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup1CP2Blue = new Pose( 38.0, 85.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup1EndPoseBlue = new Pose(24, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickup1EndPoseBlue = new Pose(25, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1GateLeverEndPoseBlue = new Pose(24, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
     private final Pose pickup1GateLeverPushPoseBlue = new Pose(23, 75, Math.toRadians(180));
@@ -109,7 +111,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose pickup3GateLeverPushHoldPoseBlue = new Pose(15.5, 72.0, Math.toRadians(180));
 
     private final Pose pickup3PoseBlue = new Pose(40, 41.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickup3CP1Blue = new Pose(37,90  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup3CP1Blue = new Pose(54,74.5  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3CP2Blue = new Pose( 57, 39, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3AfterGateCP1Blue = new Pose(52,73  , Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup3AfterGateCP2Blue = new Pose( 61.5, 36, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -136,16 +138,22 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose offLineAfterPickupBlue = new Pose(50, 60, Math.toRadians(90));
 
     // Gate poses and control points
-    private final Pose gateCP1 = new Pose(53.576, 72.048, Math.toRadians(180));
-    private final Pose gateCP2 = new Pose(35.985, 63.624, Math.toRadians(180));
-    private final Pose gatePose = new Pose(17.010, 66.268, Math.toRadians(167));
+    private final Pose gateCP1Blue = new Pose(53.576, 72.048, Math.toRadians(180));
+    private final Pose gateCP2Blue = new Pose(35.985, 63.624, Math.toRadians(180));
+    private final Pose gatePoseBlue = new Pose(17.010, 66.268, Math.toRadians(167));
+    private final Pose directGateCP1Blue = new Pose(53.576, 72.048, Math.toRadians(180));
+    private final Pose directGateCP2Blue = new Pose(35.985, 63.624, Math.toRadians(180));
+    private final Pose directGatePoseBlue = new Pose(17.010, 66.268, Math.toRadians(167));
 
     // Intake from gate poses
-    private final Pose intakeCP1 = new Pose(13.708, 51.629, Math.toRadians(180));
-    private final Pose intakePose = new Pose(9.481, 54.984, Math.toRadians(123));
+    private final Pose intakeCP1Blue = new Pose(13.708, 51.629, Math.toRadians(180));
+    private final Pose intakePoseBlue = new Pose(9.481, 54.984, Math.toRadians(123));
+    private final Pose directGateIntakeCP1Blue = new Pose(13.708, 51.629, Math.toRadians(180));
+    private final Pose directGateIntakePoseBlue = new Pose(9.481, 54.984, Math.toRadians(123));
 
     // Intake from gate return to shoot
-    private final Pose intakeFromGateShootCP1 = new Pose(44.217, 64.852, Math.toRadians(180));
+    private final Pose intakeFromGateShootCP1Blue = new Pose(44.217, 64.852, Math.toRadians(180));
+    private final Pose directGateShootCP1Blue = new Pose(44.217, 64.852, Math.toRadians(180));
 
     public final Pose startPoseRed = startPoseBlue.mirror(144);
     private final Pose scorePoseCloseRed = scorePoseCloseBlue.mirror(144);
@@ -197,6 +205,20 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose offLineLeverExtraTimeRed = offLineLeverExtraTimeBlue.mirror(144);
     private final Pose offLineCloseRed = offLineCloseBlue.mirror(144);
     private final Pose offLineAfterPickupRed = offLineAfterPickupBlue.mirror(144);
+
+    private final Pose gateCP1Red = gateCP1Blue.mirror(144);
+    private final Pose gateCP2Red = gateCP2Blue.mirror(144);
+    private final Pose gatePoseRed = gatePoseBlue.mirror(144);
+    private final Pose intakeCP1Red = intakeCP1Blue.mirror(144);
+    private final Pose intakePoseRed = intakePoseBlue.mirror(144);
+    private final Pose intakeFromGateShootCP1Red = intakeFromGateShootCP1Blue.mirror(144);
+
+    private final Pose directGateCP1Red = directGateCP1Blue.mirror(144);
+    private final Pose directGateCP2Red = directGateCP2Blue.mirror(144);
+    private final Pose directGatePoseRed = directGatePoseBlue.mirror(144);
+    private final Pose directGateIntakeCP1Red = directGateIntakeCP1Blue.mirror(144);
+    private final Pose directGateIntakePoseRed = directGateIntakePoseBlue.mirror(144);
+    private final Pose directGateShootCP1Red = directGateShootCP1Blue.mirror(144);
 
 
     public Pose startPose;
@@ -261,10 +283,27 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     public Pose offLineClose;
     public Pose offLineAfterPickup;
 
-    private PathChain firstshootpath,firstshootpathStraight, secondPickupStraight, thirdPickupGateLeverEnd, moveOffLineLeverExtraTime, thirdPickupAfterGate, goToGateLeverBefore3rdPickup, thirdPickupGateLeverShootEnd, firstPickup,firstPickupEnd, firstPickupGateLeverEnd, firstPickupGateLeverShootEnd, secondPickup, secondPickupEnd, secondPickupGateLeverEnd, secondPickupGateLeverShootEnd, thirdPickup, thirdPickupEnd, zonePickup, zonePickupEnd, zonePickupShoot, moveOffLineLever, moveOffLineClose, moveOffLineAfterPickup;
+    public Pose gateCP1;
+    public Pose gateCP2;
+    public Pose gatePose;
+    public Pose intakeCP1;
+    public Pose intakePose;
+    public Pose intakeFromGateShootCP1;
+
+    public Pose directGateCP1;
+    public Pose directGateCP2;
+    public Pose directGatePose;
+    public Pose directGateIntakeCP1;
+    public Pose directGateIntakePose;
+    public Pose directGateShootCP1;
+
+    private PathChain firstshootpath,firstshootpathStraight, firstPickupEndToBalls, firstPickupEndToScore, secondPickupStraight, secondPickupEndToBalls, secondPickupEndToScore, thirdPickupEndToBalls, thirdPickupEndToScore, thirdPickupGateLeverEnd, moveOffLineLeverExtraTime, thirdPickupAfterGate, goToGateLeverBefore3rdPickup, thirdPickupGateLeverShootEnd, firstPickup,firstPickupEnd, firstPickupGateLeverEnd, firstPickupGateLeverShootEnd, secondPickup, secondPickupEnd, secondPickupGateLeverEnd, secondPickupGateLeverShootEnd, thirdPickup, thirdPickupEnd, zonePickup, zonePickupEnd, zonePickupShoot, moveOffLineLever, moveOffLineClose, moveOffLineAfterPickup;
     private PathChain hitGateBeforePickup;
     private PathChain intakeFromGate;
     private PathChain intakeFromGateShoot;
+    private PathChain hitDirectGateBeforePickup;
+    private PathChain intakeFromDirectGate;
+    private PathChain intakeFromDirectGateShoot;
 
     protected void startAutonLogger() {
         autonLogStartMs = System.currentTimeMillis();
@@ -399,6 +438,18 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 offLineLeverExtraTime = offLineLeverExtraTimeBlue;
                 offLineClose = offLineCloseBlue;
                 offLineAfterPickup = offLineAfterPickupBlue;
+                gateCP1 = gateCP1Blue;
+                gateCP2 = gateCP2Blue;
+                gatePose = gatePoseBlue;
+                intakeCP1 = intakeCP1Blue;
+                intakePose = intakePoseBlue;
+                intakeFromGateShootCP1 = intakeFromGateShootCP1Blue;
+                directGateCP1 = directGateCP1Blue;
+                directGateCP2 = directGateCP2Blue;
+                directGatePose = directGatePoseBlue;
+                directGateIntakeCP1 = directGateIntakeCP1Blue;
+                directGateIntakePose = directGateIntakePoseBlue;
+                directGateShootCP1 = directGateShootCP1Blue;
             } else {
                 startPose = startPoseRed;
                 scorePoseClose = scorePoseCloseRed;
@@ -446,6 +497,18 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 offLineLeverExtraTime = offLineLeverExtraTimeRed;
                 offLineClose = offLineCloseRed;
                 offLineAfterPickup = offLineAfterPickupRed;
+                gateCP1 = gateCP1Red;
+                gateCP2 = gateCP2Red;
+                gatePose = gatePoseRed;
+                intakeCP1 = intakeCP1Red;
+                intakePose = intakePoseRed;
+                intakeFromGateShootCP1 = intakeFromGateShootCP1Red;
+                directGateCP1 = directGateCP1Red;
+                directGateCP2 = directGateCP2Red;
+                directGatePose = directGatePoseRed;
+                directGateIntakeCP1 = directGateIntakeCP1Red;
+                directGateIntakePose = directGateIntakePoseRed;
+                directGateShootCP1 = directGateShootCP1Red;
 
             }
 
@@ -484,39 +547,41 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
             firstPickup= PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierCurve(
-                                    new Pose(42.653, 100.823),
-                                    new Pose(50.649, 95.489),
-                                    new Pose(51.719, 82.533)
+                                    scorePoseClose,
+                                    pickup1CP1,
+                                    pickup1CP2,
+                                    pickup1Pose
                             )
-                    ).setTangentHeadingInterpolation()
-                    .setNoDeceleration()
-                    .addPath(
-                            new BezierCurve(
-                                    new Pose(51.719, 82.533),
-                                    new Pose(51.716, 76.761),
-                                    new Pose(52.500, 66.000),
-                                    new Pose(40.000, 65.000)
-                            )
-                    ).setTangentHeadingInterpolation()
+                    )
+                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup1Pose.getHeading(),.75)
                     .setNoDeceleration()
                     .build();
 
             firstPickupEnd = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierLine(pickup1Pose, pickup1EndPose))
+                    .setLinearHeadingInterpolation(pickup1Pose.getHeading(), pickup1EndPose.getHeading())
+
+                    .addPath(new BezierLine(pickup1EndPose, scorePoseClose))
+                    .setLinearHeadingInterpolation(pickup1EndPose.getHeading(), scorePoseClose.getHeading())
+                    .setBrakingStrength(pickupBrakingStrength)
+                    .build();
+
+            firstPickupEndToBalls = PedroComponent.follower().pathBuilder()
                     .addPath(
-                            new BezierLine(
-                                    new Pose(40.000, 65.000),
-
-                                    new Pose(17.000, 60.000)
+                            new BezierCurve(
+                                    scorePoseClose,
+                                    pickup1CP1,
+                                    pickup1CP2,
+                                    pickup1EndPose
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    )
+                    .setConstantHeadingInterpolation(pickup1EndPose.getHeading())
+                    .setNoDeceleration()
+                    .build();
 
-                    .addPath(
-                            new BezierLine(
-                                    new Pose(17.000, 60.000),
-
-                                    new Pose(54.425, 88.844)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(235))
+            firstPickupEndToScore = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierLine(pickup1EndPose, scorePoseClose))
+                    .setLinearHeadingInterpolation(pickup1EndPose.getHeading(), scorePoseClose.getHeading())
                     .setBrakingStrength(pickupBrakingStrength)
                     .build();
 
@@ -558,11 +623,11 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                     .addPath(
                             new BezierCurve(
                                     new Pose(51.719, 82.533),
-                                    pickup2CP1Blue,
-                                    pickup2CP2Blue,
-                                    pickup2PoseBlue
+                                    pickup2CP1,
+                                    pickup2CP2,
+                                    pickup2Pose
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(180), 0.75)
+                    ).setLinearHeadingInterpolation(Math.toRadians(270), pickup2Pose.getHeading(), 0.75)
                     .setNoDeceleration()
                     .build();
 
@@ -570,23 +635,35 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                    .addPath(
                             new BezierCurve(
                                     scorePoseClose,
-                                    pickup2CP1Blue,
-                                    pickup2CP2Blue,
-                                    pickup2PoseBlue
+                                    pickup2CP1,
+                                    pickup2CP2,
+                                    pickup2Pose
                             )
-                    ).setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup2PoseBlue.getHeading(), 0.75)
+                    ).setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup2Pose.getHeading(), 0.75)
                     .setNoDeceleration()
                     .build();
 
             secondPickupEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(    pickup2PoseBlue,
-                                                pickup2EndPoseBlue))
-                    .setLinearHeadingInterpolation(pickup2PoseBlue.getHeading(), pickup2EndPoseBlue.getHeading())
+                    .addPath(new BezierLine(    pickup2Pose,
+                                                pickup2EndPose))
+                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2EndPose.getHeading())
 
-                    .addPath(new BezierCurve( pickup2EndPoseBlue,
-                            getPickup2CPPathBlue,
+                    .addPath(new BezierCurve( pickup2EndPose,
+                            getPickup2CPPath,
                             scorePoseClose))
-                    .setLinearHeadingInterpolation(pickup2EndPoseBlue.getHeading(), scorePoseClose.getHeading())
+                    .setLinearHeadingInterpolation(pickup2EndPose.getHeading(), scorePoseClose.getHeading())
+                    .setBrakingStrength(pickupBrakingStrength)
+                    .build();
+
+            secondPickupEndToBalls = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierLine(pickup2Pose, pickup2EndPose))
+                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2EndPose.getHeading())
+                    .setNoDeceleration()
+                    .build();
+
+            secondPickupEndToScore = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierCurve(pickup2EndPose, getPickup2CPPath, scorePoseClose))
+                    .setLinearHeadingInterpolation(pickup2EndPose.getHeading(), scorePoseClose.getHeading())
                     .setBrakingStrength(pickupBrakingStrength)
                     .build();
 
@@ -685,6 +762,18 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                     .setBrakingStrength(pickupBrakingStrength)
                     .build();
 
+            thirdPickupEndToBalls = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierLine(pickup3Pose, pickup3EndPose))
+                    .setLinearHeadingInterpolation(pickup3Pose.getHeading(), pickup3EndPose.getHeading())
+                    .setNoDeceleration()
+                    .build();
+
+            thirdPickupEndToScore = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierCurve(pickup3EndPose, getPickup3CPPath, scorePoseClose))
+                    .setLinearHeadingInterpolation(pickup3EndPose.getHeading(), scorePoseClose.getHeading())
+                    .setBrakingStrength(pickupBrakingStrength)
+                    .build();
+
             zonePickup= PedroComponent.follower().pathBuilder()
                     .addPath(
                             new BezierCurve(
@@ -762,8 +851,38 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                     .setLinearHeadingInterpolation(intakePose.getHeading(), scorePoseClose.getHeading())
                     .build();
 
+            // DirectGate copies of the gate paths. Start with the same geometry as the
+            // original gate sequence, but keep the poses/pathchains independent for tuning.
+            hitDirectGateBeforePickup = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierCurve(scorePoseClose, directGateCP1, directGateCP2, directGatePose))
+                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), directGatePose.getHeading())
+                    .setBrakingStrength(pickupBrakingStrength)
+                    .build();
+
+            intakeFromDirectGate = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierCurve(directGatePose, directGateIntakeCP1, directGateIntakePose))
+                    .setLinearHeadingInterpolation(directGatePose.getHeading(), directGateIntakePose.getHeading())
+                    .setBrakingStrength(pickupBrakingStrength)
+                    .build();
+
+            intakeFromDirectGateShoot = PedroComponent.follower().pathBuilder()
+                    .addPath(new BezierCurve(directGateIntakePose, directGateShootCP1, scorePoseClose))
+                    .setLinearHeadingInterpolation(directGateIntakePose.getHeading(), scorePoseClose.getHeading())
+                    .build();
+
         }
     // if you want to reduce power for a path, use FollowPath(pathchain, holdend, maxpower)
+
+    private Command AutonDumbShootWithHybridBoost() {
+        return new InstantCommand(() -> {
+            IntakeWithSensorsSubsystem.INSTANCE.setDumbShootDistanceForDelayInches(0.0);
+            IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
+
+            if (AUTON_USE_HYBRID_DUMBSHOOT_BOOST && ShooterSubsystem.ENABLE_HYBRID_SHOT_FEED_BOOST) {
+                ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(false);
+            }
+        });
+    }
 
     public Command CloseShootPreload() {
         return new SequentialGroup(
@@ -774,10 +893,8 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                         new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(autonShootingTurretAngle)),
                         new Delay(1.5)  //wait until flywheel is up to speed
                 ),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(0.50),
-                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.20)
         );
     }
 
@@ -790,7 +907,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                         new SequentialGroup(
                                 new WaitUntil(() -> PedroComponent.follower().getPathCompletion() >= 0.80),
                                 //new Delay(1.50),  //Could replace this with shooting a ball
-                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                                AutonDumbShootWithHybridBoost(),
                                 new Delay(0.50)
                                 )
                 ),
@@ -806,8 +923,11 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(firstPickup),
                         new SequentialGroup(
+                                new Delay(0.3),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(1.0),
+                                new Delay(0.7),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
@@ -827,10 +947,42 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
 
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.0),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                AutonDumbShootWithHybridBoost(),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+        );
+    }
+
+    public Command ClosePickupAndShootFirstRowRace() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new ParallelRaceGroup(
+                                new FollowPath(firstPickupEndToBalls),
+                                new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                        ),
+                        new SequentialGroup(
+                                new Delay(0.3),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                new Delay(0.1),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                new Delay(0.1),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                        )
+                ),
+                new ParallelGroup(
+                        new FollowPath(firstPickupEndToScore),
+                        new SequentialGroup(
+                                new Delay(0.5),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(0.0),
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.50)
         );
     }
 
@@ -853,7 +1005,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 new FollowPath(firstPickupGateLeverShootEnd),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.0),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                AutonDumbShootWithHybridBoost(),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
@@ -878,8 +1030,11 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(secondPickupStraight),
                         new SequentialGroup(
+                                new Delay(0.3),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(1.0),
+                                new Delay(0.7),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
@@ -899,10 +1054,34 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.0),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                AutonDumbShootWithHybridBoost(),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+        );
+    }
+
+    public Command ClosePickupAndShoot2ndRowRace() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new ParallelRaceGroup(
+                                new FollowPath(secondPickupEndToBalls),
+                                new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                        ),
+                        new Delay(0.5),
+                        new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                        ),
+                new ParallelGroup(
+                        new FollowPath(secondPickupEndToScore),
+                        new SequentialGroup(
+                                new Delay(0.5),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(0.0),
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.20)
         );
     }
 
@@ -925,7 +1104,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 new FollowPath(secondPickupGateLeverShootEnd),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.0),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                AutonDumbShootWithHybridBoost(),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
@@ -970,7 +1149,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 new FollowPath(thirdPickupGateLeverShootEnd),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.0),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                AutonDumbShootWithHybridBoost(),
                 new Delay(0.50),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
@@ -982,8 +1161,11 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(thirdPickup),
                         new SequentialGroup(
+                                new Delay(0.3),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(1.0),
+                                new Delay(0.7),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
@@ -1004,11 +1186,32 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.0),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(0.5),
-                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0))
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.2)
+        );
+    }
+
+    public Command ClosePickupAndShoot3rdRowRace() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                    new ParallelRaceGroup(
+                            new FollowPath(thirdPickupEndToBalls),
+                            new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                            ),
+                        new Delay(0.5),
+                        new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                ),
+                new ParallelGroup(
+                        new FollowPath(thirdPickupEndToScore),
+                        new SequentialGroup(
+                                new Delay(0.5),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(0.0),
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.2)
         );
     }
 
@@ -1025,7 +1228,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(threeGatePushDelayBeforeLastShot),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                AutonDumbShootWithHybridBoost(),
                 new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
@@ -1102,7 +1305,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
                 new Delay(0.0),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
+                AutonDumbShootWithHybridBoost(),
                 new Delay(0.5),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
@@ -1116,6 +1319,9 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(hitGateBeforePickup),
                         new SequentialGroup(
+                                new Delay(0.3),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
@@ -1130,6 +1336,16 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
         );
     }
 
+    /** Race version: finish intake-from-gate as soon as path completes or ball count reaches 3. */
+    public Command IntakeFromGateRace() {
+        return new SequentialGroup(
+                new ParallelRaceGroup(
+                        new FollowPath(intakeFromGate),
+                        new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                )
+        );
+    }
+
     /** Return from gate intake to far scoring position, spin up shooter on the way, then shoot */
     public Command IntakeFromGateShoot() {
         return new SequentialGroup(
@@ -1141,12 +1357,58 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                         )
                 ),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
-                new Delay(0.2),
-                new InstantCommand(() -> ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(true)),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                new Delay(0.50),
-                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
-                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                new Delay(0.0),
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.20)       );
+    }
+
+    /** Hit the duplicated DirectGate path while enabling intake. */
+    public Command HitDirectGateWithIntake() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new FollowPath(hitDirectGateBeforePickup),
+                        new SequentialGroup(
+                                new Delay(0.3),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
+                        )
+                )
+        );
+    }
+
+    /** Follow the duplicated DirectGate intake path. */
+    public Command IntakeFromDirectGate() {
+        return new SequentialGroup(
+                new FollowPath(intakeFromDirectGate)
+        );
+    }
+
+    /** Race version: finish direct-gate intake as soon as path completes or ball count reaches 3. */
+    public Command IntakeFromDirectGateRace() {
+        return new SequentialGroup(
+                new ParallelRaceGroup(
+                        new FollowPath(intakeFromDirectGate),
+                        new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                )
+        );
+    }
+
+    /** Return from duplicated DirectGate intake path, spin up shooter on the way, then shoot. */
+    public Command IntakeFromDirectGateShoot() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new FollowPath(intakeFromDirectGateShoot),
+                        new SequentialGroup(
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(0.0),
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.20)
         );
     }
 

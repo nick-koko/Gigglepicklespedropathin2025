@@ -1330,17 +1330,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         // Single source of truth for every non-tuning shot: the calibration
-        // table is looked up once per loop from the current robot pose, then
-        // zone-wide trims are applied on top. The resulting rpm / hood / aim
+        // table is looked up once per loop from the current robot pose, with
+        // zone-wide trims applied in blue-authored calibration space. The
+        // resulting rpm / hood / aim
         // values feed RPM selection (here-and-below), the aim plumbed into the
         // turret (immediately below), and hood position (near the end of
         // onUpdate). shotSol is guaranteed non-null whenever SHOT_TUNING_MODE
         // is false because lookup() always returns something.
-        ShotSolution tableShotSol = applyShotZoneOffsets(
-                botxvalue,
-                botyvalue,
-                lookupShotForAlliance(botxvalue, botyvalue)
-        );
+        ShotSolution tableShotSol = lookupShotForAlliance(botxvalue, botyvalue);
         ShotSolution shotSol = null;
         if (!SHOT_TUNING_MODE) {
             shotSol = tableShotSol;
@@ -3166,8 +3163,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
      * mirroring in and out when the alliance is RED. The calibration samples
      * are all authored in BLUE-side coordinates: aim points cluster near
      * {@code x ≈ 0, y ≈ 130} (the blue goal). For RED we reflect the robot
-     * pose across the field centerline before lookup, then reflect the
-     * returned aim point back, so the same table drives both sides.
+     * pose across the field centerline before lookup. Zone offsets are applied
+     * in that same blue-authored calibration space, then the returned aim point
+     * is reflected back, so the same table and trims drive both sides.
      * Uses Pedro's {@link Pose#mirror(double)} so the mirror axis stays
      * consistent with everywhere else we flip red/blue poses, and the
      * field-width argument lets us retune if an event's field is sized
@@ -3179,11 +3177,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private static ShotSolution lookupShotForAlliance(double botX, double botY) {
         boolean isRed = GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED;
         if (!isRed) {
-            return ShotCalibrationTable.active().lookup(botX, botY);
+            return applyShotZoneOffsets(
+                    botX,
+                    botY,
+                    ShotCalibrationTable.active().lookup(botX, botY)
+            );
         }
         Pose mirroredBot = new Pose(botX, botY, 0.0).mirror(FIELD_WIDTH_IN);
-        ShotSolution sol = ShotCalibrationTable.active()
-                .lookup(mirroredBot.getX(), mirroredBot.getY());
+        ShotSolution sol = applyShotZoneOffsets(
+                mirroredBot.getX(),
+                mirroredBot.getY(),
+                ShotCalibrationTable.active().lookup(mirroredBot.getX(), mirroredBot.getY())
+        );
         Pose mirroredAim = new Pose(sol.aimX, sol.aimY, 0.0).mirror(FIELD_WIDTH_IN);
         return new ShotSolution(
                 sol.rpm,
@@ -3201,7 +3206,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
      * Apply a configurable global delta on top of the table solution for the
      * legal shooting zone that contains the current robot pose. OUT-of-zone
      * poses are left unchanged so diagnostics near boundaries do not get an
-     * unexpected trim.
+     * unexpected trim. Callers pass blue-side coordinates, so the same offsets
+     * are mirror-safe for both alliances.
      */
     private static ShotSolution applyShotZoneOffsets(double botX, double botY, ShotSolution baseSol) {
         String zone = ShootingZones.zoneLabel(botX, botY);

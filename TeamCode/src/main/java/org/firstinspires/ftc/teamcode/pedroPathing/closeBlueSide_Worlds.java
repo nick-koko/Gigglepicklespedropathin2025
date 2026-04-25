@@ -133,10 +133,16 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
         return new SequentialGroup(
                 CloseShootPreload(),
                 CloseGoTo2ndPickupLineStraight(),
-                ClosePickupAndShoot2ndRow(),
+                ClosePickupAndShoot2ndRowRace(),
                 HitGateWithIntake(),
-                IntakeFromGate(),
-                IntakeFromGateShoot()
+                IntakeFromGateRace(),
+                IntakeFromGateShoot(),
+                HitDirectGateWithIntake(),
+                IntakeFromDirectGateRace(),
+                IntakeFromDirectGateShoot(),
+                CloseGoTo3rdPickupLine(),
+                ClosePickupAndShoot3rdRowRace(),
+                ClosePickupAndShootFirstRowRace()
 
                 //ClosePickupAndShootFirstRow()
                 //CloseMoveOffLine()
@@ -148,7 +154,7 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
         return new SequentialGroup(
                 CloseShootPreload(),
                 CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
+                ClosePickupAndShootFirstRowRace(),
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndShoot2ndRow(),
                 CloseMoveOffLineToLever()
@@ -159,11 +165,11 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
         return new SequentialGroup(
                 CloseShootPreload(),
                 CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
+                ClosePickupAndShootFirstRowRace(),
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseMoveOffLineToLever()
         );
     }
@@ -177,7 +183,7 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseMoveOffLineToLever()
         );
     }
@@ -186,13 +192,13 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
         return new SequentialGroup(
                 CloseShootPreload(),
                 CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
+                ClosePickupAndShootFirstRowRace(),
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndGateLever2ndRow(),
                 new Delay(.1),
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseMoveOffLineToLever()
         );
     }
@@ -207,7 +213,7 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
                 ClosePickupAndGateLever2ndRow(),
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseMoveOffLineToLever()
         );
     }
@@ -216,11 +222,11 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
         return new SequentialGroup(
                 CloseShootPreload(),
                 CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
+                ClosePickupAndShootFirstRowRace(),
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
@@ -237,7 +243,7 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
@@ -249,13 +255,13 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
         return new SequentialGroup(
                 CloseShootPreload(),
                 CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
+                ClosePickupAndShootFirstRowRace(),
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndGateLever2ndRow(),
                 new Delay(.1),
                 ClosePickupShootAfterGateLever2ndRow(),
                 CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseGoToZonePickupLine(),
                 FollowZonePickupEndUntilFull(),
                 CloseShootZoneRow(),
@@ -298,7 +304,7 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
                 CloseGoToGateLeverBefore3rdPickup(),
                 new Delay(thirdGatePushDelay),
                 CloseGoTo3rdPickupAfterGateLever(),
-                ClosePickupAndShoot3rdRow(),
+                ClosePickupAndShoot3rdRowRace(),
                 CloseMoveOffLineToLeverExtraTime()
 
                 /*CloseGoToZonePickupLine(),
