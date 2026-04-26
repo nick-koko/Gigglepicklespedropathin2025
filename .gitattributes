@@ -1,0 +1,38 @@
+# Default all text files to LF so Windows and macOS checkouts match.
+* text=auto eol=lf
+
+# Windows command scripts should keep CRLF line endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Source and project files.
+*.java text eol=lf
+*.kt text eol=lf
+*.gradle text eol=lf
+*.properties text eol=lf
+*.xml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Pedro/path export files should be stable across platforms.
+*.pp text eol=lf
+
+# Binary artifacts and assets.
+*.aar binary
+*.apk binary
+*.ap_ binary
+*.aab binary
+*.dex binary
+*.jar binary
+*.class binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.keystore binary
+*.jks binary
