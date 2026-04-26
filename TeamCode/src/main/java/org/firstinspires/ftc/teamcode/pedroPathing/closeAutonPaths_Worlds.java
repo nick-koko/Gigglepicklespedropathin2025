@@ -74,6 +74,8 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose scorePoseCloseBlue = new Pose(50, 87, Math.toRadians(235)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private final Pose scorePoseFarBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
 
+    private final Pose targetPoseCloseBlue = new Pose(0, 144.0, Math.toRadians(180));
+
     private final Pose pickup1PoseBlue = new Pose(40, 88.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1CP1Blue = new Pose(45.0, 85.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP2Blue = new Pose( 38.0, 85.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -143,7 +145,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose gatePoseBlue = new Pose(17.010, 66.268, Math.toRadians(167));
     private final Pose directGateCP1Blue = new Pose(53.576, 72.048, Math.toRadians(180));
     private final Pose directGateCP2Blue = new Pose(35.985, 63.624, Math.toRadians(180));
-    private final Pose directGatePoseBlue = new Pose(17.010, 66.268, Math.toRadians(167));
+    private final Pose directGatePoseBlue = new Pose(15.0, 60.0,     Math.toRadians(113));
 
     // Intake from gate poses
     private final Pose intakeCP1Blue = new Pose(13.708, 51.629, Math.toRadians(180));
@@ -158,6 +160,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     public final Pose startPoseRed = startPoseBlue.mirror(144);
     private final Pose scorePoseCloseRed = scorePoseCloseBlue.mirror(144);
 
+    private final Pose targetPoseCloseRed = targetPoseCloseBlue.mirror(144);
     private final Pose pickup1PoseRed = pickup1PoseBlue.mirror(144);
     private final Pose pickup1CP1Red = pickup1CP1Blue.mirror(144);
     private final Pose pickup1CP2Red = pickup1CP2Blue.mirror(144);
@@ -220,6 +223,8 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose directGateIntakePoseRed = directGateIntakePoseBlue.mirror(144);
     private final Pose directGateShootCP1Red = directGateShootCP1Blue.mirror(144);
 
+
+    public Pose targetPoseClose;
 
     public Pose startPose;
     public Pose scorePoseClose;
@@ -392,6 +397,8 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
         public void buildPaths() {
 
             if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+                targetPoseClose = targetPoseCloseBlue;
+
                 startPose = startPoseBlue;
                 scorePoseClose = scorePoseCloseBlue;
                 pickup1Pose = pickup1PoseBlue;
@@ -451,6 +458,7 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 directGateIntakePose = directGateIntakePoseBlue;
                 directGateShootCP1 = directGateShootCP1Blue;
             } else {
+                targetPoseClose = targetPoseCloseRed;
                 startPose = startPoseRed;
                 scorePoseClose = scorePoseCloseRed;
                 pickup1Pose = pickup1PoseRed;
@@ -866,8 +874,8 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                     .build();
 
             intakeFromDirectGateShoot = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierCurve(directGateIntakePose, directGateShootCP1, scorePoseClose))
-                    .setLinearHeadingInterpolation(directGateIntakePose.getHeading(), scorePoseClose.getHeading())
+                    .addPath(new BezierCurve(directGatePose, directGateShootCP1, scorePoseClose))
+                    .setLinearHeadingInterpolation(directGatePose.getHeading(), scorePoseClose.getHeading())
                     .build();
 
         }
@@ -890,7 +898,8 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                         new FollowPath(firstshootpathStraight),
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos)),
-                        new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(autonShootingTurretAngle)),
+                        new InstantCommand(() -> TurretSubsystem.INSTANCE.aimAtFieldPoint(targetPoseClose)),
+                        //new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(autonShootingTurretAngle)),
                         new Delay(1.5)  //wait until flywheel is up to speed
                 ),
                 AutonDumbShootWithHybridBoost(),
@@ -913,7 +922,8 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
                 ),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
-                new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(autonShootingTurretAngle)),
+                //new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(autonShootingTurretAngle)),
+                new InstantCommand(() -> TurretSubsystem.INSTANCE.aimAtFieldPoint(targetPoseClose)),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos))
                 );
     }
@@ -1366,7 +1376,11 @@ public class closeAutonPaths_Worlds extends NextFTCOpMode{
     public Command HitDirectGateWithIntake() {
         return new SequentialGroup(
                 new ParallelGroup(
-                        new FollowPath(hitDirectGateBeforePickup),
+                        new ParallelRaceGroup(
+                                new FollowPath(intakeFromDirectGate),
+                                new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                        ),
+                        //new FollowPath(hitDirectGateBeforePickup),
                         new SequentialGroup(
                                 new Delay(0.3),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
