@@ -48,7 +48,7 @@ import dev.nextftc.ftc.NextFTCOpMode;
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     public static double autonShooterRPM = 3350.0;
-    public static double nearAutonShooterRPM = 3200.0;
+    public static double nearAutonShooterRPM = 3250.0;
     public static double autonShooterHoodServoPos = 0.525;
     public static double nearAutonShooterHoodServoPos = 0.44;
     public static double nearShootingMoving_x = 25.0;
@@ -74,7 +74,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     private long lastAutonLoopMs = 0L;
 
     public final Pose startPoseBlue = new Pose(31.5, 134.0, Math.toRadians(270)); // Start Pose of our robot
-    private final Pose scorePoseCloseBlue = new Pose(62, 74, Math.toRadians(195)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    private final Pose scorePoseCloseBlue = new Pose(59, 74, Math.toRadians(195)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private final Pose scorePoseFarBlue = new Pose(33, 107, Math.toRadians(225)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private final Pose scorePoseNearBlue = new Pose(50, 87, Math.toRadians(235)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private final Pose scorePoseFinalBlue = new Pose(61, 101, Math.toRadians(235)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
@@ -146,10 +146,11 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     // Gate poses and control points
     private final Pose gateCP1Blue = new Pose(53.576, 72.048, Math.toRadians(180));
     private final Pose gateCP2Blue = new Pose(35.985, 63.624, Math.toRadians(180));
+
     private final Pose gatePoseBlue = new Pose(17.010, 66.268, Math.toRadians(167));
     private final Pose directGateCP1Blue = new Pose(53.576, 72.048, Math.toRadians(180));
     private final Pose directGateCP2Blue = new Pose(35.985, 63.624, Math.toRadians(180));
-    private final Pose directGatePoseBlue = new Pose(11.0, 62.0,     Math.toRadians(140));
+    private final Pose directGatePoseBlue = new Pose(12.5, 61.0,     Math.toRadians(145));
 
     // Intake from gate poses
     private final Pose intakeCP1Blue = new Pose(13.708, 51.629, Math.toRadians(180));

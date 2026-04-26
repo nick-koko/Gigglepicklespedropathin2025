@@ -111,6 +111,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_TUNING_TARGET_STEP_IN = 1.0;
     public static double SHOT_TUNING_TARGET_X_IN = 144.0;
     public static double SHOT_TUNING_TARGET_Y_IN = 137.0;
+
+    public static double RED_AIM_X_OFFSET_IN = 0.;
+    public static double RED_AIM_Y_OFFSET_IN = 7.0;
+
+    public static double SOTM_DRIVER_STICK_DEADBAND = 0.08;
+    public static double SOTM_STOP_LEAD_SPEED_IN_PER_SEC = 8.0;
     // Seed RPM applied on match start when SHOT_TUNING_MODE is enabled. Normal
     // mode leaves targetRPM at 0 until the table lookup computes one, but
     // tuning mode disables that auto path, so without a seed here the first
@@ -261,6 +267,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     private boolean rpmLimitEnabled = false;
     private boolean prevX = false;
+    private boolean prevX2 = false;
     Pose MT1PedroPose = new Pose();
     private static final int LIMELIGHT_VISION_HISTORY_CAPACITY = 8;
     private final double[] limelightVisionDxHistory = new double[LIMELIGHT_VISION_HISTORY_CAPACITY];
@@ -329,7 +336,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // SOTM Stage 3 (turret + distance-based time of flight)
     public static boolean SOTM_ENABLED = true;
     public static double SOTM_MIN_SPEED_IN_PER_SEC = 2.0;
-    public static double SOTM_LEAD_GAIN = 0.9;
+    public static double SOTM_LEAD_GAIN = 1.25;
     public static double SOTM_MAX_LEAD_IN = 36.0;
     public static double SOTM_ANGULAR_LEAD_GAIN = 0.6;
     public static double SOTM_OMEGA_FILTER_ALPHA = 0.2;
@@ -348,7 +355,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean SOTM_REQUIRE_TURRET_READY_FOR_FIRE = false;
     public static double SOTM_REACHABILITY_TOLERANCE_DEG = 1.0;
     public static boolean SOTM_USE_TOF_LOOKUP = true;
-    public static double SOTM_MECHANICAL_DELAY_SEC = 0.15;
+    public static double SOTM_MECHANICAL_DELAY_SEC = 0.08;
     public static double SOTM_BALL_TRANSFER_TIME_SEC = 0.0;
     public static double SOTM_ESTIMATED_BALL_SPEED_IN_PER_SEC = 300.0;
     private static final double[] SOTM_TOF_DISTANCE_IN = {60.0, 80.0, 100.0, 120.0};
@@ -357,7 +364,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean SOTM_RPM_DIRECTION_COMP_ENABLED = true;
     public static double SOTM_RPM_TOWARD_GOAL_MULT = 0.80;
     public static double SOTM_RPM_AWAY_FROM_GOAL_MULT = 1.20;
-    public static double SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC = 8.0;
+    public static double SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC = 15.0;
 
     // Hold gamepad1.x to cap RPM to the “top of triangle” limit.
     public static boolean SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = true;
@@ -501,6 +508,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shotGateLedState = "NONE";
         hold = false;
         prevHold = false;
+        shooterIdleMode = true;
         ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
         resetLimelightVisionBlendState();
 
@@ -526,7 +534,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             TurretSubsystem.INSTANCE.beginStartupCentering();
         }
 
-       //PedroComponent.follower().setStartingPose(startingPose);
+        //PedroComponent.follower().setStartingPose(startingPose);
 
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         windowShooter1 = new double[Math.max(1, SMOOTH_WINDOW)];
@@ -554,360 +562,360 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 .build(); */
 
 
-            turretLogger = new CsvLogger("pickles2025_turret");
-            turretLogger.start(
+        turretLogger = new CsvLogger("pickles2025_turret");
+        turretLogger.start(
+                "t_ms," +
+                        "match_t_ms," +
+                        "bot_x," +
+                        "bot_y," +
+                        "bot_heading_deg," +
+                        "shoot_target_x," +
+                        "shoot_target_y," +
+                        "field_angle_deg," +
+                        "angle_error_deg," +
+                        "turret_target_deg," +
+                        "turret_target_corrected_deg," +
+                        "turret_commanded_deg," +
+                        "turret_servo_command_deg," +
+                        "turret_measured_deg," +
+                        "turret_error_deg," +
+                        "turret_outer_trim_deg," +
+                        "turret_command_diff_deg," +
+                        "turret_rate_step_deg," +
+                        "turret_left_cmd_deg," +
+                        "turret_right_cmd_deg," +
+                        "turret_servo_pos," +
+                        "turret_left_servo_pos," +
+                        "turret_right_servo_pos," +
+                        "turret_quad_raw_deg," +
+                        "turret_quad_offset_deg," +
+                        "turret_encoder_vel_deg_s," +
+                        "turret_abs_raw_deg," +
+                        "turret_abs_deg," +
+                        "turret_abs_delta_deg," +
+                        "turret_learned_servo_offset_deg," +
+                        "turret_abs_startup_error_deg," +
+                        "turret_encoder_ticks," +
+                        "turret_log_dt_ms," +
+                        "turret_target_delta_deg," +
+                        "turret_measured_delta_deg," +
+                        "turret_servo_command_delta_deg," +
+                        "turret_servo_pos_delta," +
+                        "turret_trim_as_servo_delta_pos," +
+                        "turret_cmd_above_deadband_guess," +
+                        "turret_target_stable," +
+                        "turret_limit_clipped," +
+                        "turret_stiction_suspect," +
+                        "turret_ready," +
+                        "driving_cmd," +
+                        "strafe_cmd," +
+                        "rotate_cmd," +
+                        "ododistance," +
+                        "x_offset," +
+                        "y_offset," +
+                        "has_results," +
+                        "loop_time_ms"
+        );
+
+        if (ENABLE_SOTM_LOGGING) {
+            sotmLogger = new CsvLogger("pickles2025_sotm");
+            sotmLogger.start(
                     "t_ms," +
                             "match_t_ms," +
+                            "sotm_fire_request_active," +
+                            "sotm_control_active," +
+                            "right_bumper_active," +
+                            "right_trigger_active," +
                             "bot_x," +
                             "bot_y," +
                             "bot_heading_deg," +
-                            "shoot_target_x," +
-                            "shoot_target_y," +
+                            "mt1_valid," +
+                            "mt1_x," +
+                            "mt1_y," +
+                            "mt1_heading_deg," +
+                            "mt2_valid," +
+                            "mt2_x," +
+                            "mt2_y," +
+                            "mt2_heading_deg," +
+                            "ll_blend_enabled," +
+                            "ll_blend_source," +
+                            "ll_pose_valid," +
+                            "ll_pose_accepted," +
+                            "ll_pose_applied," +
+                            "ll_gate_reason," +
+                            "ll_consecutive_accepts," +
+                            "ll_loops_since_apply," +
+                            "ll_raw_dx_in," +
+                            "ll_raw_dy_in," +
+                            "ll_raw_dist_in," +
+                            "ll_raw_heading_err_deg," +
+                            "ll_bias_x_in," +
+                            "ll_bias_y_in," +
+                            "ll_bias_heading_deg," +
+                            "ll_nudge_x_in," +
+                            "ll_nudge_y_in," +
+                            "ll_nudge_heading_deg," +
+                            "ll_blend_alpha," +
+                            "target_x," +
+                            "target_y," +
                             "field_angle_deg," +
                             "angle_error_deg," +
+                            "real_distance_in," +
+                            "sotm_valid," +
+                            "sotm_lead_applied," +
+                            "sotm_speed_in_s," +
+                            "sotm_vx_in_s," +
+                            "sotm_vy_in_s," +
+                            "sotm_omega_raw_deg_s," +
+                            "sotm_omega_deg_s," +
+                            "sotm_total_tof_s," +
+                            "sotm_lead_x_in," +
+                            "sotm_lead_y_in," +
+                            "sotm_radial_vel_in_s," +
+                            "sotm_effective_dist_in," +
+                            "sotm_ballistic_dist_in," +
+                            "sotm_turret_aim_deg," +
+                            "sotm_turret_lag_comp_deg," +
                             "turret_target_deg," +
-                            "turret_target_corrected_deg," +
-                            "turret_commanded_deg," +
-                            "turret_servo_command_deg," +
                             "turret_measured_deg," +
-                            "turret_error_deg," +
-                            "turret_outer_trim_deg," +
-                            "turret_command_diff_deg," +
-                            "turret_rate_step_deg," +
-                            "turret_left_cmd_deg," +
-                            "turret_right_cmd_deg," +
-                            "turret_servo_pos," +
-                            "turret_left_servo_pos," +
-                            "turret_right_servo_pos," +
-                            "turret_quad_raw_deg," +
-                            "turret_quad_offset_deg," +
-                            "turret_encoder_vel_deg_s," +
-                            "turret_abs_raw_deg," +
-                            "turret_abs_deg," +
-                            "turret_abs_delta_deg," +
-                            "turret_learned_servo_offset_deg," +
-                            "turret_abs_startup_error_deg," +
-                            "turret_encoder_ticks," +
-                            "turret_log_dt_ms," +
-                            "turret_target_delta_deg," +
-                            "turret_measured_delta_deg," +
-                            "turret_servo_command_delta_deg," +
-                            "turret_servo_pos_delta," +
-                            "turret_trim_as_servo_delta_pos," +
-                            "turret_cmd_above_deadband_guess," +
-                            "turret_target_stable," +
-                            "turret_limit_clipped," +
-                            "turret_stiction_suspect," +
                             "turret_ready," +
-                            "driving_cmd," +
+                            "sotm_turret_gate," +
+                            "sotm_turret_goal_error_deg," +
+                            "sotm_turret_constraint_error_deg," +
+                            "sotm_turret_reachable," +
+                            "sotm_turret_speed_deg_s," +
+                            "sotm_turret_speed_gate," +
+                            "sotm_fire_gate," +
+                            "sotm_can_shoot_gate," +
+                            "shooter_target_rpm," +
+                            "shooter_rpm1," +
+                            "shooter_rpm2," +
+                            "shooter_at_speed_75," +
+                            "shooter_battery_v," +
+                            "shooter_battery_v_filtered," +
+                            "shooter_voltage_comp_gain," +
+                            "shooter_cmd_pre_vcomp," +
+                            "shooter_cmd_post_vcomp," +
+                            "shooter_cmd_saturated," +
+                            "dumbshoot_timer_active," +
+                            "ball_count," +
+                            "intake_m1_ticks," +
+                            "intake_m3_ticks," +
+                            "hold_state," +
+                            "drive_cmd," +
                             "strafe_cmd," +
                             "rotate_cmd," +
-                            "ododistance," +
-                            "x_offset," +
-                            "y_offset," +
-                            "has_results," +
                             "loop_time_ms"
             );
+        } else {
+            sotmLogger = null;
+        }
 
-            if (ENABLE_SOTM_LOGGING) {
-                sotmLogger = new CsvLogger("pickles2025_sotm");
-                sotmLogger.start(
-                        "t_ms," +
-                                "match_t_ms," +
-                                "sotm_fire_request_active," +
-                                "sotm_control_active," +
-                                "right_bumper_active," +
-                                "right_trigger_active," +
-                                "bot_x," +
-                                "bot_y," +
-                                "bot_heading_deg," +
-                                "mt1_valid," +
-                                "mt1_x," +
-                                "mt1_y," +
-                                "mt1_heading_deg," +
-                                "mt2_valid," +
-                                "mt2_x," +
-                                "mt2_y," +
-                                "mt2_heading_deg," +
-                                "ll_blend_enabled," +
-                                "ll_blend_source," +
-                                "ll_pose_valid," +
-                                "ll_pose_accepted," +
-                                "ll_pose_applied," +
-                                "ll_gate_reason," +
-                                "ll_consecutive_accepts," +
-                                "ll_loops_since_apply," +
-                                "ll_raw_dx_in," +
-                                "ll_raw_dy_in," +
-                                "ll_raw_dist_in," +
-                                "ll_raw_heading_err_deg," +
-                                "ll_bias_x_in," +
-                                "ll_bias_y_in," +
-                                "ll_bias_heading_deg," +
-                                "ll_nudge_x_in," +
-                                "ll_nudge_y_in," +
-                                "ll_nudge_heading_deg," +
-                                "ll_blend_alpha," +
-                                "target_x," +
-                                "target_y," +
-                                "field_angle_deg," +
-                                "angle_error_deg," +
-                                "real_distance_in," +
-                                "sotm_valid," +
-                                "sotm_lead_applied," +
-                                "sotm_speed_in_s," +
-                                "sotm_vx_in_s," +
-                                "sotm_vy_in_s," +
-                                "sotm_omega_raw_deg_s," +
-                                "sotm_omega_deg_s," +
-                                "sotm_total_tof_s," +
-                                "sotm_lead_x_in," +
-                                "sotm_lead_y_in," +
-                                "sotm_radial_vel_in_s," +
-                                "sotm_effective_dist_in," +
-                                "sotm_ballistic_dist_in," +
-                                "sotm_turret_aim_deg," +
-                                "sotm_turret_lag_comp_deg," +
-                                "turret_target_deg," +
-                                "turret_measured_deg," +
-                                "turret_ready," +
-                                "sotm_turret_gate," +
-                                "sotm_turret_goal_error_deg," +
-                                "sotm_turret_constraint_error_deg," +
-                                "sotm_turret_reachable," +
-                                "sotm_turret_speed_deg_s," +
-                                "sotm_turret_speed_gate," +
-                                "sotm_fire_gate," +
-                                "sotm_can_shoot_gate," +
-                                "shooter_target_rpm," +
-                                "shooter_rpm1," +
-                                "shooter_rpm2," +
-                                "shooter_at_speed_75," +
-                                "shooter_battery_v," +
-                                "shooter_battery_v_filtered," +
-                                "shooter_voltage_comp_gain," +
-                                "shooter_cmd_pre_vcomp," +
-                                "shooter_cmd_post_vcomp," +
-                                "shooter_cmd_saturated," +
-                                "dumbshoot_timer_active," +
-                                "ball_count," +
-                                "intake_m1_ticks," +
-                                "intake_m3_ticks," +
-                                "hold_state," +
-                                "drive_cmd," +
-                                "strafe_cmd," +
-                                "rotate_cmd," +
-                                "loop_time_ms"
-                );
-            } else {
-                sotmLogger = null;
-            }
+        logStartMs = 0L;
+        lastTurretLogMs = 0L;
+        lastSotmLogMs = 0L;
+        lastDumbShootRpmLogMs = 0L;
+        prevTurretLogTargetDeg = Double.NaN;
+        prevTurretLogMeasuredDeg = Double.NaN;
+        prevTurretLogServoCommandDeg = Double.NaN;
+        prevTurretLogServoPos = Double.NaN;
+        prevTurretLogMs = 0L;
+        turretStictionCandidateStartMs = 0L;
+        dumbShootRpmLogActive = false;
+        dumbShootRpmLogStartMs = 0L;
+        dumbShootRpmLogSequenceId = 0;
+        dumbShootRpmSequenceCounter = 0;
+        dumbShootRpmLogExpectedShots = 0;
+        dumbShootRpmLinkedShotInfoSequenceId = -1;
+        dumbShootRpmBurstProfileId = 0;
+        dumbShootRpmBb0RiseCount = 0;
+        dumbShootRpmBb0FallCount = 0;
+        dumbShootRpmBb1RiseCount = 0;
+        dumbShootRpmBb1FallCount = 0;
+        dumbShootRpmBb2RiseCount = 0;
+        dumbShootRpmBb2FallCount = 0;
+        dumbShootRpmPrevBbInitialized = false;
+        shotTuningPendingLabel = false;
+        shotTuningShotIdCounter = 0;
 
-            logStartMs = 0L;
-            lastTurretLogMs = 0L;
-            lastSotmLogMs = 0L;
-            lastDumbShootRpmLogMs = 0L;
-            prevTurretLogTargetDeg = Double.NaN;
-            prevTurretLogMeasuredDeg = Double.NaN;
-            prevTurretLogServoCommandDeg = Double.NaN;
-            prevTurretLogServoPos = Double.NaN;
-            prevTurretLogMs = 0L;
-            turretStictionCandidateStartMs = 0L;
-            dumbShootRpmLogActive = false;
-            dumbShootRpmLogStartMs = 0L;
-            dumbShootRpmLogSequenceId = 0;
-            dumbShootRpmSequenceCounter = 0;
-            dumbShootRpmLogExpectedShots = 0;
-            dumbShootRpmLinkedShotInfoSequenceId = -1;
-            dumbShootRpmBurstProfileId = 0;
-            dumbShootRpmBb0RiseCount = 0;
-            dumbShootRpmBb0FallCount = 0;
-            dumbShootRpmBb1RiseCount = 0;
-            dumbShootRpmBb1FallCount = 0;
-            dumbShootRpmBb2RiseCount = 0;
-            dumbShootRpmBb2FallCount = 0;
-            dumbShootRpmPrevBbInitialized = false;
-            shotTuningPendingLabel = false;
-            shotTuningShotIdCounter = 0;
+        if (ENABLE_SHOT_INFO_LOGGING) {
+            shotInfoLogger = new CsvLogger("pickles2025_shot_breakbeam");
+            shotInfoLogger.start(
+                    "t_ms," +
+                            "match_t_ms," +
+                            "sequence_id," +
+                            "trigger_reason," +
+                            "start_ball_count," +
+                            "expected_shots," +
+                            "start_bb0," +
+                            "start_bb1," +
+                            "start_bb2," +
+                            "bb0_fall_1_ms," +
+                            "bb0_rise_1_ms," +
+                            "bb0_fall_2_ms," +
+                            "bb0_rise_2_ms," +
+                            "bb0_fall_3_ms," +
+                            "bb0_rise_3_ms," +
+                            "bb1_fall_1_ms," +
+                            "bb1_rise_1_ms," +
+                            "bb1_fall_2_ms," +
+                            "bb1_rise_2_ms," +
+                            "bb1_fall_3_ms," +
+                            "bb1_rise_3_ms," +
+                            "bb2_fall_1_ms," +
+                            "bb2_rise_1_ms," +
+                            "bb2_fall_2_ms," +
+                            "bb2_rise_2_ms," +
+                            "bb2_fall_3_ms," +
+                            "bb2_rise_3_ms," +
+                            "shot1_interval_ms," +
+                            "shot2_interval_ms," +
+                            "shot3_interval_ms," +
+                            "bb2_clear_gap_1to2_ms," +
+                            "bb2_clear_gap_2to3_ms," +
+                            "bb2_clear_loops_total," +
+                            "bb2_clear_streak_max_loops," +
+                            "bb0_fall_count," +
+                            "bb0_rise_count," +
+                            "bb1_fall_count," +
+                            "bb1_rise_count," +
+                            "bb2_fall_count," +
+                            "bb2_rise_count," +
+                            "end_reason," +
+                            "duration_ms," +
+                            "burst_profile_id," +
+                            "start_target_rpm," +
+                            "start_hood_pos," +
+                            "start_boost_delay_ms," +
+                            "start_pre_boost_amount," +
+                            "start_boost_mult1," +
+                            "start_boost_mult2," +
+                            "linked_dumbshoot_rpm_sequence_id"
+            );
+        } else {
+            shotInfoLogger = null;
+        }
 
-            if (ENABLE_SHOT_INFO_LOGGING) {
-                shotInfoLogger = new CsvLogger("pickles2025_shot_breakbeam");
-                shotInfoLogger.start(
-                        "t_ms," +
-                                "match_t_ms," +
-                                "sequence_id," +
-                                "trigger_reason," +
-                                "start_ball_count," +
-                                "expected_shots," +
-                                "start_bb0," +
-                                "start_bb1," +
-                                "start_bb2," +
-                                "bb0_fall_1_ms," +
-                                "bb0_rise_1_ms," +
-                                "bb0_fall_2_ms," +
-                                "bb0_rise_2_ms," +
-                                "bb0_fall_3_ms," +
-                                "bb0_rise_3_ms," +
-                                "bb1_fall_1_ms," +
-                                "bb1_rise_1_ms," +
-                                "bb1_fall_2_ms," +
-                                "bb1_rise_2_ms," +
-                                "bb1_fall_3_ms," +
-                                "bb1_rise_3_ms," +
-                                "bb2_fall_1_ms," +
-                                "bb2_rise_1_ms," +
-                                "bb2_fall_2_ms," +
-                                "bb2_rise_2_ms," +
-                                "bb2_fall_3_ms," +
-                                "bb2_rise_3_ms," +
-                                "shot1_interval_ms," +
-                                "shot2_interval_ms," +
-                                "shot3_interval_ms," +
-                                "bb2_clear_gap_1to2_ms," +
-                                "bb2_clear_gap_2to3_ms," +
-                                "bb2_clear_loops_total," +
-                                "bb2_clear_streak_max_loops," +
-                                "bb0_fall_count," +
-                                "bb0_rise_count," +
-                                "bb1_fall_count," +
-                                "bb1_rise_count," +
-                                "bb2_fall_count," +
-                                "bb2_rise_count," +
-                                "end_reason," +
-                                "duration_ms," +
-                                "burst_profile_id," +
-                                "start_target_rpm," +
-                                "start_hood_pos," +
-                                "start_boost_delay_ms," +
-                                "start_pre_boost_amount," +
-                                "start_boost_mult1," +
-                                "start_boost_mult2," +
-                                "linked_dumbshoot_rpm_sequence_id"
-                );
-            } else {
-                shotInfoLogger = null;
-            }
+        if (ENABLE_DUMBSHOOT_RPM_LOGGING) {
+            dumbShootRpmLogger = new CsvLogger("pickles2025_dumbshoot_rpm");
+            dumbShootRpmLogger.start(
+                    "t_ms," +
+                            "match_t_ms," +
+                            "sequence_id," +
+                            "shot_info_sequence_id," +
+                            "burst_profile_id," +
+                            "t_since_start_ms," +
+                            "expected_shots," +
+                            "dumbshoot_timer_active," +
+                            "shooter_target_rpm," +
+                            "shooter_rpm1," +
+                            "shooter_rpm2," +
+                            "shooter_avg_rpm," +
+                            "shooter_rpm_delta_avg," +
+                            "shooter_power1," +
+                            "shooter_power2," +
+                            "shooter_at_speed_75," +
+                            "shooter_battery_v," +
+                            "shooter_battery_v_filtered," +
+                            "shooter_voltage_comp_gain," +
+                            "shooter_cmd_pre_vcomp," +
+                            "shooter_cmd_post_vcomp," +
+                            "shooter_cmd_saturated," +
+                            "boost_active," +
+                            "second_boost_active," +
+                            "boost_override," +
+                            "shooter_boost_mult1," +
+                            "shooter_boost_mult2," +
+                            "hybrid_feed_boost_active," +
+                            "hybrid_phase," +
+                            "hybrid_t_since_shot_feed_start_ms," +
+                            "hybrid_expected_contact_ms," +
+                            "hybrid_preboost_amount_active," +
+                            "hybrid_last_advance_reason," +
+                            "hybrid_last_advance_rel_ms," +
+                            "shooter_rpm_filtered_baseline," +
+                            "shooter_rpm_derivative_rpm_per_sec," +
+                            "rpm_at_shot_sequence_start," +
+                            "rpm_delta_from_target," +
+                            "rpm_delta_from_baseline," +
+                            "rpm_drop_candidate_target_delta," +
+                            "rpm_drop_candidate_baseline_delta," +
+                            "rpm_drop_candidate_derivative," +
+                            "shooter_current_a1," +
+                            "shooter_current_a2," +
+                            "shooter_current_avg_a," +
+                            "shooter_current_filtered_baseline_a," +
+                            "shooter_current_derivative_a_per_sec," +
+                            "shooter_current_at_shot_sequence_start_a," +
+                            "shooter_current_delta_from_baseline_a," +
+                            "current_spike_candidate_baseline_delta," +
+                            "current_spike_candidate_derivative," +
+                            "bb0," +
+                            "bb1," +
+                            "bb2," +
+                            "bb0_rise_edge," +
+                            "bb0_fall_edge," +
+                            "bb1_rise_edge," +
+                            "bb1_fall_edge," +
+                            "bb2_rise_edge," +
+                            "bb2_fall_edge," +
+                            "bb0_rise_count_total," +
+                            "bb0_fall_count_total," +
+                            "bb1_rise_count_total," +
+                            "bb1_fall_count_total," +
+                            "bb2_rise_count_total," +
+                            "bb2_fall_count_total," +
+                            "ball_count," +
+                            "loop_time_ms"
+            );
+        } else {
+            dumbShootRpmLogger = null;
+        }
 
-            if (ENABLE_DUMBSHOOT_RPM_LOGGING) {
-                dumbShootRpmLogger = new CsvLogger("pickles2025_dumbshoot_rpm");
-                dumbShootRpmLogger.start(
-                        "t_ms," +
-                                "match_t_ms," +
-                                "sequence_id," +
-                                "shot_info_sequence_id," +
-                                "burst_profile_id," +
-                                "t_since_start_ms," +
-                                "expected_shots," +
-                                "dumbshoot_timer_active," +
-                                "shooter_target_rpm," +
-                                "shooter_rpm1," +
-                                "shooter_rpm2," +
-                                "shooter_avg_rpm," +
-                                "shooter_rpm_delta_avg," +
-                                "shooter_power1," +
-                                "shooter_power2," +
-                                "shooter_at_speed_75," +
-                                "shooter_battery_v," +
-                                "shooter_battery_v_filtered," +
-                                "shooter_voltage_comp_gain," +
-                                "shooter_cmd_pre_vcomp," +
-                                "shooter_cmd_post_vcomp," +
-                                "shooter_cmd_saturated," +
-                                "boost_active," +
-                                "second_boost_active," +
-                                "boost_override," +
-                                "shooter_boost_mult1," +
-                                "shooter_boost_mult2," +
-                                "hybrid_feed_boost_active," +
-                                "hybrid_phase," +
-                                "hybrid_t_since_shot_feed_start_ms," +
-                                "hybrid_expected_contact_ms," +
-                                "hybrid_preboost_amount_active," +
-                                "hybrid_last_advance_reason," +
-                                "hybrid_last_advance_rel_ms," +
-                                "shooter_rpm_filtered_baseline," +
-                                "shooter_rpm_derivative_rpm_per_sec," +
-                                "rpm_at_shot_sequence_start," +
-                                "rpm_delta_from_target," +
-                                "rpm_delta_from_baseline," +
-                                "rpm_drop_candidate_target_delta," +
-                                "rpm_drop_candidate_baseline_delta," +
-                                "rpm_drop_candidate_derivative," +
-                                "shooter_current_a1," +
-                                "shooter_current_a2," +
-                                "shooter_current_avg_a," +
-                                "shooter_current_filtered_baseline_a," +
-                                "shooter_current_derivative_a_per_sec," +
-                                "shooter_current_at_shot_sequence_start_a," +
-                                "shooter_current_delta_from_baseline_a," +
-                                "current_spike_candidate_baseline_delta," +
-                                "current_spike_candidate_derivative," +
-                                "bb0," +
-                                "bb1," +
-                                "bb2," +
-                                "bb0_rise_edge," +
-                                "bb0_fall_edge," +
-                                "bb1_rise_edge," +
-                                "bb1_fall_edge," +
-                                "bb2_rise_edge," +
-                                "bb2_fall_edge," +
-                                "bb0_rise_count_total," +
-                                "bb0_fall_count_total," +
-                                "bb1_rise_count_total," +
-                                "bb1_fall_count_total," +
-                                "bb2_rise_count_total," +
-                                "bb2_fall_count_total," +
-                                "ball_count," +
-                                "loop_time_ms"
-                );
-            } else {
-                dumbShootRpmLogger = null;
-            }
-
-            if (ENABLE_SHOT_TUNING_LOGGING) {
-                shotTuningLogger = new CsvLogger("pickles2025_shot_tuning");
-                shotTuningLogger.start(
-                        "t_ms," +
-                                "match_t_ms," +
-                                "shot_id," +
-                                "label," +
-                                "label_reason," +
-                                "fire_t_ms," +
-                                "t_since_fire_ms," +
-                                "start_ball_count," +
-                                "target_x," +
-                                "target_y," +
-                                "bot_x_fire," +
-                                "bot_y_fire," +
-                                "bot_heading_deg_fire," +
-                                "ododistance_fire," +
-                                "target_rpm_fire," +
-                                "hood_pos_fire," +
-                                "rpm1_fire," +
-                                "rpm2_fire," +
-                                "target_rpm_label," +
-                                "hood_pos_label," +
-                                "rpm1_label," +
-                                "rpm2_label," +
-                                "turret_target_deg_fire," +
-                                "turret_measured_deg_fire," +
-                                "turret_target_deg_label," +
-                                "turret_measured_deg_label," +
-                                "boost_active_label," +
-                                "second_boost_active_label," +
-                                "boost_override_label," +
-                                "cal_point_index," +
-                                "target_point_x," +
-                                "target_point_y," +
-                                "zone," +
-                                "table_rpm_fire," +
-                                "table_hood_fire," +
-                                "table_aim_x_fire," +
-                                "table_aim_y_fire"
-                );
-            } else {
-                shotTuningLogger = null;
-            }
+        if (ENABLE_SHOT_TUNING_LOGGING) {
+            shotTuningLogger = new CsvLogger("pickles2025_shot_tuning");
+            shotTuningLogger.start(
+                    "t_ms," +
+                            "match_t_ms," +
+                            "shot_id," +
+                            "label," +
+                            "label_reason," +
+                            "fire_t_ms," +
+                            "t_since_fire_ms," +
+                            "start_ball_count," +
+                            "target_x," +
+                            "target_y," +
+                            "bot_x_fire," +
+                            "bot_y_fire," +
+                            "bot_heading_deg_fire," +
+                            "ododistance_fire," +
+                            "target_rpm_fire," +
+                            "hood_pos_fire," +
+                            "rpm1_fire," +
+                            "rpm2_fire," +
+                            "target_rpm_label," +
+                            "hood_pos_label," +
+                            "rpm1_label," +
+                            "rpm2_label," +
+                            "turret_target_deg_fire," +
+                            "turret_measured_deg_fire," +
+                            "turret_target_deg_label," +
+                            "turret_measured_deg_label," +
+                            "boost_active_label," +
+                            "second_boost_active_label," +
+                            "boost_override_label," +
+                            "cal_point_index," +
+                            "target_point_x," +
+                            "target_point_y," +
+                            "zone," +
+                            "table_rpm_fire," +
+                            "table_hood_fire," +
+                            "table_aim_x_fire," +
+                            "table_aim_y_fire"
+            );
+        } else {
+            shotTuningLogger = null;
+        }
 
     }
 
@@ -1021,9 +1029,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     @Override
     public void onUpdate() {
-        if (gamepad1.yWasPressed()) {
-            shooterIdleMode = !shooterIdleMode;
-        }
+//        if (gamepad1.yWasPressed()) {
+//            shooterIdleMode = !shooterIdleMode;
+//        }
         //Call this once per loop
         timer.start();
         long nowMs = System.currentTimeMillis();
@@ -1074,13 +1082,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double limelightRobotYawDeg = normalizeDegrees(Math.toDegrees(botHeadingRad) + 90.0);
         limelight.updateRobotOrientation(limelightRobotYawDeg);
 
-        boolean xPressed = gamepad1.x;
+        boolean dpadUpPressed = gamepad2.dpad_up;
 
-        if (xPressed && !prevX) {
-            rpmLimitEnabled = !rpmLimitEnabled; // toggle
+        if (dpadUpPressed && !prevX) {
+            rpmLimitEnabled = true;
         }
 
-        prevX = xPressed;
+        prevX = dpadUpPressed;
+
+        boolean dpadDownPressed = gamepad2.dpad_down;
+
+        if (dpadDownPressed && !prevX2) {
+            rpmLimitEnabled = false;
+        }
+
+        prevX2 = dpadDownPressed;
 
         LLResult result = limelight.getLatestResult();
         boolean mt1Valid = false;
@@ -1182,9 +1198,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
             limelightBlendPoseAccepted =
                     LIMELIGHT_VISION_BLEND_ENABLED &&
-                    translationOk &&
-                    headingOk &&
-                    historyOk;
+                            translationOk &&
+                            headingOk &&
+                            historyOk;
 
             if (limelightBlendPoseAccepted) {
                 pushLimelightVisionHistory(
@@ -1196,10 +1212,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
                 boolean isStationary =
                         limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_STATIONARY_IN_PER_SEC) &&
-                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_STATIONARY_DEG_PER_SEC);
+                                Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_STATIONARY_DEG_PER_SEC);
                 boolean isSlow =
                         limelightVisionSpeedInPerSec <= Math.max(0.0, LIMELIGHT_VISION_SPEED_SLOW_IN_PER_SEC) &&
-                        Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_SLOW_DEG_PER_SEC);
+                                Math.abs(limelightVisionOmegaDegPerSec) <= Math.max(0.0, LIMELIGHT_VISION_OMEGA_SLOW_DEG_PER_SEC);
                 boolean isLargeError = limelightBlendRawDistIn >=
                         Math.max(0.0, LIMELIGHT_VISION_BLEND_LARGE_ERROR_IN);
 
@@ -1392,6 +1408,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             shootTargetY = shotSol.aimY;
         }
 
+        if (!SHOT_TUNING_MODE && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
+            shootTargetX += RED_AIM_X_OFFSET_IN;
+            shootTargetY += RED_AIM_Y_OFFSET_IN;
+        }
+
         // Vector from robot -> target
         double dx = shootTargetX - botxvalue;
         double dy = shootTargetY - botyvalue;
@@ -1407,9 +1428,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double angleErrorDeg = Math.toDegrees(angleErrorRad);
 
         Vector robotVelocity = PedroComponent.follower().getVelocity();
+
         double sotmVx = robotVelocity.getXComponent();
         double sotmVy = robotVelocity.getYComponent();
         double sotmSpeed = robotVelocity.getMagnitude();
+
+        boolean driverTranslationCommanded =
+                Math.hypot(gamepad1.left_stick_x, gamepad1.left_stick_y) > SOTM_DRIVER_STICK_DEADBAND;
+
+// If driver released the sticks and robot is nearly stopped, do NOT lead.
+// This prevents the turret from aiming like the robot is still moving.
+        if (!driverTranslationCommanded && sotmSpeed < SOTM_STOP_LEAD_SPEED_IN_PER_SEC) {
+            sotmVx = 0.0;
+            sotmVy = 0.0;
+            sotmSpeed = 0.0;
+        }
         double sotmOmegaRawRadPerSec = PedroComponent.follower().poseTracker.getAngularVelocity();
         double sotmOmegaRadPerSec = updateSotmFilteredOmega(sotmOmegaRawRadPerSec);
 
@@ -1464,12 +1497,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 !SOTM_REQUIRE_TURRET_READY_FOR_FIRE || TurretSubsystem.INSTANCE.isTurretReady();
         boolean turretAimGateSatisfied =
                 turretTargetReachable &&
-                turretAimAtGoal &&
-                turretSpeedGateSatisfied &&
-                turretReadyGateSatisfied;
+                        turretAimAtGoal &&
+                        turretSpeedGateSatisfied &&
+                        turretReadyGateSatisfied;
         boolean sotmFireGateSatisfied = !sotmControlActive || sotmResult.valid;
         boolean canShootAtGoal = true;
-                //turretAimGateSatisfied && sotmFireGateSatisfied;
+        //turretAimGateSatisfied && sotmFireGateSatisfied;
 
 
         double angletangent = 0;
@@ -1552,7 +1585,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //                            targetRPM = 4330;
 //                        }
 //                        ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-                    }
+                }
 //                } else {
 //                    LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
 //                }
@@ -1953,10 +1986,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         Math.abs(turretTargetDeltaDeg) <= Math.max(0.0, TURRET_DIAG_TARGET_STABLE_DELTA_DEG);
                 boolean stictionCandidateNow =
                         turretTargetStable &&
-                        Math.abs(turretErrorDeg) >= Math.max(0.0, TURRET_DIAG_STICTION_ERROR_MIN_DEG) &&
-                        Math.abs(turretEncoderVelDegPerSec) <= Math.max(0.0, TURRET_DIAG_STICTION_VELOCITY_MAX_DEG_PER_SEC) &&
-                        turretCmdAboveDeadbandGuess &&
-                        !turretLimitClipped;
+                                Math.abs(turretErrorDeg) >= Math.max(0.0, TURRET_DIAG_STICTION_ERROR_MIN_DEG) &&
+                                Math.abs(turretEncoderVelDegPerSec) <= Math.max(0.0, TURRET_DIAG_STICTION_VELOCITY_MAX_DEG_PER_SEC) &&
+                                turretCmdAboveDeadbandGuess &&
+                                !turretLimitClipped;
                 if (stictionCandidateNow) {
                     if (turretStictionCandidateStartMs == 0L) {
                         turretStictionCandidateStartMs = nowLogMs;
@@ -1966,8 +1999,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 }
                 boolean turretStictionSuspect =
                         stictionCandidateNow &&
-                        turretStictionCandidateStartMs > 0L &&
-                        (nowLogMs - turretStictionCandidateStartMs) >= Math.max(0L, TURRET_DIAG_STICTION_MIN_TIME_MS);
+                                turretStictionCandidateStartMs > 0L &&
+                                (nowLogMs - turretStictionCandidateStartMs) >= Math.max(0L, TURRET_DIAG_STICTION_MIN_TIME_MS);
 
                 long matchT = (logStartMs == 0L) ? 0L : (nowLogMs - logStartMs);
 
@@ -2295,16 +2328,16 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 if (started) {
                     startShotInfoSequence("multi_single_shot", nowMs, startBallCount, bb0, bb1, bb2);
                 }
-    //            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
+                //            ShooterSubsystem.INSTANCE.decreaseShooterHoodPosInc();
             }
-    //        if (gamepad2.yWasPressed()) {
-    //            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
-    //        }
+            //        if (gamepad2.yWasPressed()) {
+            //            ShooterSubsystem.INSTANCE.increaseShooterHoodPosInc();
+            //        }
 
             boolean canFireTriggerShot =
                     shooterAtSpeed75 &&
-                    canShootAtGoal &&
-                    !tooCloseWarningActive;
+                            canShootAtGoal &&
+                            !tooCloseWarningActive;
             String desiredShotGateLedState = "NONE";
             if (sotmFireRequestActive && !tooCloseWarningActive) {
                 if (!turretAimGateSatisfied) {
@@ -2913,7 +2946,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         boolean expectedShotsSeen = shotBb2FallCount >= shotSequenceExpectedShots;
         boolean expectedShotsSettled =
                 expectedShotsSeen &&
-                sinceLastBb2FallMs >= Math.max(0L, SHOT_INFO_EXPECTED_SHOTS_FINALIZE_GRACE_MS);
+                        sinceLastBb2FallMs >= Math.max(0L, SHOT_INFO_EXPECTED_SHOTS_FINALIZE_GRACE_MS);
 
         // For dumbshoot: avoid early "idle_end" finalization, which can truncate
         // breakbeam capture before all expected transitions occur.
@@ -3159,12 +3192,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
         boolean valid =
                 Double.isFinite(totalTimeSec) &&
-                Double.isFinite(leadX) &&
-                Double.isFinite(leadY) &&
-                Double.isFinite(radialVelocityInPerSec) &&
-                Double.isFinite(effectiveDistance) &&
-                Double.isFinite(distanceForBallistics) &&
-                Double.isFinite(turretRobotRelativeAimDeg);
+                        Double.isFinite(leadX) &&
+                        Double.isFinite(leadY) &&
+                        Double.isFinite(radialVelocityInPerSec) &&
+                        Double.isFinite(effectiveDistance) &&
+                        Double.isFinite(distanceForBallistics) &&
+                        Double.isFinite(turretRobotRelativeAimDeg);
 
         return new SOTMResult(
                 valid,
@@ -3419,26 +3452,43 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             boolean topTriangleLimitButtonHeld
     ) {
         double rpm = baseRpm;
+        boolean away = false;
 
-        if (SOTM_RPM_DIRECTION_COMP_ENABLED &&
-                Math.abs(radialVelocityInPerSec) >= SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC) {
+        if (SOTM_RPM_DIRECTION_COMP_ENABLED && Double.isFinite(radialVelocityInPerSec)) {
+            double absRadial = Math.abs(radialVelocityInPerSec);
 
-            if (radialVelocityInPerSec > 0.0) {
-                // Positive radial velocity = robot is driving TOWARD the goal.
-                rpm *= 0.95;
-            } else {
-                // Negative radial velocity = robot is driving AWAY from the goal.
-                rpm *= 1.5;
+            // Buffer zone: if barely moving toward/away, do NOT change RPM.
+            double deadband = Math.max(0.0, SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC);
+
+            // Speed where we allow the full multiplier.
+            // Tune this based on robot speed. Higher = less aggressive.
+            double fullEffectSpeed = 45.0;
+
+            if (absRadial > deadband) {
+                double t = (absRadial - deadband) / Math.max(1.0, fullEffectSpeed - deadband);
+                t = Math.max(0.0, Math.min(1.0, t));
+
+                // Smooth curve: small correction at medium speed, full correction at high speed.
+                t = t * t;
+
+                if (radialVelocityInPerSec > 0.0) {
+                    // Driving meaningfully TOWARD goal: slightly reduce RPM.
+                    double towardMult = 0.9;
+                    rpm *= 1.0 - ((1.0 - towardMult) * t);
+                } else {
+                    // Driving meaningfully AWAY from goal: increase RPM, but not crazy.
+                    double awayMult = 2.0; // 1.5 was very aggressive
+                    rpm *= 1.0 + ((awayMult - 1.0) * t);
+                }
             }
         }
 
-        if (SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED && topTriangleLimitButtonHeld) {
-            rpm = Math.min(rpm, 3400);
+        if (SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED && topTriangleLimitButtonHeld && !away) {
+            rpm = Math.min(rpm, 3400.0);
         }
 
         return Math.max(0.0, rpm);
     }
-
 }
 
 
