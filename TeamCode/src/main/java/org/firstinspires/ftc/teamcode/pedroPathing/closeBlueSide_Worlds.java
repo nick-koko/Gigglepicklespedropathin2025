@@ -134,16 +134,20 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
                 CloseShootPreload(),
                 CloseGoTo2ndPickupLineStraight(),
                 ClosePickupAndShoot2ndRowRace(),
-                HitGateWithIntake(),
-                IntakeFromGateRace(),
-                IntakeFromGateShoot(),
+                //HitGateWithIntake(),
+                //IntakeFromGateRace(),
+                //IntakeFromGateShoot(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
 
-                HitDirectGateWithIntake(),
+                //HitDirectGateWithIntake(),
                 //IntakeFromDirectGateRace(),
 
-                IntakeFromDirectGateShoot(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRowRace(),
+                //IntakeFromDirectGateShoot(),
+                //CloseGoTo3rdPickupLine(),
+                //ClosePickupAndShoot3rdRowRace(),
                 ClosePickupAndShootFirstRowRace()
 
                 //ClosePickupAndShootFirstRow()
