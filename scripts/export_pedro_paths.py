@@ -48,14 +48,14 @@ CURVE3_RE = re.compile(
     r"new\s+BezierCurve\(\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*\)"
 )
 ASSIGN_RE = re.compile(r"(\w+)\s*=\s*(\w+);")
-FOLLOW_PATH_RE = re.compile(r"FollowPath\(\s*([A-Za-z0-9_]+)\s*\)")
-FOLLOWPATH_CALL_RE = re.compile(r"\bfollowPath\(\s*([A-Za-z0-9_]+)\s*\)")
+FOLLOW_PATH_RE = re.compile(r"FollowPath\(\s*([A-Za-z0-9_]+)\s*(?:,[^)]*)?\)")
+FOLLOWPATH_CALL_RE = re.compile(r"\bfollowPath\(\s*([A-Za-z0-9_]+)\s*(?:,[^)]*)?\)")
 SCHEDULE_RE = re.compile(r"([A-Za-z0-9_]+)\s*\(\)\s*\.schedule\(\)")
 COMMAND_DEF_RE = re.compile(r"public\s+Command\s+([A-Za-z0-9_]+)\s*\(\)\s*{", re.M)
 # capture FollowPath(...) OR any method call token; used for ordered expansion
 FOLLOW_OR_CALL_RE = re.compile(
-    r"FollowPath\(\s*([A-Za-z0-9_]+)\s*\)|"
-    r"\bfollowPath\(\s*([A-Za-z0-9_]+)\s*\)|"
+    r"FollowPath\(\s*([A-Za-z0-9_]+)\s*(?:,[^)]*)?\)|"
+    r"\bfollowPath\(\s*([A-Za-z0-9_]+)\s*(?:,[^)]*)?\)|"
     r"\b([A-Za-z0-9_]+)\s*\(\s*\)"
 )
 

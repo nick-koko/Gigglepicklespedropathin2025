@@ -33,9 +33,9 @@ import dev.nextftc.extensions.pedro.PedroComponent;
 
  */
 @Configurable
-@Autonomous(name = "Worlds_closeBlueSide", group = "Comp")
-public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
-    public closeBlueSide_Worlds() {
+@Autonomous(name = "WorldsTopTriangle_closeBlueSide", group = "Comp")
+public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTriangle{
+    public closeBlueSide_WorldsTopTriangle() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, TurretSubsystem.INSTANCE)
@@ -138,8 +138,9 @@ public class closeBlueSide_Worlds extends closeAutonPaths_Worlds{
                 //IntakeFromGateRace(),
                 //IntakeFromGateShoot(),
                 ClosePickupAndShootGateRace(),
-                ClosePickupAndShootGateRace(),
-                ClosePickupAndShootGateRace(),
+                //ClosePickupAndShootGateRace(),
+                //ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateBefore1stRowRace(),
 
                 //HitDirectGateWithIntake(),
                 //IntakeFromDirectGateRace(),
