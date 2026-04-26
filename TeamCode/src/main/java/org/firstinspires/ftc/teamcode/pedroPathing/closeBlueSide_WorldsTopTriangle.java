@@ -41,8 +41,8 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, TurretSubsystem.INSTANCE)
         );
     }
-    public double intAmount = 15;
-    public double pushLever = 2;
+    public double intAmount = 18;
+    public double pushLever = 3;
 
     private Pose finalStartPose = new Pose();
 
@@ -78,15 +78,15 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
             }*/
 
         // If dpad Up/Down is pressed, increase or decrease ball count
-        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 15)) {
+        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 21)) {
             intAmount = intAmount + 3;
-        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
+        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 18)) {
             intAmount = intAmount - 3;
         }
         // If dpad left/right is pressed add or subtract a row until push lever
         if ((gamepad1.dpadRightWasPressed()) && (pushLever < 4)) {
             pushLever = pushLever + 1;
-        } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 0)) {
+        } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 3)) {
             pushLever = pushLever - 1;
         }
 
@@ -129,7 +129,7 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
         );
 
     }
-    public Command Close6BallStraight() {
+    public Command Close18Ball3Gate() {
         return new SequentialGroup(
                 CloseShootPreload(),
                 //CloseGoTo2ndPickupLineStraight(),
@@ -331,7 +331,7 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
             }
             else if (intAmount == 6){
                 if (pushLever == 1) {
-                    Close6BallStraight().schedule();
+                    Close18Ball3Gate().schedule();
                 } else {
                     Close6Ball().schedule();
                 }
@@ -358,13 +358,25 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
                 }  else if (pushLever == 2){
                     Close15BallLeverAfter6().schedule();
                 }  else if (pushLever == 3){
-                    Close15BallLeverBoth().schedule();
+                    Close18Ball3Gate().schedule();
                 }  else if (pushLever == 4){
                     Close15BallLeverTriple().schedule();
                 }
+        }   else if (intAmount == 18) {
+            if (pushLever == 0) {
+                Close15Ball().schedule();
+            } else if (pushLever == 1) {
+                Close15BallLeverAfter3().schedule();
+            } else if (pushLever == 2) {
+                Close15BallLeverAfter6().schedule();
+            } else if (pushLever == 3) {
+                Close15BallLeverBoth().schedule();
+            } else if (pushLever == 4) {
+                Close15BallLeverTriple().schedule();
+            }
         }
 
-        // Persist ball count (and optionally pose) for TeleOp
+            // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
         GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();

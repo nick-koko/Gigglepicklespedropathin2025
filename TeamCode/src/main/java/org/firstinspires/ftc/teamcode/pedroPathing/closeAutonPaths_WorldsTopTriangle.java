@@ -53,6 +53,9 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     public static double nearAutonShooterHoodServoPos = 0.44;
     public static double nearShootingMoving_x = 25.0;
     public static double nearShootingMoving_y = 144;
+    public static double gateIntakeWaitDelay = 2.0;
+
+
     public static double autonShootingTurretAngle = -97;
     public static double pickupBrakingStrength = 1.0;
     public static double pickupCornerBrakingStrength = 0.5;
@@ -1021,7 +1024,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
                         new SequentialGroup(
                                 new FollowPath(hitDirectGateBeforePickup,true),
                                 new ParallelRaceGroup(
-                                        new Delay(2.0),
+                                        new Delay(gateIntakeWaitDelay),
                                         new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
                                 )
                         ),
@@ -1057,7 +1060,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
                         new SequentialGroup(
                                 new FollowPath(hitDirectGateBeforePickup,true),
                                 new ParallelRaceGroup(
-                                        new Delay(2.0),
+                                        new Delay(gateIntakeWaitDelay),
                                         new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
                                 )
                         ),
