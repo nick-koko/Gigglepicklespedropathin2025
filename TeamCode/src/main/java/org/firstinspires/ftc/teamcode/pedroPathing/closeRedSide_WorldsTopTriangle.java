@@ -33,9 +33,9 @@ import dev.nextftc.extensions.pedro.PedroComponent;
 
  */
 @Configurable
-@Autonomous(name = "WorldsTopTriangle_closeBlueSide", group = "Comp")
-public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTriangle{
-    public closeBlueSide_WorldsTopTriangle() {
+@Autonomous(name = "WorldsTopTriangle_closeRedSide", group = "Comp")
+public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTriangle{
+    public closeRedSide_WorldsTopTriangle() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, TurretSubsystem.INSTANCE)
@@ -53,8 +53,8 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
         ShooterSubsystem.INSTANCE.shooterHoodDrive(nearAutonShooterHoodServoPos);
         ShooterSubsystem.INSTANCE.stop();
 
-        GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
-        PedroComponent.follower().setStartingPose(startPoseBlue);
+        GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
+        PedroComponent.follower().setStartingPose(startPoseRed);
 
         // Seed ball count for auton: assume robot starts loaded with 3
         IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);

@@ -81,7 +81,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     private final Pose pickup1CP1Blue = new Pose(45.0, 85.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP2Blue = new Pose( 38.0, 85.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup1EndPoseBlue = new Pose(25, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickup1EndPoseBlue = new Pose(27, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose pickup1GateLeverEndPoseBlue = new Pose(24, 86.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
     private final Pose pickup1GateLeverPushPoseBlue = new Pose(23, 75, Math.toRadians(180));
@@ -91,8 +91,8 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     private final Pose pickup1GateLeverPushHoldPoseBlue = new Pose(15.5, 72.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
 
     private final Pose pickup2PoseBlue = new Pose(41, 63, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickup2CP1Blue = new Pose(56.5, 67.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickup2CP2Blue = new Pose( 51.0, 65.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2CP1Blue = new Pose(51, 65, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickup2CP2Blue = new Pose( 41, 62, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
     private final Pose pickup2EndPoseBlue = new Pose(22.0, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup2CPPathBlue = new Pose(48, 67, Math.toRadians(180));
@@ -146,7 +146,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     private final Pose gatePoseBlue = new Pose(17.010, 66.268, Math.toRadians(167));
     private final Pose directGateCP1Blue = new Pose(53.576, 72.048, Math.toRadians(180));
     private final Pose directGateCP2Blue = new Pose(35.985, 63.624, Math.toRadians(180));
-    private final Pose directGatePoseBlue = new Pose(11.0, 61.0,     Math.toRadians(136));
+    private final Pose directGatePoseBlue = new Pose(11.0, 62.0,     Math.toRadians(140));
 
     // Intake from gate poses
     private final Pose intakeCP1Blue = new Pose(13.708, 51.629, Math.toRadians(180));
@@ -658,6 +658,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
                             )
                     ).setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup2Pose.getHeading(), 0.70)
                     .setNoDeceleration()
+                    .setTValueConstraint(.8)
                     .build();
 
             secondPickupEnd = PedroComponent.follower().pathBuilder()
@@ -673,8 +674,8 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
                     .build();
 
             secondPickupEndToBalls = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2Pose, pickup2EndPose))
-                    .setConstantHeadingInterpolation(pickup2EndPose.getHeading())
+                    .addPath(new BezierCurve(scorePoseClose, pickup2CP1, pickup2CP2, pickup2EndPose))
+                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup2EndPose.getHeading(), 0.2)
                     .setNoDeceleration()
                     .build();
 
@@ -1015,6 +1016,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
 
     public Command ClosePickupAndShootGateRace() {
         return new SequentialGroup(
+                new Delay(0.2),
                 new ParallelGroup(
                         new SequentialGroup(
                                 new FollowPath(hitDirectGateBeforePickup,true),
@@ -1050,6 +1052,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
 
     public Command ClosePickupAndShootGateBefore1stRowRace() {
         return new SequentialGroup(
+                new Delay(0.2),
                 new ParallelGroup(
                         new SequentialGroup(
                                 new FollowPath(hitDirectGateBeforePickup,true),
@@ -1166,6 +1169,12 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
                                 new FollowPath(secondPickupEndToBalls),
                                 new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
                         ),
+                        new Delay(0.3),
+                        new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                        new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                        new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                        new Delay(0.1),
+                        new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
                         new Delay(0.5),
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                         ),
