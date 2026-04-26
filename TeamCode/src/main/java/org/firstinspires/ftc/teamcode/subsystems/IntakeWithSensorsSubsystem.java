@@ -139,6 +139,8 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
     private long dumbShootStartTimeMs = 0L;
     private double dumbShootDistanceForDelayInches = 0.0;
 
+    private long dumbShootFixedDelayOverrideMs = -1L;
+
     private long SHOT_DELAY_MS = 300;
     private long SHOT_TIME = 10; // wait time between shots
     private boolean shotInProgress = false;
@@ -264,6 +266,7 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         multiSingleShotRequested = 0;
         multiSingleShotCompleted = 0;
         nextMultiSingleShotStartTimeMs = 0L;
+        dumbShootFixedDelayOverrideMs = -1L;
     }
 
     // =============================================
@@ -585,13 +588,13 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         s3.setPower(0.0);
     }
 
-    public void setDumbShootDistanceForDelayInches(double distanceInches) {
-        if (Double.isFinite(distanceInches)) {
-            dumbShootDistanceForDelayInches = Math.max(0.0, distanceInches);
-        } else {
-            dumbShootDistanceForDelayInches = 0.0;
-        }
-    }
+//    public void setDumbShootDistanceForDelayInches(double distanceInches) {
+//        if (Double.isFinite(distanceInches)) {
+//            dumbShootDistanceForDelayInches = Math.max(0.0, distanceInches);
+//        } else {
+//            dumbShootDistanceForDelayInches = 0.0;
+//        }
+//    }
 
     /**
      * Call this after shooting is complete and motors are stopped.
@@ -674,6 +677,21 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
         startSingleShot();
 
         return true;
+    }
+
+    public void setDumbShootDistanceForDelayInches(double distanceInches) {
+        dumbShootFixedDelayOverrideMs = -1L;
+
+        if (Double.isFinite(distanceInches)) {
+            dumbShootDistanceForDelayInches = Math.max(0.0, distanceInches);
+        } else {
+            dumbShootDistanceForDelayInches = 0.0;
+        }
+    }
+
+    public void setDumbShootFixedDelayMs(long delayMs) {
+        dumbShootFixedDelayOverrideMs = Math.max(0L, delayMs);
+        dumbShootDistanceForDelayInches = Double.MAX_VALUE;
     }
 
     /**
@@ -935,21 +953,38 @@ public class IntakeWithSensorsSubsystem implements Subsystem {
 
     private void updateDumbShootOpenLoop() {
         long nowMs = System.currentTimeMillis();
+
+        boolean usingFixedDelay = dumbShootFixedDelayOverrideMs >= 0L;
+
         boolean delaysEnabledByDistance =
                 DUMBSHOOT_DELAY_DISTANCE_THRESHOLD_IN <= 0.0 ||
-                dumbShootDistanceForDelayInches >= DUMBSHOOT_DELAY_DISTANCE_THRESHOLD_IN;
-        long effectiveDelayM1Ms = delaysEnabledByDistance ? Math.max(0L, DUMBSHOOT_DELAY_M1_MS) : 0L;
-        long effectiveDelayM2Ms = delaysEnabledByDistance ? Math.max(0L, DUMBSHOOT_DELAY_M2_MS) : 0L;
+                        dumbShootDistanceForDelayInches >= DUMBSHOOT_DELAY_DISTANCE_THRESHOLD_IN;
+
+        long effectiveDelayM1Ms;
+        long effectiveDelayM2Ms;
+
+        if (usingFixedDelay) {
+            effectiveDelayM1Ms = dumbShootFixedDelayOverrideMs;
+            effectiveDelayM2Ms = dumbShootFixedDelayOverrideMs;
+        } else {
+            effectiveDelayM1Ms = delaysEnabledByDistance ? Math.max(0L, DUMBSHOOT_DELAY_M1_MS) : 0L;
+            effectiveDelayM2Ms = delaysEnabledByDistance ? Math.max(0L, DUMBSHOOT_DELAY_M2_MS) : 0L;
+        }
+
         long elapsedMs = Math.max(0L, nowMs - dumbShootStartTimeMs);
+
         boolean enableFeedM1 = elapsedMs >= effectiveDelayM1Ms;
         boolean enableFeedM2 = elapsedMs >= effectiveDelayM2Ms;
 
-        m3.setPower(DUMBSHOOT_M3_POWER); //Always immediately enable first ball feeding
+        // Always immediately feed the first ball.
+        m3.setPower(DUMBSHOOT_M3_POWER);
+
         if (enableFeedM1) {
             m1.setPower(DUMBSHOOT_M1_POWER);
         } else {
             m1.setPower(0.0);
         }
+
         if (enableFeedM2) {
             s2.setPower(DUMBSHOOT_M2_POWER);
             s3.setPower(DUMBSHOOT_M2_POWER);

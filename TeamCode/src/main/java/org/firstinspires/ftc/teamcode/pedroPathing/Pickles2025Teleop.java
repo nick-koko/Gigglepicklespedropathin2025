@@ -91,8 +91,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static long DUMBSHOOT_RPM_LOG_DURATION_MS = 1500;
     public static int BURST_PROFILE_ID = 0;
     public static long SHOOT_BLOCK_LED_STROBE_MS = 180;
-    public static double SHOOT_GATE_AT_SPEED_TOLERANCE_RPM = 75.0;
+    public static double SHOOT_GATE_AT_SPEED_TOLERANCE_RPM = 150.0;
     public static double SHOOT_GATE_MIN_TARGET_RPM = 500.0;
+    public static double FAR_SHOT_RPM_THRESHOLD = 4000.0;
+    public static double FAR_SHOT_AT_SPEED_TOLERANCE_RPM = 75.0;
     // Duration of the "too close to shoot" red LED warning flash, shown only when the
     // driver actually presses a fire button while inside minDisatanceForShooting. Keeps
     // the ball-count color visible the rest of the time so the driver still knows how
@@ -123,7 +125,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean CAL_SESSION_ACTIVE = false;
     public static double CAL_WAYPOINT_LOCKED_RADIUS_IN = 2.0;
     public static boolean ENABLE_SHOT_INFO_LOGGING = false;
-    public static long SHOT_INFO_LOG_TIMEOUT_MS = 2500;
+    public static long SHOT_INFO_LOG_TIMEOUT_MS = 3000;
     // Dumbshoot-specific logging window based on observed burst timing:
     // shot1 < 200 ms, shot2 ~150 ms later, shot3 usually ~200 ms later.
     // Keep a small margin for loop/sensor jitter.
@@ -137,6 +139,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private long logStartMs = 0L;
     private int shotSequenceIdCounter = 0;
     private boolean shotLogSequenceActive = false;
+
+    public static double SHOOTER_IDLE_RPM = 3200.0;
+
+    private boolean shooterIdleMode = false;
     private long shotSequenceStartMs = 0L;
     private int shotSequenceId = 0;
     private int shotSequenceStartBallCount = 0;
@@ -323,14 +329,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // SOTM Stage 3 (turret + distance-based time of flight)
     public static boolean SOTM_ENABLED = true;
     public static double SOTM_MIN_SPEED_IN_PER_SEC = 2.0;
-    public static double SOTM_LEAD_GAIN = 2.2;
+    public static double SOTM_LEAD_GAIN = 0.9;
     public static double SOTM_MAX_LEAD_IN = 36.0;
     public static double SOTM_ANGULAR_LEAD_GAIN = 0.6;
     public static double SOTM_OMEGA_FILTER_ALPHA = 0.2;
     // Separate turret-lag feedforward layer (independent from SOTM lead-point math).
     // Equivalent concept to: turretTarget += angularVelocity * kVF.
     public static boolean SOTM_TURRET_LAG_COMP_ENABLED = true;
-    public static double SOTM_TURRET_LAG_COMP_SEC = 0.22;
+    public static double SOTM_TURRET_LAG_COMP_SEC = 0.15;
     public static double SOTM_TURRET_LAG_COMP_MAX_DEG = 25.0;
     // When true, keep SOTM solution (turret + ballistic distance) live all the time.
     public static boolean SOTM_ALWAYS_TRACK_TARGETS = true;
@@ -351,7 +357,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean SOTM_RPM_DIRECTION_COMP_ENABLED = true;
     public static double SOTM_RPM_TOWARD_GOAL_MULT = 0.80;
     public static double SOTM_RPM_AWAY_FROM_GOAL_MULT = 1.20;
-    public static double SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC = 3.0;
+    public static double SOTM_RPM_DIRECTION_MIN_RADIAL_SPEED_IN_PER_SEC = 8.0;
 
     // Hold gamepad1.x to cap RPM to the “top of triangle” limit.
     public static boolean SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = true;
@@ -467,6 +473,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static long TELEOP_TURRET_STARTUP_SETTLE_MS = 250L;
     public static int TELEOP_TURRET_START_SAMPLE_COUNT = 5;
     public static long TELEOP_TURRET_START_SAMPLE_INTERVAL_MS = 10L;
+    public static double FAR_NO_BOOST_RPM_THRESHOLD = 4000.0;
+    public static long FAR_NO_BOOST_BETWEEN_SHOTS_MS = 100L;
+
     @Override
     public void onInit() {
         matchHasStarted = false;
@@ -1012,6 +1021,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     @Override
     public void onUpdate() {
+        if (gamepad1.yWasPressed()) {
+            shooterIdleMode = !shooterIdleMode;
+        }
         //Call this once per loop
         timer.start();
         long nowMs = System.currentTimeMillis();
@@ -1023,7 +1035,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // m3 to reverse at M3_HOLD_RPM_OCCUPIED, pulling it back.
         if (dumbShootTimerActive &&
                 nowMs - dumbShootStartTimeMs >= DUMBSHOOT_SHOOTER_TIMEOUT_MS) {
-            ShooterSubsystem.INSTANCE.stop();
+            if (shooterIdleMode) {
+                targetRPM = SHOOTER_IDLE_RPM;
+                shooterFollowEnabled = true;   // keep it spinning
+            } else {
+                targetRPM = 0.0;
+                shooterFollowEnabled = false;
+                ShooterSubsystem.INSTANCE.stop();
+            }
             IntakeWithSensorsSubsystem.INSTANCE.stop();
             dumbShootTimerActive = false;
             shooterFollowEnabled = false;
@@ -1457,9 +1476,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double shootingangle = 0;
         // Add location based shooting angle here eventually
         //double shootingangle = Math.toDegrees(Math.atan2(144-botyvalue,botxvalue)
-        if (gamepad1.y) {
-            PedroComponent.follower().setPose(new Pose(71, 8, Math.toRadians(270)));
-        }
+//        if (gamepad1.y) {
+//            PedroComponent.follower().setPose(new Pose(71, 8, Math.toRadians(270)));
+//        }
 
         // MT1 emergency relocalization stays available even when SOTM is enabled.
         // This is the rescue path for cases where odometry / heading become bad
@@ -1692,8 +1711,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         double rpmShooter1 = ShooterSubsystem.INSTANCE.getShooter1RPM();
         double rpmShooter2 = ShooterSubsystem.INSTANCE.getShooter2RPM();
         double rpmOuttake = IntakeWithSensorsSubsystem.INSTANCE.getMotor3RPM();
+        double activeShootToleranceRpm =
+                targetRPM >= FAR_SHOT_RPM_THRESHOLD
+                        ? FAR_SHOT_AT_SPEED_TOLERANCE_RPM
+                        : SHOOT_GATE_AT_SPEED_TOLERANCE_RPM;
+
         boolean shooterAtSpeed75 = isShooterReadyForFeed(
-                SHOOT_GATE_AT_SPEED_TOLERANCE_RPM,
+                activeShootToleranceRpm,
                 rpmShooter1,
                 rpmShooter2
         );
@@ -2312,12 +2336,31 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 hold = rightTriggerActive;
 
                 boolean useFarBoostProfile = ODODistance >= ShooterSubsystem.HYBRID_NEAR_FAR_DISTANCE_THRESHOLD_IN;
+                boolean farNoBoostShot = targetRPM >= 4000.0;
+
                 if (canFireTriggerShot && !dumbShootTimerActive && !dumbShootSettleActive) {
                     int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+
                     ShooterSubsystem.INSTANCE.boostOverride = false;
-                    IntakeWithSensorsSubsystem.INSTANCE.setDumbShootDistanceForDelayInches(ODODistance);
+                    ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
+
+                    if (farNoBoostShot) {
+                        IntakeWithSensorsSubsystem.INSTANCE.setDumbShootFixedDelayMs(100L);
+                    } else {
+                        IntakeWithSensorsSubsystem.INSTANCE.setDumbShootDistanceForDelayInches(ODODistance);
+                    }
+
                     IntakeWithSensorsSubsystem.INSTANCE.dumbShoot();
-                    startShotInfoSequence("dumbshoot", nowMs, startBallCountBeforeDumbShoot, bb0, bb1, bb2);
+
+                    startShotInfoSequence(
+                            farNoBoostShot ? "dumbshoot_far_no_boost" : "dumbshoot",
+                            nowMs,
+                            startBallCountBeforeDumbShoot,
+                            bb0,
+                            bb1,
+                            bb2
+                    );
+
                     shotSequenceLinkedDumbShootRpmSequenceId = startDumbShootRpmLogSequence(
                             nowMs,
                             startBallCountBeforeDumbShoot,
@@ -2326,18 +2369,20 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                             bb2,
                             shotSequenceId
                     );
+
                     dumbShootTimerActive = true;
                     dumbShootStartTimeMs = nowMs;
-                    if (ShooterSubsystem.ENABLE_HYBRID_SHOT_FEED_BOOST) {
-                        ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(ODODistance);
-                    } else {
-                        ShooterSubsystem.INSTANCE.setBoostOn(useFarBoostProfile);
+
+                    if (!farNoBoostShot) {
+                        if (ShooterSubsystem.ENABLE_HYBRID_SHOT_FEED_BOOST) {
+                            ShooterSubsystem.INSTANCE.startHybridShotFeedBoostController(ODODistance);
+                        } else {
+                            ShooterSubsystem.INSTANCE.setBoostOn(useFarBoostProfile);
+                        }
                     }
 
                     // In shot-tuning mode, capture a sample for this dumbShoot so
                     // the driver can label it KEEP / IGNORE on gamepad 1 X / B.
-                    // Any previous unlabeled shot is auto-marked UNRATED so each
-                    // label only applies to the most-recent burst.
                     if (SHOT_TUNING_MODE) {
                         if (shotTuningPendingLabel) {
                             labelShotTuningSample("UNRATED", "next_shot_before_label");
@@ -2359,16 +2404,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                         shotTuningPendingOdoDistance = ODODistance;
                         shotTuningPendingTurretTargetDeg = TurretSubsystem.INSTANCE.getTargetAngleDegrees();
                         shotTuningPendingTurretMeasuredDeg = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
-                        // Capture the calibration-table view of this shot. Uses the
-                        // actual fire-time pose (not the pinned waypoint) so the
-                        // analysis script can compare operator-adjusted values vs
-                        // what the table would have produced at the parked-pose.
+
                         ShotSolution fireSol = ShotCalibrationTable.active().lookup(botxvalue, botyvalue);
                         shotTuningPendingTableRpm = fireSol.rpm;
                         shotTuningPendingTableHood = fireSol.hoodPos;
                         shotTuningPendingTableAimX = fireSol.aimX;
                         shotTuningPendingTableAimY = fireSol.aimY;
                         shotTuningPendingZone = ShootingZones.zoneLabel(botxvalue, botyvalue);
+
                         if (CAL_SESSION_ACTIVE) {
                             shotTuningPendingCalPointIndex = CAL_POINT_INDEX;
                             ShotSample target = ShotCalibrationTable.active().sampleAt(CAL_POINT_INDEX);
@@ -2390,7 +2433,15 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 this.shoot = false;
                 //targetRPM = 1000;
                 IntakeWithSensorsSubsystem.INSTANCE.intakeForward();//Hoping Forward is Intake (maybe change the method name)
-                ShooterSubsystem.INSTANCE.stop();
+//                ShooterSubsystem.INSTANCE.stop();
+                if (shooterIdleMode) {
+                    targetRPM = SHOOTER_IDLE_RPM;
+                    shooterFollowEnabled = true;   // keep it spinning
+                } else {
+                    targetRPM = 0.0;
+                    shooterFollowEnabled = false;
+                    ShooterSubsystem.INSTANCE.stop();
+                }
                 shooterFollowEnabled = false;
                 dumbShootTimerActive = false;
                 dumbShootSettleActive = false;
@@ -3374,7 +3425,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
             if (radialVelocityInPerSec > 0.0) {
                 // Positive radial velocity = robot is driving TOWARD the goal.
-                rpm *= 0.9;
+                rpm *= 0.95;
             } else {
                 // Negative radial velocity = robot is driving AWAY from the goal.
                 rpm *= 1.5;
@@ -3382,7 +3433,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         if (SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED && topTriangleLimitButtonHeld) {
-            rpm = Math.min(rpm, 3800);
+            rpm = Math.min(rpm, 3400);
         }
 
         return Math.max(0.0, rpm);
