@@ -47,6 +47,15 @@ CURVE4_RE = re.compile(
 CURVE3_RE = re.compile(
     r"new\s+BezierCurve\(\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*,\s*([A-Za-z0-9_]+)\s*\)"
 )
+LINEAR_HEADING_RE = re.compile(
+    r"\.setLinearHeadingInterpolation\(\s*((?:[^(),]|\([^()]*\))+?)\s*,\s*((?:[^(),]|\([^()]*\))+?)(?:\s*,\s*(?:[^()]|\([^()]*\))*)?\s*\)"
+)
+CONSTANT_HEADING_RE = re.compile(r"\.setConstantHeadingInterpolation\(\s*((?:[^()]|\([^()]*\))*)\s*\)")
+TANGENT_HEADING_RE = re.compile(r"\.setTangentHeadingInterpolation\(\s*\)")
+TANGENT_INTERPOLATOR_RE = re.compile(
+    r"\.setHeadingInterpolation\(\s*HeadingInterpolator\.tangent(?:\.(reverse|reversed)\(\s*\))?\s*\)"
+)
+REVERSE_HEADING_RE = re.compile(r"\.reverseHeadingInterpolation\(\s*\)")
 ASSIGN_RE = re.compile(r"(\w+)\s*=\s*(\w+);")
 FOLLOW_PATH_RE = re.compile(r"FollowPath\(\s*([A-Za-z0-9_]+)\s*(?:,[^)]*)?\)")
 FOLLOWPATH_CALL_RE = re.compile(r"\bfollowPath\(\s*([A-Za-z0-9_]+)\s*(?:,[^)]*)?\)")
@@ -207,12 +216,32 @@ def resolve_pose(name: str, poses: Dict[str, Tuple[float, float, float]], alias:
     return current, poses[current]
 
 
+def parse_heading_hint(text: str):
+    """Parse heading interpolation applied after an addPath() call."""
+    hints = []
+    for m in TANGENT_HEADING_RE.finditer(text):
+        hints.append((m.start(), ("tangential", (), False)))
+    for m in TANGENT_INTERPOLATOR_RE.finditer(text):
+        hints.append((m.start(), ("tangential", (), m.group(1) is not None)))
+    for m in CONSTANT_HEADING_RE.finditer(text):
+        hints.append((m.start(), ("constant", (m.group(1).strip(),), False)))
+    for m in LINEAR_HEADING_RE.finditer(text):
+        hints.append((m.start(), ("linear", (m.group(1).strip(), m.group(2).strip()), False)))
+    for m in REVERSE_HEADING_RE.finditer(text):
+        if hints:
+            _, (heading_type, args, _) = max(hints, key=lambda hint: hint[0])
+            hints.append((m.start(), (heading_type, args, True)))
+    if not hints:
+        return None
+    return max(hints, key=lambda hint: hint[0])[1]
+
+
 def parse_pathchains(text: str):
     chains = {}
     for m in CHAIN_RE.finditer(text):
         name = m.group("name")
         body = m.group("body")
-        segments = []
+        matches = []
         # preserve order of appearance
         idx = 0
         while True:
@@ -224,15 +253,22 @@ def parse_pathchains(text: str):
                 break
             next_m = min(candidates, key=lambda x: x.start())
             idx = next_m.end()
+            matches.append(next_m)
+
+        segments = []
+        for i, next_m in enumerate(matches):
+            next_start = matches[i + 1].start() if i + 1 < len(matches) else len(body)
+            trailing = body[next_m.end():next_start]
+            heading_hint = parse_heading_hint(trailing)
             if next_m.re == LINE_RE:
                 a, b = next_m.groups()
-                segments.append(("line", (a, b)))
+                segments.append(("line", (a, b), heading_hint))
             elif next_m.re == CURVE4_RE:
                 a, c1, c2, b = next_m.groups()
-                segments.append(("curve4", (a, c1, c2, b)))
+                segments.append(("curve4", (a, c1, c2, b), heading_hint))
             else:
                 a, c1, b = next_m.groups()
-                segments.append(("curve3", (a, c1, b)))
+                segments.append(("curve3", (a, c1, b), heading_hint))
         chains[name] = segments
     return chains
 
@@ -277,6 +313,62 @@ def expand_follow_paths(cmd_name: str, commands: Dict[str, str], cache: Dict[str
     return result
 
 
+def resolve_heading_degrees(expr: str, poses: Dict[str, Tuple[float, float, float]], alias: Dict[str, str]) -> Optional[float]:
+    """Resolve common Java heading expressions into degrees."""
+    expr = expr.strip()
+    radians_m = re.fullmatch(r"Math\.toRadians\(\s*([-\d.]+)\s*\)", expr)
+    if radians_m:
+        return float(radians_m.group(1))
+    get_heading_m = re.fullmatch(r"([A-Za-z0-9_]+)\.getHeading\(\s*\)", expr)
+    if get_heading_m:
+        _, (_, _, deg) = resolve_pose(get_heading_m.group(1), poses, alias)
+        return deg
+    numeric_m = re.fullmatch(r"[-\d.]+", expr)
+    if numeric_m:
+        return float(expr)
+    return None
+
+
+def make_endpoint(
+    x: float,
+    y: float,
+    default_start_deg: float,
+    default_end_deg: float,
+    heading_hint,
+    poses: Dict[str, Tuple[float, float, float]],
+    alias: Dict[str, str],
+):
+    endpoint = {
+        "x": x,
+        "y": y,
+        "heading": "linear",
+        "reverse": False,
+        "startDeg": default_start_deg,
+        "endDeg": default_end_deg,
+    }
+    if not heading_hint:
+        return endpoint
+
+    heading_type, args, reversed_heading = heading_hint
+    endpoint["reverse"] = reversed_heading
+    if heading_type == "tangential":
+        endpoint["heading"] = "tangential"
+    elif heading_type == "constant":
+        degrees = resolve_heading_degrees(args[0], poses, alias)
+        endpoint["heading"] = "constant"
+        if degrees is not None:
+            endpoint["degrees"] = degrees
+    elif heading_type == "linear":
+        start_deg = resolve_heading_degrees(args[0], poses, alias)
+        end_deg = resolve_heading_degrees(args[1], poses, alias)
+        endpoint["heading"] = "linear"
+        if start_deg is not None:
+            endpoint["startDeg"] = start_deg
+        if end_deg is not None:
+            endpoint["endDeg"] = end_deg
+    return endpoint
+
+
 def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias, color_cycle, settings_override=None):
     lines = []
     for chain_idx, chain_name in enumerate(chain_names):
@@ -284,7 +376,7 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
             print(f"Warning: chain {chain_name} not found; skipping", file=sys.stderr)
             continue
         segments = chains[chain_name]
-        for seg_type, args in segments:
+        for seg_type, args, heading_hint in segments:
             line_id = f"line-{uuid.uuid4().hex[:12]}"
             if seg_type == "line":
                 a, b = args
@@ -294,14 +386,7 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                     {
                         "id": line_id,
                         "name": f"{chain_name}_{b}",
-                        "endPoint": {
-                            "x": bx,
-                            "y": by,
-                            "heading": "linear",
-                            "reverse": False,
-                            "startDeg": adeg,
-                            "endDeg": bdeg,
-                        },
+                        "endPoint": make_endpoint(bx, by, adeg, bdeg, heading_hint, poses, alias),
                         "controlPoints": [],
                         "color": color_cycle[(len(lines)) % len(color_cycle)],
                         "locked": False,
@@ -321,14 +406,7 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                     {
                         "id": line_id,
                         "name": f"{chain_name}_{b}",
-                        "endPoint": {
-                            "x": bx,
-                            "y": by,
-                            "heading": "linear",
-                            "reverse": False,
-                            "startDeg": adeg,
-                            "endDeg": bdeg,
-                        },
+                        "endPoint": make_endpoint(bx, by, adeg, bdeg, heading_hint, poses, alias),
                         "controlPoints": [
                             {"x": c1x, "y": c1y},
                             {"x": c2x, "y": c2y},
@@ -341,7 +419,7 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                         "waitAfterName": "",
                     }
                 )
-            else:  # curve3 quadratic; duplicate control point for viewer
+            else:  # curve3 quadratic
                 a, c1, b = args
                 _, (ax, ay, adeg) = resolve_pose(a, poses, alias)
                 _, (c1x, c1y, _) = resolve_pose(c1, poses, alias)
@@ -350,16 +428,8 @@ def build_pp(start_pose_name: str, chain_names: List[str], chains, poses, alias,
                     {
                         "id": line_id,
                         "name": f"{chain_name}_{b}",
-                        "endPoint": {
-                            "x": bx,
-                            "y": by,
-                            "heading": "linear",
-                            "reverse": False,
-                            "startDeg": adeg,
-                            "endDeg": bdeg,
-                        },
+                        "endPoint": make_endpoint(bx, by, adeg, bdeg, heading_hint, poses, alias),
                         "controlPoints": [
-                            {"x": c1x, "y": c1y},
                             {"x": c1x, "y": c1y},
                         ],
                         "color": color_cycle[(len(lines)) % len(color_cycle)],

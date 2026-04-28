@@ -2369,7 +2369,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 hold = rightTriggerActive;
 
                 boolean useFarBoostProfile = ODODistance >= ShooterSubsystem.HYBRID_NEAR_FAR_DISTANCE_THRESHOLD_IN;
-                boolean farNoBoostShot = targetRPM >= 4000.0;
+                boolean farNoBoostShot = targetRPM >= FAR_NO_BOOST_RPM_THRESHOLD;
 
                 if (canFireTriggerShot && !dumbShootTimerActive && !dumbShootSettleActive) {
                     int startBallCountBeforeDumbShoot = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
@@ -2378,7 +2378,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
 
                     if (farNoBoostShot) {
-                        IntakeWithSensorsSubsystem.INSTANCE.setDumbShootFixedDelayMs(100L);
+                        IntakeWithSensorsSubsystem.INSTANCE.setDumbShootFixedDelayMs(FAR_NO_BOOST_BETWEEN_SHOTS_MS);
                     } else {
                         IntakeWithSensorsSubsystem.INSTANCE.setDumbShootDistanceForDelayInches(ODODistance);
                     }

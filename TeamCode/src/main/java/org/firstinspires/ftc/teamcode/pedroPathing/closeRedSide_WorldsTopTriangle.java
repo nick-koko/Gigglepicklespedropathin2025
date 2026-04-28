@@ -62,6 +62,10 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
         buildPaths();
     }
 
+    private void updateGateIntakeWaitDelayForSelection() {
+        activeGateIntakeWaitDelay = (intAmount == 21) ? gateIntakeShortWaitDelay : gateIntakeWaitDelay;
+    }
+
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
@@ -91,6 +95,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
         }
 
         //TODO Add dpad Left/Right to set when to hit gate lever (after 1st pickup, second pickup, or both)
+        updateGateIntakeWaitDelayForSelection();
 
         telemetry.addLine("Hello Pickle of the robot");
         telemetry.addLine("This is an Mr. Todone Speaking,");
@@ -103,6 +108,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
         telemetry.addLine();
         telemetry.addData("Eating this number of balls: ", intAmount);
         telemetry.addData("Opening basket at: ", pushLever);
+        telemetry.addData("Gate intake wait delay: ", activeGateIntakeWaitDelay);
 
         telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
         telemetry.addData("turretStartupCal", turretStartupCalibrated);
@@ -325,6 +331,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
     @Override
     public void onStartButtonPressed() {
         TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
+        updateGateIntakeWaitDelayForSelection();
         startAutonLogger();
         if (intAmount == 3) {
                 Close3Ball().schedule();
