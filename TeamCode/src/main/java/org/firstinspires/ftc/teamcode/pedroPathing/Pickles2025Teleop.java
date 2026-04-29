@@ -147,6 +147,21 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean shotLogSequenceActive = false;
 
     public static double SHOOTER_IDLE_RPM = 3200.0;
+    public static double CLOSE_IDLE_RPM = 3200.0;
+    public static double FAR_IDLE_RPM = 3800.0;
+
+    public static boolean START_IN_FAR_MODE = false;
+
+    public static double BLUE_LEVER_ANGLE_DEG = 144.0;
+
+    public static long LIMELIGHT_MISSING_LED_STROBE_MS = 250L;
+
+    private boolean farModeEnabled = START_IN_FAR_MODE;
+    private boolean defenseModeEnabled = false;
+    private boolean prevGamepad2DpadLeft = false;
+    private boolean prevGamepad2DpadRight = false;
+    private boolean prevGamepad2A = false;
+    private boolean prevGamepad2Y = false;
 
     private boolean shooterIdleMode = false;
     private long shotSequenceStartMs = 0L;
@@ -511,6 +526,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         shooterIdleMode = true;
         ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
         resetLimelightVisionBlendState();
+        farModeEnabled = START_IN_FAR_MODE;
+        defenseModeEnabled = false;
+        SHOOTER_IDLE_RPM = farModeEnabled ? FAR_IDLE_RPM : CLOSE_IDLE_RPM;
+        targetRPM = SHOOTER_IDLE_RPM;
+        shooterIdleMode = true;
+        shooterFollowEnabled = true;
 
         limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
@@ -927,6 +948,20 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 TELEOP_TURRET_STARTUP_SETTLE_MS
         );
 
+        if (gamepad1.dpad_left) {
+            farModeEnabled = false;
+            SHOOTER_IDLE_RPM = CLOSE_IDLE_RPM;
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = true;
+        }
+
+        if (gamepad1.dpad_right) {
+            farModeEnabled = true;
+            SHOOTER_IDLE_RPM = FAR_IDLE_RPM;
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = false;
+        }
+
+        telemetry.addData("Shot Strategy", farModeEnabled ? "FAR / 3800 idle" : "CLOSE / 3200 idle");
+
         if (selectAllianceSide) {
             if (gamepad1.xWasPressed()) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
@@ -1012,6 +1047,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevCalPointInc = false;
         shotGateLedState = "NONE";
         shooterHoodPos = ShooterSubsystem.INSTANCE.getShooterHoodPosition();
+        SHOOTER_IDLE_RPM = farModeEnabled ? FAR_IDLE_RPM : CLOSE_IDLE_RPM;
+        targetRPM = SHOOTER_IDLE_RPM;
+        shooterIdleMode = true;
+        shooterFollowEnabled = true;
+        ShooterSubsystem.INSTANCE.spinUp(targetRPM);
 
         // In shot-tuning mode the auto-RPM path (ShotCalibrationTable lookup)
         // is gated off so the operator can trim RPM with the D-pad. Without
@@ -1083,22 +1123,55 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         limelight.updateRobotOrientation(limelightRobotYawDeg);
 
         boolean dpadUpPressed = gamepad2.dpad_up;
-
         if (dpadUpPressed && !prevX) {
-            rpmLimitEnabled = true;
+            farModeEnabled = true;
+            SHOOTER_IDLE_RPM = FAR_IDLE_RPM;
+            targetRPM = SHOOTER_IDLE_RPM;
+            shooterIdleMode = true;
+            shooterFollowEnabled = true;
+            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = true;
         }
-
         prevX = dpadUpPressed;
 
         boolean dpadDownPressed = gamepad2.dpad_down;
-
         if (dpadDownPressed && !prevX2) {
-            rpmLimitEnabled = false;
+            farModeEnabled = false;
+            SHOOTER_IDLE_RPM = CLOSE_IDLE_RPM;
+            targetRPM = SHOOTER_IDLE_RPM;
+            shooterIdleMode = true;
+            shooterFollowEnabled = true;
+            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = false;
         }
-
         prevX2 = dpadDownPressed;
 
+        boolean dpadLeftPressed = gamepad2.dpad_left;
+        if (dpadLeftPressed && !prevGamepad2DpadLeft) {
+            farModeEnabled = false;
+            SHOOTER_IDLE_RPM = CLOSE_IDLE_RPM;
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = false;
+        }
+        prevGamepad2DpadLeft = dpadLeftPressed;
+
+        boolean dpadRightPressed = gamepad2.dpad_right;
+        if (dpadRightPressed && !prevGamepad2DpadRight) {
+            farModeEnabled = true;
+            SHOOTER_IDLE_RPM = FAR_IDLE_RPM;
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = false;
+        }
+        prevGamepad2DpadRight = dpadRightPressed;
+
         LLResult result = limelight.getLatestResult();
+        boolean limelightMissing = (result == null);
+
+        if (limelightMissing) {
+            LEDControlSubsystem.INSTANCE.startStrobe(
+                    LEDControlSubsystem.LedColor.OFF,
+                    LEDControlSubsystem.LedColor.WHITE,
+                    Math.max(50L, LIMELIGHT_MISSING_LED_STROBE_MS)
+            );
+        }
         boolean mt1Valid = false;
         double mt1PedroX = Double.NaN;
         double mt1PedroY = Double.NaN;
