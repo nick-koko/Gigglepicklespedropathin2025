@@ -236,6 +236,8 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     private final Pose directGateShootCP1Red = directGateShootCP1Blue.mirror(144);
 
 
+    public Pose currentGoodPose = new Pose(0,0,0);
+
     public Pose targetPoseClose;
 
     public Pose startPose;
@@ -363,6 +365,13 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
         long loopTimeMs = (lastAutonLoopMs == 0L) ? 0L : (nowMs - lastAutonLoopMs);
         lastAutonLoopMs = nowMs;
 
+        Pose pose = PedroComponent.follower().getPose();
+        Pose badPose = new Pose(0,0,0)
+        if ((pose.getX() == 0) && (pose.getY() == 0) && (pose.getHeading() == 0)) {
+        } else {
+            currentGoodPose = pose;
+        }
+
         if (!ENABLE_AUTON_LOGGING || autonLogger == null) {
             return;
         }
@@ -371,7 +380,6 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
         }
         lastAutonLogMs = nowMs;
 
-        Pose pose = PedroComponent.follower().getPose();
         autonLogger.addRow(
                 nowMs,
                 (autonLogStartMs == 0L) ? 0L : (nowMs - autonLogStartMs),

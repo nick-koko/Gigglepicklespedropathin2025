@@ -41,8 +41,8 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
                 new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, TurretSubsystem.INSTANCE)
         );
     }
-    public double intAmount = 15;
-    public double pushLever = 2;
+    public double intAmount = 18;
+    public double pushLever = 3;
 
     private Pose finalStartPose = new Pose();
 
@@ -82,15 +82,15 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
             }*/
 
         // If dpad Up/Down is pressed, increase or decrease ball count
-        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 15)) {
+        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 21)) {
             intAmount = intAmount + 3;
-        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
+        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 18)) {
             intAmount = intAmount - 3;
         }
         // If dpad left/right is pressed add or subtract a row until push lever
         if ((gamepad1.dpadRightWasPressed()) && (pushLever < 4)) {
             pushLever = pushLever + 1;
-        } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 0)) {
+        } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 2)) {
             pushLever = pushLever - 1;
         }
 
@@ -107,7 +107,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
         }
         telemetry.addLine();
         telemetry.addData("Eating this number of balls: ", intAmount);
-        telemetry.addData("Opening basket at: ", pushLever);
+        telemetry.addData("Eating from the basket this number: ", pushLever);
         telemetry.addData("Gate intake wait delay: ", activeGateIntakeWaitDelay);
 
         telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
@@ -135,31 +135,68 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
         );
 
     }
-    public Command Close6BallStraight() {
+    public Command Close18Ball3Gate() {
         return new SequentialGroup(
                 CloseShootPreload(),
-                //CloseGoTo2ndPickupLineStraight(),
                 ClosePickupAndShoot2ndRowRace(),
-                //HitGateWithIntake(),
-                //IntakeFromGateRace(),
-                //IntakeFromGateShoot(),
                 ClosePickupAndShootGateRace(),
                 ClosePickupAndShootGateRace(),
-                //ClosePickupAndShootGateRace(),
                 ClosePickupAndShootGateBefore1stRowRace(),
 
-                //HitDirectGateWithIntake(),
-                //IntakeFromDirectGateRace(),
-
-                //IntakeFromDirectGateShoot(),
                 //CloseGoTo3rdPickupLine(),
                 //ClosePickupAndShoot3rdRowRace(),
                 ClosePickupAndShootFirstRowRace()
 
-                //ClosePickupAndShootFirstRow()
-                //CloseMoveOffLine()
+                //CloseMoveOffLine() //If we want to end at lever instead
         );
+    }
 
+    public Command Close18Ball2GateThirdSpike() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                ClosePickupAndShoot2ndRowRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
+                //ClosePickupAndShootGateBefore1stRowRace(),
+
+                ClosePickupAndShoot3rdRowBefore1stRowRace(),
+                ClosePickupAndShootFirstRowRace()
+
+                //CloseMoveOffLine() //If we want to end at lever instead
+        );
+    }
+
+    public Command Close21Ball4Gate() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                ClosePickupAndShoot2ndRowRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateBefore1stRowRace(),
+
+                //CloseGoTo3rdPickupLine(),
+                //ClosePickupAndShoot3rdRowRace(),
+                ClosePickupAndShootFirstRowRace()
+
+                //CloseMoveOffLine() //If we want to end at lever instead
+        );
+    }
+
+    public Command Close21Ball3GateThirdSpike() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+                ClosePickupAndShoot2ndRowRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
+                ClosePickupAndShootGateRace(),
+                //ClosePickupAndShootGateBefore1stRowRace(),
+
+                ClosePickupAndShoot3rdRowBefore1stRowRace(),
+                ClosePickupAndShootFirstRowRace()
+
+                //CloseMoveOffLine() //If we want to end at lever instead
+        );
     }
 
     public Command Close9Ball() {
@@ -333,20 +370,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
         TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
         updateGateIntakeWaitDelayForSelection();
         startAutonLogger();
-        if (intAmount == 3) {
-                Close3Ball().schedule();
-            }
-            else if (intAmount == 6){
-                if (pushLever == 1) {
-                    Close6BallStraight().schedule();
-                } else {
-                    Close6Ball().schedule();
-                }
-            }
-            else if (intAmount == 9){
-                Close9Ball().schedule();
-            }
-            else if (intAmount == 12){
+            if (intAmount == 12){
                 if (pushLever == 0) {
                     Close12Ball().schedule();
                 } else if (pushLever == 1){
@@ -357,7 +381,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
                     Close12BallLeverBoth().schedule();
                 }
             }
-            else if (intAmount == 15){
+            else if (intAmount == 15) {
                 if (pushLever == 0) {
                     Close15Ball().schedule();
                 } else if (pushLever == 1){
@@ -365,15 +389,41 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
                 }  else if (pushLever == 2){
                     Close15BallLeverAfter6().schedule();
                 }  else if (pushLever == 3){
-                    Close15BallLeverBoth().schedule();
+                    Close18Ball3Gate().schedule();
                 }  else if (pushLever == 4){
                     Close15BallLeverTriple().schedule();
                 }
-        }
+            }
+            else if (intAmount == 18) {
+                if (pushLever == 0) {
+                    Close18Ball2GateThirdSpike().schedule();
+                } else if (pushLever == 1) {
+                    Close18Ball2GateThirdSpike().schedule();
+                } else if (pushLever == 2) {
+                    Close18Ball2GateThirdSpike().schedule();
+                } else if (pushLever == 3) {
+                    Close18Ball3Gate().schedule();
+                } else if (pushLever == 4) {
+                    Close18Ball3Gate().schedule();
+                }
+            }
+            else if (intAmount == 21) {
+                if (pushLever == 0) {
+                    Close21Ball3GateThirdSpike().schedule();
+                } else if (pushLever == 1) {
+                    Close21Ball3GateThirdSpike().schedule();
+                } else if (pushLever == 2) {
+                    Close21Ball3GateThirdSpike().schedule();
+                } else if (pushLever == 3) {
+                    Close21Ball3GateThirdSpike().schedule();
+                } else if (pushLever == 4) {
+                    Close21Ball4Gate().schedule();
+                }
+            }
 
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.endAutonPose = currentGoodPose;
         GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
@@ -402,7 +452,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
             // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-            GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+            GlobalRobotData.endAutonPose = currentGoodPose;
             GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }
