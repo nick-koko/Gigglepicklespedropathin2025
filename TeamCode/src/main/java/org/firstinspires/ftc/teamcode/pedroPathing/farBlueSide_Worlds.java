@@ -26,8 +26,8 @@ public class farBlueSide_Worlds extends farAutonPaths_Worlds{
                 FateComponent.INSTANCE
         );
     }
-    public double intAmount = 15;
-    public double pushLever = 2;
+    public double intAmount = 18;
+    public double pushLever = 1;
 
     private Pose finalStartPose = new Pose();
 
