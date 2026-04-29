@@ -48,8 +48,8 @@ import dev.nextftc.ftc.NextFTCOpMode;
 @Configurable
 //@Autonomous(name = "closeBlueSide", group = "Comp")
 public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
-    public static double autonShooterRPM = 3350.0;
-    public static double nearAutonShooterRPM = 3250.0;
+    public static double autonShooterRPM = 3370.0; //changed from 3350
+    public static double nearAutonShooterRPM = 3200.0;
     public static double autonShooterHoodServoPos = 0.525;
     public static double nearAutonShooterHoodServoPos = 0.44;
     public static double nearShootingMoving_x = 25.0;
