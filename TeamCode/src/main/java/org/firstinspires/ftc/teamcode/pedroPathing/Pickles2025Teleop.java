@@ -113,7 +113,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_TUNING_TARGET_Y_IN = 137.0;
 
     public static double RED_AIM_X_OFFSET_IN = 0.;
-    public static double RED_AIM_Y_OFFSET_IN = 7.0;
+    public static double RED_AIM_Y_OFFSET_IN = 5.0;
+
+    public static double BLUE_AIM_Y_OFFSET_IN = 2.0;
 
     public static double SOTM_DRIVER_STICK_DEADBAND = 0.08;
     public static double SOTM_STOP_LEAD_SPEED_IN_PER_SEC = 8.0;
@@ -1489,6 +1491,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         if (!SHOT_TUNING_MODE && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
             shootTargetX += RED_AIM_X_OFFSET_IN;
             shootTargetY += RED_AIM_Y_OFFSET_IN;
+        }
+
+        if (!SHOT_TUNING_MODE && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+            shootTargetY += BLUE_AIM_Y_OFFSET_IN;
         }
 
         // Vector from robot -> target
