@@ -153,6 +153,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static boolean START_IN_FAR_MODE = false;
 
     public static double BLUE_LEVER_ANGLE_DEG = 144.0;
+    public static double RED_LEVER_ANGLE_DEG = 180 - BLUE_LEVER_ANGLE_DEG;
+    public double leverAngleDeg = BLUE_LEVER_ANGLE_DEG;
 
     public static long LIMELIGHT_MISSING_LED_STROBE_MS = 250L;
 
@@ -966,9 +968,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             if (gamepad1.xWasPressed()) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
                 startingPose = startingPoseBlue;
+                leverAngleDeg = BLUE_LEVER_ANGLE_DEG;
             } else if (gamepad1.bWasPressed()) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
                 startingPose = startingPoseRed;
+                leverAngleDeg = RED_LEVER_ANGLE_DEG;
+
             }
 
             telemetry.addLine("Hello Pickle of the robot");
@@ -1758,6 +1763,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //            targetAngleDeg = 0.0 + angleAllianceOffset;
 //            goToTargetAngle = true;
             //adjustOdo = false;
+        } else if (gamepad1.a) {
+            targetAngleDeg = leverAngleDeg;
+            goToTargetAngle = true;
         } else {
             goToTargetAngle = false;
             adjustOdo = false;

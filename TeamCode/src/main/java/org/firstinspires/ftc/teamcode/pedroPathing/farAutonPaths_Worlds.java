@@ -46,8 +46,8 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     private long lastAutonLoopMs = 0L;
 
 
-    public final Pose startPoseBlue = new Pose(64, 8.5, Math.toRadians(90)); // Start Pose of our robot
-    private final Pose scorePoseCloseBlue = new Pose(56.5, 20.5, Math.toRadians(109.5)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
+    public final Pose startPoseBlue = new Pose(64, 8.5, Math.toRadians(180)); // Start Pose of our robot
+    private final Pose scorePoseCloseBlue = new Pose(56.5, 20.5, Math.toRadians(180)); // Scoring Pose of our robot. It is facing the goal at a 135 degree angle.
     private final Pose targetPoseCloseBlue = new Pose(0.0, 0.0, Math.toRadians(180));
 
     private final Pose pickup1PoseBlue = new Pose(40, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right

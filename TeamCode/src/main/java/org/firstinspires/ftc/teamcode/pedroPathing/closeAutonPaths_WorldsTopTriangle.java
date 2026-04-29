@@ -366,7 +366,6 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
         lastAutonLoopMs = nowMs;
 
         Pose pose = PedroComponent.follower().getPose();
-        Pose badPose = new Pose(0,0,0)
         if ((pose.getX() == 0) && (pose.getY() == 0) && (pose.getHeading() == 0)) {
         } else {
             currentGoodPose = pose;

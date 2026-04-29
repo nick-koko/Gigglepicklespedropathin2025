@@ -231,8 +231,173 @@ public class farBlueSide_Worlds extends farAutonPaths_Worlds{
                 CloseMoveOffLineToLever()
         );
     }
+    public Command Close21Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
 
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
 
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close21BallNo2ndSpike() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close21BallLeverAfter6() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                new Delay(.1),
+                ClosePickupShootAfterGateLever2ndRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+}
+    public Command Close24Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close24BallNo2ndSpike() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close24BallLeverAfter6() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                new Delay(.1),
+                ClosePickupShootAfterGateLever2ndRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
 
 
     /** This method is called once at the start of the OhhpMode.
@@ -267,20 +432,20 @@ public class farBlueSide_Worlds extends farAutonPaths_Worlds{
         }
         else if (intAmount == 21){
             if (pushLever == 0) {
-                Close18Ball().schedule();
+                Close21Ball().schedule();
             } else if (pushLever == 1){
-                Close18BallNo2ndSpike().schedule();
+                Close21BallNo2ndSpike().schedule();
             }  else {
-                Close18BallLeverAfter6().schedule();
+                Close21BallLeverAfter6().schedule();
             }
         }
         else if (intAmount == 24){
             if (pushLever == 0) {
-                Close18Ball().schedule();
+                Close24Ball().schedule();
             } else if (pushLever == 1){
-                Close18BallNo2ndSpike().schedule();
+                Close24BallNo2ndSpike().schedule();
             }  else {
-                Close18BallLeverAfter6().schedule();
+                Close24BallLeverAfter6().schedule();
             }
         }
 
