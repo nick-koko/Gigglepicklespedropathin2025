@@ -38,7 +38,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     public static double redTargetPoseXOffset = -5.0;
     public static double redTargetPoseYOffset = 0.0;
     public static long AUTON_FAR_NO_BOOST_DUMBSHOOT_DELAY_MS = 100L;
-    public static double AUTON_FAR_NO_BOOST_SHOOT_DURATION_SEC = 1.2;
+    public static double AUTON_FAR_NO_BOOST_SHOOT_DURATION_SEC = 0.2;
 
     private CsvLogger autonLogger;
     private long autonLogStartMs = 0L;
@@ -54,7 +54,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose pickup1CP1Blue = new Pose(53, 32, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickup1CP2Blue = new Pose( 46, 32, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickup1EndPoseBlue = new Pose( 20, 36, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickup1EndPoseBlue = new Pose( 22, 36, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup1CPPathBlue = new Pose(60, 40, Math.toRadians(180));
 
     private final Pose pickup2PoseBlue = new Pose(40, 60.0, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -79,11 +79,11 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose pickup3EndPoseBlue = new Pose(20, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup3CPPathBlue = new Pose(40, 45, Math.toRadians(180));
 
-    private final Pose pickupBZonePoseBlue = new Pose(29.5, 9, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickupBZoneCP1Blue = new Pose(59,21.5, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
-    private final Pose pickupBZoneCP2Blue = new Pose( 59.5, 2.5, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupBZonePoseBlue = new Pose(29.5, 11, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupBZoneCP1Blue = new Pose(53,16, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupBZoneCP2Blue = new Pose( 46, 12, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickupBZoneEndPoseBlue = new Pose(12, 9, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickupBZoneEndPoseBlue = new Pose(12, 10, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickupBZoneCPPathBlue = new Pose(44, 59, Math.toRadians(235));
 
     private final Pose pickupTZonePoseBlue = new Pose(9, 46, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -570,7 +570,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                         new InstantCommand(() -> ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos)),
                         new InstantCommand(() -> TurretSubsystem.INSTANCE.aimAtFieldPoint(targetPoseClose))
                 ),
-                new Delay(1.50),  //Could replace this with shooting a ball
+                new Delay(1.20),  //Could replace this with shooting a ball
                 //new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 ShootAllBalls(),
                 //new Delay(0.50),
@@ -585,7 +585,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                         new FollowPath(firstPickup),
                         new SequentialGroup(
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(1.0),
+                                new Delay(0.2),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
@@ -596,15 +596,15 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(firstPickupEnd),
                         new SequentialGroup(
-                                new Delay(0.5),
+                                new Delay(0.1),
                                 new InstantCommand(() -> TurretSubsystem.INSTANCE.aimAtFieldPoint(targetPoseClose)),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
-                                new Delay(1.5),
+                                new Delay(1.0),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
                         )
                 ),
 
-                new Delay(0.2),
+                new Delay(0.0),
                 ShootAllBalls(),
                 //new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 //new Delay(0.50),
@@ -631,10 +631,10 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(secondPickupGateLeverEnd),
                         new SequentialGroup(
-                                new Delay(0.5),
+                                new Delay(0.1),
                                 new InstantCommand(() -> TurretSubsystem.INSTANCE.aimAtFieldPoint(targetPoseClose)),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
-                                new Delay(1.5),
+                                new Delay(1.0),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
                         )
                 )
@@ -717,7 +717,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                         new FollowPath(BZonePickup),
                         new SequentialGroup(
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(1.0),
+                                new Delay(0.5),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
@@ -730,14 +730,14 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(BZonePickupEnd),
                         new SequentialGroup(
-                                new Delay(0.5),
+                                new Delay(0.1),
                                 new InstantCommand(() -> TurretSubsystem.INSTANCE.aimAtFieldPoint(targetPoseClose)),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
-                                new Delay(1.5),
+                                new Delay(1.0),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
                         )
                 ),
-                new Delay(0.5),
+                new Delay(0.0),
                 //new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 //new Delay(0.5),
                 ShootAllBalls(),
@@ -753,7 +753,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                         new FollowPath(BZonePickup),
                         new SequentialGroup(
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
-                                new Delay(1.0),
+                                new Delay(0.5),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
@@ -766,14 +766,14 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                 new ParallelGroup(
                         new FollowPath(BZonePickupEnd),
                         new SequentialGroup(
-                                new Delay(0.5),
+                                new Delay(0.1),
                                 new InstantCommand(() -> TurretSubsystem.INSTANCE.aimAtFieldPoint(targetPoseClose)),
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM)),
-                                new Delay(1.5),
+                                new Delay(1.0),
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
                         )
                 ),
-                new Delay(0.5),
+                new Delay(0.0),
                 //new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 //new Delay(0.5),
                 ShootAllBalls(),

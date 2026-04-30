@@ -3,11 +3,11 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
@@ -16,42 +16,25 @@ import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.extensions.fateweaver.FateComponent;
 import dev.nextftc.extensions.pedro.PedroComponent;
 
-/* notes:
-    - Start up shooter immediately
-    - (save .75) right now, first shot at 2.75 s, thinking we can reduce to 2.0s?
-    - (save 1.0) first set of shots done at about 3.35s, we don't start moving until 4.4s, so can either cut a second off here, or maybe use break beam sensor as an indication that we are done?
-    - (save 1.5) we are at back at the shooting point at about 8.0s, but don't shoot until about 9.48s, assuming we start the shooter when driving, we could shoot earlier - maybe the timers are off, or maybe need to stop path earlier?
-    - (save 1.1) done shooting at 9.82s, don't start moving until 11.0s
-    - (save ??) path to go back to shooter is wide (a bit on purpose to avoid gate) not needed if we are hitting the gate already, and can save time by going straight
-    - (save 0.7) back to shooting point about 16.1s, don't shoot until 16.9s
-    - (save 1.2) done shooting at 17.25s, don't start moving until 18.49s
-    - (??) maybe can take a less wide path to the last spike mark to possibly avoid robots that are just driving off the line?
-    - (save 1.0) back to shooting spot at 24.25, don't shoot until 25.25
-    - (save 1.0) done shooting at 25.62s, don't move until 26.7s
-    - I wonder after, if we should have the robot turned 180deg, and ready to intake as soon as teleop starts and they hit the gate?
-    - after we are done, watch time says 2s left, but match timer says 3
-    - (total possible perfect savings of 8.25s for a total of 10.25 ) Need minimum 7s
-
- */
-@Disabled
 @Configurable
-@Autonomous(name = "closeRedSide_hydra", group = "Comp")
-public class closeRedSide_hydra extends closeAutonPaths_hydra{
-    public closeRedSide_hydra() {
+@Autonomous(name = "WorldsfarRedSide", group = "Comp")
+public class farRedSide_Worlds extends farAutonPaths_Worlds{
+    public farRedSide_Worlds() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
-                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE),
+                new SubsystemComponent(ShooterSubsystem.INSTANCE, IntakeWithSensorsSubsystem.INSTANCE, TurretSubsystem.INSTANCE),
                 FateComponent.INSTANCE
         );
     }
-    public double intAmount = 15;
-    public double pushLever = 2;
+    public double intAmount = 18;
+    public double pushLever = 1;
 
     private Pose finalStartPose = new Pose();
 
     /** This method is called once at the init of the OpMode. **/
     @Override
     public void onInit() {
+        TurretSubsystem.INSTANCE.beginStartupCentering();
         ShooterSubsystem.INSTANCE.shooterHoodDrive(autonShooterHoodServoPos);
         ShooterSubsystem.INSTANCE.stop();
 
@@ -67,6 +50,9 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
+        boolean turretStartupCalibrated = TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
+                TurretSubsystem.INITIAL_ANGLE_DEGREES
+        );
 
             /*if (gamepad1.x) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
@@ -77,7 +63,7 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
             }*/
 
         // If dpad Up/Down is pressed, increase or decrease ball count
-        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 15)) {
+        /*if ((gamepad1.dpadUpWasPressed()) && (intAmount < 15)) {
             intAmount = intAmount + 3;
         } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
             intAmount = intAmount - 3;
@@ -87,7 +73,7 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
             pushLever = pushLever + 1;
         } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 0)) {
             pushLever = pushLever - 1;
-        }
+        } */
 
         //TODO Add dpad Left/Right to set when to hit gate lever (after 1st pickup, second pickup, or both)
 
@@ -104,6 +90,8 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
         telemetry.addData("Opening basket at: ", pushLever);
 
         telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
+        telemetry.addData("turretStartupCal", turretStartupCalibrated);
+        telemetry.addData("turretStartupState", TurretSubsystem.INSTANCE.getStartupCalibrationStateName());
 
         telemetry.update();
 
@@ -133,7 +121,7 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndShootFirstRow(),
                 CloseGoTo2ndPickupLine(),
-                ClosePickupAndShoot2ndRow(),
+                //ClosePickupAndShoot2ndRow(),
                 CloseMoveOffLineToLever()
         );
 
@@ -144,86 +132,9 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndShootFirstRow(),
                 CloseGoTo2ndPickupLine(),
-                ClosePickupAndShoot2ndRow(),
+                //ClosePickupAndShoot2ndRow(),
                 CloseGoTo3rdPickupLine(),
                 ClosePickupAndShoot3rdRow(),
-                CloseMoveOffLineToLever()
-        );
-    }
-
-    public Command Close12BallLeverAfter3() {
-        return new SequentialGroup(
-                CloseShootPreload(),
-                CloseGoToFirstPickupLine(),
-                ClosePickupAndGateLeverFirstRow(),
-                ClosePickupShootAfterGateLever1stRow(),
-                CloseGoTo2ndPickupLine(),
-                ClosePickupAndShoot2ndRow(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
-                CloseMoveOffLineToLever()
-        );
-    }
-
-    public Command Close12BallLeverAfter6() {
-        return new SequentialGroup(
-                CloseShootPreload(),
-                CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
-                CloseGoTo2ndPickupLine(),
-                ClosePickupAndGateLever2ndRow(),
-                new Delay(.1),
-                ClosePickupShootAfterGateLever2ndRow(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
-                CloseMoveOffLineToLever()
-        );
-    }
-
-    public Command Close12BallLeverBoth() {
-        return new SequentialGroup(
-                CloseShootPreload(),
-                CloseGoToFirstPickupLine(),
-                ClosePickupAndGateLeverFirstRow(),
-                ClosePickupShootAfterGateLever1stRow(),
-                CloseGoTo2ndPickupLine(),
-                ClosePickupAndGateLever2ndRow(),
-                ClosePickupShootAfterGateLever2ndRow(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
-                CloseMoveOffLineToLever()
-        );
-    }
-
-    public Command Close15Ball() {
-        return new SequentialGroup(
-                CloseShootPreload(),
-                CloseGoToFirstPickupLine(),
-                ClosePickupAndShootFirstRow(),
-                CloseGoTo2ndPickupLine(),
-                ClosePickupAndShoot2ndRow(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
-                CloseGoToZonePickupLine(),
-                FollowZonePickupEndUntilFull(),
-                CloseShootZoneRow(),
-                CloseMoveOffLineToLever()
-        );
-    }
-
-    public Command Close15BallLeverAfter3() {
-        return new SequentialGroup(
-                CloseShootPreload(),
-                CloseGoToFirstPickupLine(),
-                ClosePickupAndGateLeverFirstRow(),
-                ClosePickupShootAfterGateLever1stRow(),
-                CloseGoTo2ndPickupLine(),
-                ClosePickupAndShoot2ndRow(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
-                CloseGoToZonePickupLine(),
-                FollowZonePickupEndUntilFull(),
-                CloseShootZoneRow(),
                 CloseMoveOffLineToLever()
         );
     }
@@ -231,41 +142,260 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
     public Command Close15BallLeverAfter6() {
         return new SequentialGroup(
                 CloseShootPreload(),
+
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndShootFirstRow(),
+
                 CloseGoTo2ndPickupLine(),
                 ClosePickupAndGateLever2ndRow(),
                 new Delay(.1),
                 ClosePickupShootAfterGateLever2ndRow(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndShoot3rdRow(),
-                CloseGoToZonePickupLine(),
-                FollowZonePickupEndUntilFull(),
-                CloseShootZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
                 CloseMoveOffLineToLever()
         );
     }
 
-    public Command Close15BallLeverBoth() {
+    public Command Close18Ball() {
         return new SequentialGroup(
                 CloseShootPreload(),
-                CloseGoTo2ndPickupLine(),
-                ClosePickupAndGateLever2ndRow(),
-                new Delay(firstGatePushDelay),
-                ClosePickupShootAfterGateLever2ndRow(),
-                CloseGoTo3rdPickupLine(),
-                ClosePickupAndGateLever3rdRow(),
-                new Delay(secondGatePushDelay),
-                ClosePickupShootAfterGateLever3rdRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close18BallNo2ndSpike() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
                 CloseGoToFirstPickupLine(),
                 ClosePickupAndShootFirstRow(),
-                //CloseGoToExtraLine(),  //Use these "extra" commands if we want to try to pick up near the 3rd spike line
-                //ClosePickupAndStopWithExtra(),
-//                CloseGoToZonePickupLine(),    //Use these "zone" commands to pickup along the wall into the human player zone
-//                FollowZonePickupEndUntilFull(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
                 CloseMoveOffLineToLever()
-                //CloseShootZoneRow()  //Changed to not include shooting, and just stop since we run out of time
-                //CloseMoveOffLineAfterPickup()
+        );
+    }
+
+    public Command Close18BallLeverAfter6() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                new Delay(.1),
+                ClosePickupShootAfterGateLever2ndRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+    public Command Close21Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close21BallNo2ndSpike() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close21BallLeverAfter6() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                new Delay(.1),
+                ClosePickupShootAfterGateLever2ndRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+}
+    public Command Close24Ball() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close24BallNo2ndSpike() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
+        );
+    }
+
+    public Command Close24BallLeverAfter6() {
+        return new SequentialGroup(
+                CloseShootPreload(),
+
+                CloseGoToFirstPickupLine(),
+                ClosePickupAndShootFirstRow(),
+
+                CloseGoTo2ndPickupLine(),
+                ClosePickupAndGateLever2ndRow(),
+                new Delay(.1),
+                ClosePickupShootAfterGateLever2ndRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToTZonePickupLine(),
+                ClosePickupAndShootTZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseGoToBZonePickupLine(),
+                ClosePickupAndShootBZoneRow(),
+
+                CloseMoveOffLineToLever()
         );
     }
 
@@ -274,6 +404,8 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
      * It runs all the setup actions, including building paths and starting the path system **/
     @Override
     public void onStartButtonPressed() {
+        TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
+        startAutonLogger();
         if (intAmount == 3) {
                 Close3Ball().schedule();
             }
@@ -284,38 +416,50 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
                 Close9Ball().schedule();
             }
             else if (intAmount == 12){
-                if (pushLever == 0) {
-                    Close12Ball().schedule();
-                } else if (pushLever == 1){
-                    Close12BallLeverAfter3().schedule();
-                }  else if (pushLever == 2){
-                    Close12BallLeverAfter6().schedule();
-                }  else if (pushLever == 3){
-                    Close12BallLeverBoth().schedule();
-                }
+                Close12Ball().schedule();
             }
             else if (intAmount == 15){
-                if (pushLever == 0) {
-                    Close15Ball().schedule();
-                } else if (pushLever == 1){
-                    Close15BallLeverAfter3().schedule();
-                }  else if (pushLever == 2){
-                    Close15BallLeverAfter6().schedule();
-                }  else if (pushLever == 3){
-                    Close15BallLeverBoth().schedule();
-                }
+                Close15BallLeverAfter6().schedule();
+            }
+        else if (intAmount == 18){
+            if (pushLever == 0) {
+                Close18Ball().schedule();
+            } else if (pushLever == 1){
+                Close18BallNo2ndSpike().schedule();
+            }  else {
+                Close18BallLeverAfter6().schedule();
+            }
+        }
+        else if (intAmount == 21){
+            if (pushLever == 0) {
+                Close21Ball().schedule();
+            } else if (pushLever == 1){
+                Close21BallNo2ndSpike().schedule();
+            }  else {
+                Close21BallLeverAfter6().schedule();
+            }
+        }
+        else if (intAmount == 24){
+            if (pushLever == 0) {
+                Close24Ball().schedule();
+            } else if (pushLever == 1){
+                Close24BallNo2ndSpike().schedule();
+            }  else {
+                Close24BallLeverAfter6().schedule();
+            }
         }
 
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-        GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
+        GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
 
     /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
         @Override
         public void onUpdate() {
+            logAutonLoop();
 
             // These loop the movements of the robot, these must be called continuously in order to work
 
@@ -331,11 +475,13 @@ public class closeRedSide_hydra extends closeAutonPaths_hydra{
         /** We shouldn't need this because everything should automatically disable **/
         @Override
         public void onStop() {
+            logAutonLoop();
+            saveAutonLogger();
             // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-            GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
+            GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }
 
