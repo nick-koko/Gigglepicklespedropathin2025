@@ -26,8 +26,8 @@ public class farBlueSide_Worlds extends farAutonPaths_Worlds{
                 FateComponent.INSTANCE
         );
     }
-    public double intAmount = 15;
-    public double pushLever = 2;
+    public double intAmount = 18;
+    public double pushLever = 1;
 
     private Pose finalStartPose = new Pose();
 
@@ -63,17 +63,17 @@ public class farBlueSide_Worlds extends farAutonPaths_Worlds{
             }*/
 
         // If dpad Up/Down is pressed, increase or decrease ball count
-        /*if ((gamepad1.dpadUpWasPressed()) && (intAmount < 15)) {
+        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 24)) {
             intAmount = intAmount + 3;
-        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
+        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 18)) {
             intAmount = intAmount - 3;
         }
         // If dpad left/right is pressed add or subtract a row until push lever
-        if ((gamepad1.dpadRightWasPressed()) && (pushLever < 3)) {
+        if ((gamepad1.dpadRightWasPressed()) && (pushLever < 2)) {
             pushLever = pushLever + 1;
         } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 0)) {
             pushLever = pushLever - 1;
-        } */
+        }
 
         //TODO Add dpad Left/Right to set when to hit gate lever (after 1st pickup, second pickup, or both)
 
@@ -87,7 +87,7 @@ public class farBlueSide_Worlds extends farAutonPaths_Worlds{
         }
         telemetry.addLine();
         telemetry.addData("Eating this number of balls: ", intAmount);
-        telemetry.addData("Opening basket at: ", pushLever);
+        telemetry.addData("Eating from the basket this number: ", pushLever);
 
         telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
         telemetry.addData("turretStartupCal", turretStartupCalibrated);
