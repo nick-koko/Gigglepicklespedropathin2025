@@ -60,9 +60,9 @@ public final class ShotCalibrationTable {
             new ShotSample(8, 110.0, 130.0, 3675.0, 0.45, -0.5, 135.0, "A", "A upper-right hood-max"),
             new ShotSample(9, 72.0, 24.0, 4080.0, 0.525, 1., 129.0, "B", "B apex hood-max"),
             new ShotSample(10, 54.0, 10.0, 4080.0, 0.525, 1.5, 129.0, "B", "B left hood-max"),
-            new ShotSample(11, 72.0, 12.0, 4130.0, 0.525, 1., 129.0, "B", "B center hood-max"),
-            new ShotSample(12, 90.0, 14.0, 4380.0, 0.525, -1., 134.0, "B", "B right hood-max"),
-            new ShotSample(13, 92.19, 86.89, 4420.0, 0.525, -0.4, 129.4, "B", "B right hood-max"),
+            new ShotSample(11, 72.0, 12.0, 4080.0, 0.525, 1., 129.0, "B", "B center hood-max"),
+            new ShotSample(12, 90.0, 14.0, 4330.0, 0.525, -1., 134.0, "B", "B right hood-max"),
+            new ShotSample(13, 92.19, 86.89, 4370.0, 0.525, -0.4, 129.4, "B", "B right hood-max"),
 
 //            new ShotSample(0, 72.0, 72.0, 3300.0, 0.35, 1.,  136.0, "A", "A apex"),
 //            new ShotSample(1, 36.0, 108.0, 2650.0, 0.22, -0.5, 133.0, "A", "A mid-left"),

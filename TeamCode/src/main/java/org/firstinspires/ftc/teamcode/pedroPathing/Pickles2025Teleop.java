@@ -113,7 +113,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_TUNING_TARGET_Y_IN = 137.0;
 
     public static double RED_AIM_X_OFFSET_IN = 0.;
-    public static double RED_AIM_Y_OFFSET_IN = 7.0;
+    public static double RED_AIM_Y_OFFSET_IN = 2.0;
+
+    public static double BLUE_AIM_Y_OFFSET_IN = 2.0;
 
     public static double SOTM_DRIVER_STICK_DEADBAND = 0.08;
     public static double SOTM_STOP_LEAD_SPEED_IN_PER_SEC = 8.0;
@@ -329,6 +331,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     double targetAngleRad;
     double propAngleGain = -0.5;
     public static double shooterTargetkP = 0.0165;
+
     double minAnglePower = 0.075;
     double maxRotate = 0.8;
     double angleAllianceOffset = 0.0;
@@ -533,7 +536,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         SHOOTER_IDLE_RPM = farModeEnabled ? FAR_IDLE_RPM : CLOSE_IDLE_RPM;
         targetRPM = SHOOTER_IDLE_RPM;
         shooterIdleMode = true;
-        shooterFollowEnabled = true;
+        shooterFollowEnabled = false;
 
         limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
@@ -1055,7 +1058,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         SHOOTER_IDLE_RPM = farModeEnabled ? FAR_IDLE_RPM : CLOSE_IDLE_RPM;
         targetRPM = SHOOTER_IDLE_RPM;
         shooterIdleMode = true;
-        shooterFollowEnabled = true;
+        shooterFollowEnabled = false;
         ShooterSubsystem.INSTANCE.spinUp(targetRPM);
 
         // In shot-tuning mode the auto-RPM path (ShotCalibrationTable lookup)
@@ -1133,9 +1136,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             SHOOTER_IDLE_RPM = FAR_IDLE_RPM;
             targetRPM = SHOOTER_IDLE_RPM;
             shooterIdleMode = true;
-            shooterFollowEnabled = true;
+            shooterFollowEnabled = false;
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = true;
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = false;
         }
         prevX = dpadUpPressed;
 
@@ -1145,9 +1148,9 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             SHOOTER_IDLE_RPM = CLOSE_IDLE_RPM;
             targetRPM = SHOOTER_IDLE_RPM;
             shooterIdleMode = true;
-            shooterFollowEnabled = true;
+            shooterFollowEnabled = false;
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = false;
+            SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED = true;
         }
         prevX2 = dpadDownPressed;
 
@@ -1491,6 +1494,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             shootTargetY += RED_AIM_Y_OFFSET_IN;
         }
 
+        if (!SHOT_TUNING_MODE && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+            shootTargetY += BLUE_AIM_Y_OFFSET_IN;
+        }
+
         // Vector from robot -> target
         double dx = shootTargetX - botxvalue;
         double dy = shootTargetY - botyvalue;
@@ -1538,11 +1545,20 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         );
 
         if (!SHOT_TUNING_MODE) {
-            targetRPM = applySotmRpmCompensation(
-                    shotSol.rpm,
-                    sotmResult.radialVelocityInPerSec,
-                    rpmLimitEnabled
-            );
+            boolean activelyShootingOrPreparing =
+                    sotmFireRequestActive || gamepad1.left_bumper || shooterFollowEnabled;
+
+            if (activelyShootingOrPreparing) {
+                targetRPM = applySotmRpmCompensation(
+                        shotSol.rpm,
+                        sotmResult.radialVelocityInPerSec,
+                        rpmLimitEnabled
+                );
+            } else if (shooterIdleMode) {
+                targetRPM = SHOOTER_IDLE_RPM;
+            } else {
+                targetRPM = 0.0;
+            }
         }
 
         if (sotmResult.valid && (sotmControlActive || SOTM_ALWAYS_TRACK_TARGETS)) {
@@ -1737,7 +1753,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // This still avoids pre-spinning during Init or idle driving. Runs in both
         // normal and tuning mode so gamepad 1 right trigger / bumper brings the
         // shooter up to targetRPM before firing either way.
-        boolean shooterPrimeRequested = shooterFollowEnabled || sotmFireRequestActive;
+        boolean shooterPrimeRequested =
+                shooterIdleMode || shooterFollowEnabled || sotmFireRequestActive;
         if (matchHasStarted && shooterPrimeRequested) {
             ShooterSubsystem.INSTANCE.spinUp(targetRPM);
             if (!SHOT_TUNING_MODE) {
@@ -1763,9 +1780,6 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //            targetAngleDeg = 0.0 + angleAllianceOffset;
 //            goToTargetAngle = true;
             //adjustOdo = false;
-        } else if (gamepad1.a) {
-            targetAngleDeg = leverAngleDeg;
-            goToTargetAngle = true;
         } else {
             goToTargetAngle = false;
             adjustOdo = false;
@@ -1777,6 +1791,18 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 //            targetRPM = 3000;
 //            ShooterSubsystem.INSTANCE.spinUp(targetRPM);
 //        }
+        if (gamepad1.a) {
+            targetAngleDeg =
+                    GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED
+                            ? RED_LEVER_ANGLE_DEG
+                            : BLUE_LEVER_ANGLE_DEG;
+
+            targetAngleRad = Math.toRadians(targetAngleDeg);
+            goToTargetAngle = true;
+            adjustOdo = false;
+        } else {
+            goToTargetAngle = false;
+        }
 
 
         //mR. TODONE 😎👌👌
@@ -2387,7 +2413,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 // the table at the current pose (shotSol was computed earlier
                 // this loop).
                 if (!SHOT_TUNING_MODE && !testShooter) {
-                    targetRPM = shotSol.rpm;
+                    targetRPM = applySotmRpmCompensation(
+                            shotSol.rpm,
+                            sotmResult.radialVelocityInPerSec,
+                            rpmLimitEnabled
+                    );
+                    shooterFollowEnabled = true;
                 }
                 //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
                 telemetry.addData("Target Shooter Speed", targetRPM);
