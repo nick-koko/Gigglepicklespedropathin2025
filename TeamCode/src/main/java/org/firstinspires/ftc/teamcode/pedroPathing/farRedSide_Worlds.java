@@ -2,10 +2,13 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
 import org.firstinspires.ftc.teamcode.GlobalRobotData;
 import org.firstinspires.ftc.teamcode.subsystems.IntakeWithSensorsSubsystem;
+import org.firstinspires.ftc.teamcode.subsystems.LEDControlSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 
@@ -15,6 +18,7 @@ import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.components.SubsystemComponent;
 import dev.nextftc.extensions.fateweaver.FateComponent;
 import dev.nextftc.extensions.pedro.PedroComponent;
+import dev.nextftc.ftc.ActiveOpMode;
 
 @Configurable
 @Autonomous(name = "WorldsfarRedSide", group = "Comp")
@@ -29,6 +33,8 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
     public double intAmount = 18;
     public double pushLever = 1;
 
+    private Limelight3A limelight;
+
     private Pose finalStartPose = new Pose();
 
     /** This method is called once at the init of the OpMode. **/
@@ -40,6 +46,10 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
 
         GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
         PedroComponent.follower().setStartingPose(startPoseRed);
+
+        limelight = ActiveOpMode.hardwareMap().get(Limelight3A.class, "limelight");
+        limelight.pipelineSwitch(0);
+        limelight.start();
 
         // Seed ball count for auton: assume robot starts loaded with 3
         IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3);
@@ -61,19 +71,31 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
                 finalStartPose = startPoseRed.copy();
             }*/
+        LLResult result = limelight.getLatestResult();
+        boolean limelightMissing = (result == null);
+
+        if (limelightMissing) {
+            LEDControlSubsystem.INSTANCE.startStrobe(
+                    LEDControlSubsystem.LedColor.OFF,
+                    LEDControlSubsystem.LedColor.WHITE,
+                    Math.max(50L, LIMELIGHT_MISSING_LED_STROBE_MS)
+            );
+        } else {
+            LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+        }
 
         // If dpad Up/Down is pressed, increase or decrease ball count
-        /*if ((gamepad1.dpadUpWasPressed()) && (intAmount < 15)) {
+        if ((gamepad1.dpadUpWasPressed()) && (intAmount < 24)) {
             intAmount = intAmount + 3;
-        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 3)) {
+        } else if ((gamepad1.dpadDownWasPressed()) && (intAmount > 18)) {
             intAmount = intAmount - 3;
         }
         // If dpad left/right is pressed add or subtract a row until push lever
-        if ((gamepad1.dpadRightWasPressed()) && (pushLever < 3)) {
+        if ((gamepad1.dpadRightWasPressed()) && (pushLever < 2)) {
             pushLever = pushLever + 1;
         } else if ((gamepad1.dpadLeftWasPressed()) && (pushLever > 0)) {
             pushLever = pushLever - 1;
-        } */
+        }
 
         //TODO Add dpad Left/Right to set when to hit gate lever (after 1st pickup, second pickup, or both)
 
@@ -87,7 +109,7 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
         }
         telemetry.addLine();
         telemetry.addData("Eating this number of balls: ", intAmount);
-        telemetry.addData("Opening basket at: ", pushLever);
+        telemetry.addData("Eating from the basket this number: ", pushLever);
 
         telemetry.addData("heading", Math.toDegrees(PedroComponent.follower().getPose().getHeading()));
         telemetry.addData("turretStartupCal", turretStartupCalibrated);
@@ -405,6 +427,7 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
     @Override
     public void onStartButtonPressed() {
         TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpected(TurretSubsystem.INITIAL_ANGLE_DEGREES);
+        limelight.stop();
         startAutonLogger();
         if (intAmount == 3) {
                 Close3Ball().schedule();
@@ -451,7 +474,7 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
 
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+        GlobalRobotData.endAutonPose = currentGoodPose;
         GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
@@ -461,6 +484,16 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
         public void onUpdate() {
             logAutonLoop();
 
+            int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+            if (balls >= 3) {
+                LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.GREEN);
+            } else if (balls == 2) {
+                LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.YELLOW);
+            } else if (balls == 1) {
+                LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.ORANGE);
+            } else {
+                LEDControlSubsystem.INSTANCE.setBoth(LEDControlSubsystem.LedColor.RED);
+            }
             // These loop the movements of the robot, these must be called continuously in order to work
 
             // Feedback to Driver Hub for debugging
@@ -480,7 +513,7 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
             // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-            GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
+            GlobalRobotData.endAutonPose = currentGoodPose;
             GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }

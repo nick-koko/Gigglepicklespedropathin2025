@@ -69,6 +69,9 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
     public static double AUTON_SHOOTER_AT_SPEED_TOLERANCE_RPM = 75.0;
     public static boolean AUTON_USE_HYBRID_DUMBSHOOT_BOOST = true;
 
+    public long LIMELIGHT_MISSING_LED_STROBE_MS = 250L;
+
+
     private CsvLogger autonLogger;
     private long autonLogStartMs = 0L;
     private long lastAutonLogMs = 0L;

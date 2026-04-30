@@ -158,7 +158,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double RED_LEVER_ANGLE_DEG = 180 - BLUE_LEVER_ANGLE_DEG;
     public double leverAngleDeg = BLUE_LEVER_ANGLE_DEG;
 
-    public static long LIMELIGHT_MISSING_LED_STROBE_MS = 250L;
+    private long LIMELIGHT_MISSING_LED_STROBE_TELEOP_MS = 250L;
 
     private boolean farModeEnabled = START_IN_FAR_MODE;
     private boolean defenseModeEnabled = false;
@@ -1177,7 +1177,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             LEDControlSubsystem.INSTANCE.startStrobe(
                     LEDControlSubsystem.LedColor.OFF,
                     LEDControlSubsystem.LedColor.WHITE,
-                    Math.max(50L, LIMELIGHT_MISSING_LED_STROBE_MS)
+                    Math.max(50L, LIMELIGHT_MISSING_LED_STROBE_TELEOP_MS)
             );
         }
         boolean mt1Valid = false;

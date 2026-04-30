@@ -39,6 +39,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     public static double redTargetPoseYOffset = 0.0;
     public static long AUTON_FAR_NO_BOOST_DUMBSHOOT_DELAY_MS = 100L;
     public static double AUTON_FAR_NO_BOOST_SHOOT_DURATION_SEC = 0.2;
+    public long LIMELIGHT_MISSING_LED_STROBE_MS = 250L;
 
     private CsvLogger autonLogger;
     private long autonLogStartMs = 0L;
@@ -139,6 +140,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose offLineLeverRed = offLineLeverBlue.mirror(144);
     private final Pose offLineCloseRed = offLineCloseBlue.mirror(144);
 
+    public Pose currentGoodPose = new Pose(0,0,0);
 
     public Pose startPose;
     public Pose scorePoseClose;
@@ -231,6 +233,12 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
         long loopTimeMs = (lastAutonLoopMs == 0L) ? 0L : (nowMs - lastAutonLoopMs);
         lastAutonLoopMs = nowMs;
 
+        Pose pose = PedroComponent.follower().getPose();
+        if ((pose.getX() == 0) && (pose.getY() == 0) && (pose.getHeading() == 0)) {
+        } else {
+            currentGoodPose = pose;
+        }
+
         if (!ENABLE_AUTON_LOGGING || autonLogger == null) {
             return;
         }
@@ -239,7 +247,6 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
         }
         lastAutonLogMs = nowMs;
 
-        Pose pose = PedroComponent.follower().getPose();
         autonLogger.addRow(
                 nowMs,
                 (autonLogStartMs == 0L) ? 0L : (nowMs - autonLogStartMs),
