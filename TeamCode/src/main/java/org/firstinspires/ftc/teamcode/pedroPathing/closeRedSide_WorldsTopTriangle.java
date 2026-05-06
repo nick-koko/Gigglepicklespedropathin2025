@@ -448,6 +448,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = currentGoodPose;
         GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+        GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
 
@@ -487,6 +488,7 @@ public class closeRedSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTri
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = currentGoodPose;
             GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+            GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }
 

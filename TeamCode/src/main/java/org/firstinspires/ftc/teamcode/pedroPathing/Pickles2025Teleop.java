@@ -500,6 +500,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static long TELEOP_TURRET_STARTUP_SETTLE_MS = 250L;
     public static int TELEOP_TURRET_START_SAMPLE_COUNT = 5;
     public static long TELEOP_TURRET_START_SAMPLE_INTERVAL_MS = 10L;
+    private double turretStartupServoCommandAngleDeg = Double.NaN;
+    private double turretStartupServoOffsetDeg = Double.NaN;
     public static double FAR_NO_BOOST_RPM_THRESHOLD = 4000.0;
     public static long FAR_NO_BOOST_BETWEEN_SHOTS_MS = 100L;
 
@@ -554,6 +556,14 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees))
                         ? GlobalRobotData.endAutonTurretAngleDegrees
                         : TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+        turretStartupServoCommandAngleDeg =
+                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretServoCommandAngleDegrees))
+                        ? GlobalRobotData.endAutonTurretServoCommandAngleDegrees
+                        : turretStartupExpectedAngleDeg;
+        turretStartupServoOffsetDeg =
+                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretServoOffsetDegrees))
+                        ? GlobalRobotData.endAutonTurretServoOffsetDegrees
+                        : Double.NaN;
         if (turretStartupFromAuton) {
             TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
         } else {
@@ -948,10 +958,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
-        boolean turretStartupCalibrated = TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
-                turretStartupExpectedAngleDeg,
-                TELEOP_TURRET_STARTUP_SETTLE_MS
-        );
+        boolean turretStartupCalibrated = !turretStartupFromAuton &&
+                TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
+                        turretStartupExpectedAngleDeg,
+                        TELEOP_TURRET_STARTUP_SETTLE_MS
+                );
 
         if (gamepad1.dpad_left) {
             farModeEnabled = false;
@@ -999,11 +1010,27 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public void onStartButtonPressed() {
         matchHasStarted = true;
         if (!TurretSubsystem.INSTANCE.isStartupCalibrationComplete()) {
-            TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpectedSampled(
-                    turretStartupExpectedAngleDeg,
-                    TELEOP_TURRET_START_SAMPLE_COUNT,
-                    TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
-            );
+            if (turretStartupFromAuton && Double.isFinite(turretStartupServoOffsetDeg)) {
+                TurretSubsystem.INSTANCE.forceStartupCalibrationFromEstimatedAngleAndServoOffsetSampled(
+                        turretStartupExpectedAngleDeg,
+                        turretStartupServoOffsetDeg,
+                        TELEOP_TURRET_START_SAMPLE_COUNT,
+                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
+                );
+            } else if (turretStartupFromAuton && Double.isFinite(turretStartupServoCommandAngleDeg)) {
+                TurretSubsystem.INSTANCE.forceStartupCalibrationFromEstimatedAngleAndServoCommandSampled(
+                        turretStartupExpectedAngleDeg,
+                        turretStartupServoCommandAngleDeg,
+                        TELEOP_TURRET_START_SAMPLE_COUNT,
+                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
+                );
+            } else {
+                TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpectedSampled(
+                        turretStartupExpectedAngleDeg,
+                        TELEOP_TURRET_START_SAMPLE_COUNT,
+                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
+                );
+            }
         }
         //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)

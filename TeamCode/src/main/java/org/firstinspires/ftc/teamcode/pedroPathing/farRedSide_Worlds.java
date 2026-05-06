@@ -476,6 +476,7 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = currentGoodPose;
         GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+        GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
 
@@ -515,6 +516,7 @@ public class farRedSide_Worlds extends farAutonPaths_Worlds{
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = currentGoodPose;
             GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+            GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }
 

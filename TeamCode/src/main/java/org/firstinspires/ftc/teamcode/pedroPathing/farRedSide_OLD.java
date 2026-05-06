@@ -619,6 +619,7 @@ public class farRedSide_OLD extends NextFTCOpMode{
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
             GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
+            GlobalRobotData.endAutonTurretServoCommandAngleDegrees = Double.NaN;
             GlobalRobotData.hasAutonRun = true;
         }
 
@@ -663,6 +664,7 @@ public class farRedSide_OLD extends NextFTCOpMode{
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
             GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
+            GlobalRobotData.endAutonTurretServoCommandAngleDegrees = Double.NaN;
             GlobalRobotData.hasAutonRun = true;
         }
 

@@ -712,12 +712,27 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
                     .setBrakingStrength(pickupBrakingStrength)
                     .build();
 
+//            secondPickupGateLeverEnd = PedroComponent.follower().pathBuilder()
+//                    .addPath(new BezierLine(pickup2Pose, pickup2GateLeverEndPose))
+//                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2GateLeverEndPose.getHeading())
+//
+//                    .addPath(new BezierCurve(
+//                            pickup2GateLeverEndPose,
+//                            pickup2GateLeverPushCP1,
+//                            pickup2GateLeverPushCP2,
+//                            pickup2GateLeverPushPose))
+//                    .setLinearHeadingInterpolation(pickup2GateLeverEndPose.getHeading(), pickup2GateLeverPushPose.getHeading())
+//
+//                    .addPath(new BezierLine(pickup2GateLeverPushPose, pickup2GateLeverPushHoldPose))
+//                    .setLinearHeadingInterpolation(pickup2GateLeverPushPose.getHeading(), pickup2GateLeverPushHoldPose.getHeading())
+//
+//                    .setBrakingStrength(pickupBrakingStrength)
+//                    .build();
+
             secondPickupGateLeverEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2Pose, pickup2GateLeverEndPose))
-                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2GateLeverEndPose.getHeading())
 
                     .addPath(new BezierCurve(
-                            pickup2GateLeverEndPose,
+                            pickup2EndPose,
                             pickup2GateLeverPushCP1,
                             pickup2GateLeverPushCP2,
                             pickup2GateLeverPushPose))
@@ -1190,6 +1205,42 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
         );
     }
 
+    public Command ClosePickupAndShoot2ndRowRaceAndGate() {
+        return new SequentialGroup(
+                new ParallelGroup(
+                        new ParallelRaceGroup(
+                                new FollowPath(secondPickupEndToBalls),
+                                new WaitUntil(() -> IntakeWithSensorsSubsystem.INSTANCE.getBallCount() >= 3)
+                        ),
+                        new SequentialGroup(
+                                new Delay(0.3),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop()),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(0)),
+                                new Delay(0.1),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward()),
+                                new Delay(0.1),
+                                new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
+                        )
+                ),
+                new FollowPath(secondPickupGateLeverEnd),
+                new Delay(0.1),
+
+                new ParallelGroup(
+                        new FollowPath(secondPickupEndToScore),
+                        new SequentialGroup(
+                                new Delay(0.5),
+                                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
+                        )
+                ),
+                new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.setBallCount(3)),
+                new Delay(0.0),
+                AutonDumbShootWithHybridBoost(),
+                new Delay(0.20)
+        );
+    }
+
+
     public Command ClosePickupAndShoot2ndRowRace() {
         return new SequentialGroup(
                 new ParallelGroup(
@@ -1208,6 +1259,7 @@ public class closeAutonPaths_WorldsTopTriangle extends NextFTCOpMode{
                                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.spinUp(autonShooterRPM))
                         )       
                 ),
+
                 new ParallelGroup(
                         new FollowPath(secondPickupEndToScore),
                         new SequentialGroup(

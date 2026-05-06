@@ -292,6 +292,7 @@ public class farBlueSide extends farAutonPaths{
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
         GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
         GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
+        GlobalRobotData.endAutonTurretServoCommandAngleDegrees = Double.NaN;
         GlobalRobotData.hasAutonRun = true;
     }
 
@@ -321,6 +322,7 @@ public class farBlueSide extends farAutonPaths{
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
             GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
+            GlobalRobotData.endAutonTurretServoCommandAngleDegrees = Double.NaN;
             GlobalRobotData.hasAutonRun = true;
         }
 

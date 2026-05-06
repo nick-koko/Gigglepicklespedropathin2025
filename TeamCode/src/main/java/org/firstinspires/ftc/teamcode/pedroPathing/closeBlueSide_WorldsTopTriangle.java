@@ -76,6 +76,16 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
         activeGateIntakeWaitDelay = (intAmount == 21) ? gateIntakeShortWaitDelay : gateIntakeWaitDelay;
     }
 
+    private void publishAutonHandoff() {
+        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+        GlobalRobotData.endAutonPose = currentGoodPose;
+        GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+        GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
+        GlobalRobotData.endAutonTurretServoOffsetDegrees = TurretSubsystem.INSTANCE.getLearnedServoCommandOffsetDegrees();
+        GlobalRobotData.hasAutonRun = true;
+    }
+
+
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
@@ -160,7 +170,8 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
     public Command Close18Ball3Gate() {
         return new SequentialGroup(
                 CloseShootPreload(),
-                ClosePickupAndShoot2ndRowRace(),
+                //ClosePickupAndShoot2ndRowRace(),
+                ClosePickupAndShoot2ndRowRaceAndGate(),
                 ClosePickupAndShootGateRace(),
                 ClosePickupAndShootGateRace(),
                 ClosePickupAndShootGateBefore1stRowRace(),
@@ -444,18 +455,14 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
                 }
             }
 
-
-        // Persist ball count (and optionally pose) for TeleOp
-        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-        GlobalRobotData.endAutonPose = currentGoodPose;
-        GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
-        GlobalRobotData.hasAutonRun = true;
+        publishAutonHandoff();
     }
 
     /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
         @Override
         public void onUpdate() {
             logAutonLoop();
+            publishAutonHandoff();
 
             int balls = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
             if (balls >= 3) {
@@ -481,14 +488,8 @@ public class closeBlueSide_WorldsTopTriangle extends closeAutonPaths_WorldsTopTr
         /** We shouldn't need this because everything should automatically disable **/
         @Override
         public void onStop() {
-            logAutonLoop();
             saveAutonLogger();
-            // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
-            GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-            GlobalRobotData.endAutonPose = currentGoodPose;
-            GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
-            GlobalRobotData.hasAutonRun = true;
         }
 
 

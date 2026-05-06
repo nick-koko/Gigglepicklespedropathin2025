@@ -7,6 +7,8 @@ public class GlobalRobotData {
     public static int endAutonBallCount = -1;
     public static Pose endAutonPose = null;
     public static double endAutonTurretAngleDegrees = Double.NaN;
+    public static double endAutonTurretServoCommandAngleDegrees = Double.NaN;
+    public static double endAutonTurretServoOffsetDegrees = Double.NaN;
 
     public static COLOR allianceSide = COLOR.BLUE;
     public enum COLOR {
