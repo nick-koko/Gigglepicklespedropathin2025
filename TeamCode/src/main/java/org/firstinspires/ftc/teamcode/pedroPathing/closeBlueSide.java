@@ -61,15 +61,6 @@ public class closeBlueSide extends closeAutonPaths{
         buildPaths();
     }
 
-    private void publishAutonHandoff() {
-        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-        GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
-        GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
-        GlobalRobotData.endAutonTurretServoOffsetDegrees = TurretSubsystem.INSTANCE.getLearnedServoCommandOffsetDegrees();
-        GlobalRobotData.hasAutonRun = true;
-    }
-
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
@@ -343,14 +334,18 @@ public class closeBlueSide extends closeAutonPaths{
                 }
         }
 
-        publishAutonHandoff();
+        // Persist ball count (and optionally pose) for TeleOp
+        GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+        GlobalRobotData.endAutonPose = currentGoodPose;
+        GlobalRobotData.endAutonTurretAngleDegrees = turretOffset;
+        GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
+        GlobalRobotData.hasAutonRun = true;
     }
 
     /** This is the main loop of the OpMode, it will run repeatedly after clicking "Play". **/
         @Override
         public void onUpdate() {
             logAutonLoop();
-            publishAutonHandoff();
 
             // These loop the movements of the robot, these must be called continuously in order to work
 
@@ -366,8 +361,15 @@ public class closeBlueSide extends closeAutonPaths{
         /** We shouldn't need this because everything should automatically disable **/
         @Override
         public void onStop() {
+            //logAutonLoop();
             saveAutonLogger();
+            // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
+            GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
+            GlobalRobotData.endAutonPose = currentGoodPose;
+            GlobalRobotData.endAutonTurretAngleDegrees = turretOffset;
+            GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
+            GlobalRobotData.hasAutonRun = true;
         }
 
 

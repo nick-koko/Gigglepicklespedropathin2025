@@ -339,8 +339,8 @@ public class closeRedSide extends closeAutonPaths{
 
         // Persist ball count (and optionally pose) for TeleOp
         GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-        GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-        GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+        GlobalRobotData.endAutonPose = currentGoodPose;
+        GlobalRobotData.endAutonTurretAngleDegrees = turretOffset;
         GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
         GlobalRobotData.hasAutonRun = true;
     }
@@ -364,13 +364,13 @@ public class closeRedSide extends closeAutonPaths{
         /** We shouldn't need this because everything should automatically disable **/
         @Override
         public void onStop() {
-            logAutonLoop();
+            //logAutonLoop();
             saveAutonLogger();
             // Persist ball count (and optionally pose) for TeleOp
             ShooterSubsystem.INSTANCE.stop();
             GlobalRobotData.endAutonBallCount = IntakeWithSensorsSubsystem.INSTANCE.getBallCount();
-            GlobalRobotData.endAutonPose = PedroComponent.follower().getPose();
-            GlobalRobotData.endAutonTurretAngleDegrees = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+            GlobalRobotData.endAutonPose = currentGoodPose;
+            GlobalRobotData.endAutonTurretAngleDegrees = turretOffset;
             GlobalRobotData.endAutonTurretServoCommandAngleDegrees = TurretSubsystem.INSTANCE.getServoCommandAngleDegrees();
             GlobalRobotData.hasAutonRun = true;
         }

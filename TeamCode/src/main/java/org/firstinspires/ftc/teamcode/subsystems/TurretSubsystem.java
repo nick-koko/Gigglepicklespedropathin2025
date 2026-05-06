@@ -78,6 +78,9 @@ public class TurretSubsystem implements Subsystem {
     // Disable periodic analog reads unless explicitly needed for diagnostics/logging.
     public static boolean READ_ABSOLUTE_ENCODER_IN_PERIODIC = false;
 
+    public boolean inTeleop = false;
+    public boolean turretCenterDelayComplete = false;
+
     // =========================
     // Hardware
     // =========================
@@ -110,6 +113,9 @@ public class TurretSubsystem implements Subsystem {
     private double learnedServoCommandOffsetDegrees = 0.0;
     private double absoluteStartupErrorDegrees = 0.0;
     private double lastLoopTimeSeconds = 0.0;
+    private double turretResetDelayTimeSeconds = 0.0;
+    public double turretResetDelayTotalTime = 0.0;
+
     private int previousEncoderTicks = 0;
 
     private double previousAbsoluteEncoderRawDegrees = 0.0;
@@ -187,8 +193,6 @@ public class TurretSubsystem implements Subsystem {
         currentRightServoPosition = rightTurret.getPosition();
         currentServoPosition = 0.5 * (currentLeftServoPosition + currentRightServoPosition);
 
-        turretEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        turretEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         currentEncoderTicks = turretEncoder.getCurrentPosition();
         previousEncoderTicks = currentEncoderTicks;
 
@@ -218,6 +222,12 @@ public class TurretSubsystem implements Subsystem {
 
         double dt = now - lastLoopTimeSeconds;
         lastLoopTimeSeconds = now;
+
+        turretResetDelayTotalTime += dt;
+        if ((turretResetDelayTimeSeconds > turretResetDelayTotalTime) && inTeleop) {
+            return;
+        }
+        turretCenterDelayComplete = true;
         if (dt <= 1e-6) return;
 
         updateMeasuredAngle(dt);
@@ -276,6 +286,9 @@ public class TurretSubsystem implements Subsystem {
         aimAtFieldPoint(fieldPose.getX(), fieldPose.getY());
     }
 
+    public void publicTurretEncoderOffset(double offset) {
+        quadratureOffsetDegrees = offset;
+    }
     public void clearFieldPointAim() {
         fieldPointAimActive = false;
     }
@@ -370,36 +383,6 @@ public class TurretSubsystem implements Subsystem {
         );
     }
 
-    public void forceStartupCalibrationFromEstimatedAngleAndServoCommandSampled(
-            double estimatedTurretAngleDegrees,
-            double previousServoCommandAngleDegrees,
-            int sampleCount,
-            long sampleIntervalMs
-    ) {
-        double sampledRawDegrees = sampleAbsoluteEncoderRawDegrees(sampleCount, sampleIntervalMs);
-        completeStartupCalibrationFromRawDegrees(
-                estimatedTurretAngleDegrees,
-                previousServoCommandAngleDegrees,
-                sampledRawDegrees,
-                "startup_calibrated_handoff_sampled"
-        );
-    }
-
-    public void forceStartupCalibrationFromEstimatedAngleAndServoOffsetSampled(
-            double estimatedTurretAngleDegrees,
-            double previousServoCommandOffsetDegrees,
-            int sampleCount,
-            long sampleIntervalMs
-    ) {
-        double sampledRawDegrees = sampleAbsoluteEncoderRawDegrees(sampleCount, sampleIntervalMs);
-        completeStartupCalibrationFromRawDegreesAndServoOffset(
-                estimatedTurretAngleDegrees,
-                previousServoCommandOffsetDegrees,
-                sampledRawDegrees,
-                "startup_calibrated_handoff_offset_sampled"
-        );
-    }
-
     public boolean isStartupCalibrationComplete() {
         return startupCalibrationState == StartupCalibrationState.CALIBRATED;
     }
@@ -477,6 +460,11 @@ public class TurretSubsystem implements Subsystem {
 
     public double getCurrentRightServoPosition() {
         return currentRightServoPosition;
+    }
+
+    public void resetEncoderCounts() {
+        turretEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        turretEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
 
     public double getLeftTurretAngleCommandDegrees() {
@@ -584,20 +572,6 @@ public class TurretSubsystem implements Subsystem {
             double rawDegrees,
             String logPhase
     ) {
-        completeStartupCalibrationFromRawDegrees(
-                expectedTurretAngleDegrees,
-                expectedTurretAngleDegrees,
-                rawDegrees,
-                logPhase
-        );
-    }
-
-    private void completeStartupCalibrationFromRawDegrees(
-            double expectedTurretAngleDegrees,
-            double servoCommandReferenceAngleDegrees,
-            double rawDegrees,
-            String logPhase
-    ) {
         startupExpectedTurretAngleDegrees = expectedTurretAngleDegrees;
         absoluteRawAtStartDegrees = rawDegrees;
         absoluteEncoderRawDegrees = rawDegrees;
@@ -611,51 +585,7 @@ public class TurretSubsystem implements Subsystem {
         absoluteEncoderTurretDeltaDegrees = 0.0;
 
         absoluteStartupErrorDegrees = resolvedTurretAngleDegrees - expectedTurretAngleDegrees;
-        learnedServoCommandOffsetDegrees = resolvedTurretAngleDegrees - servoCommandReferenceAngleDegrees;
-
-        currentEncoderTicks = turretEncoder.getCurrentPosition();
-        previousEncoderTicks = currentEncoderTicks;
-        quadRawAngleDegrees = (currentEncoderTicks / turretCountsPerDegree()) * QUAD_DIRECTION_SIGN;
-        quadratureOffsetDegrees = quadRawAngleDegrees - resolvedTurretAngleDegrees;
-        measuredAngleDegrees = quadRawAngleDegrees - quadratureOffsetDegrees;
-
-        targetAngleDegrees = measuredAngleDegrees;
-        correctedTargetAngleDegrees = measuredAngleDegrees;
-        commandedAngleDegrees = measuredAngleDegrees;
-        fieldPointAimActive = false;
-        lastServoCommandAngleDegrees = measuredAngleDegrees;
-        lastOuterLoopTrimDegrees = 0.0;
-        lastCommandDiffDegrees = 0.0;
-        lastRateLimitedStepDegrees = 0.0;
-        readyLoops = 0;
-        notReadyLoops = 0;
-        turretReady = false;
-
-        startupCenterCommandTimeMs = 0L;
-        startupCalibrationState = StartupCalibrationState.CALIBRATED;
-        logStartupState(logPhase, expectedTurretAngleDegrees, 0L);
-    }
-
-    private void completeStartupCalibrationFromRawDegreesAndServoOffset(
-            double expectedTurretAngleDegrees,
-            double servoCommandOffsetDegrees,
-            double rawDegrees,
-            String logPhase
-    ) {
-        startupExpectedTurretAngleDegrees = expectedTurretAngleDegrees;
-        absoluteRawAtStartDegrees = rawDegrees;
-        absoluteEncoderRawDegrees = rawDegrees;
-        previousAbsoluteEncoderRawDegrees = rawDegrees;
-        unwrappedAbsoluteEncoderDegrees = rawDegrees;
-
-        double resolvedTurretAngleDegrees =
-                absoluteRawToNearestTurretAngleDegrees(rawDegrees, expectedTurretAngleDegrees);
-        absoluteTurretReferenceAtStartDegrees = resolvedTurretAngleDegrees;
-        absoluteEncoderTurretAngleDegrees = resolvedTurretAngleDegrees;
-        absoluteEncoderTurretDeltaDegrees = 0.0;
-
-        absoluteStartupErrorDegrees = resolvedTurretAngleDegrees - expectedTurretAngleDegrees;
-        learnedServoCommandOffsetDegrees = servoCommandOffsetDegrees;
+        learnedServoCommandOffsetDegrees = absoluteStartupErrorDegrees;
 
         currentEncoderTicks = turretEncoder.getCurrentPosition();
         previousEncoderTicks = currentEncoderTicks;

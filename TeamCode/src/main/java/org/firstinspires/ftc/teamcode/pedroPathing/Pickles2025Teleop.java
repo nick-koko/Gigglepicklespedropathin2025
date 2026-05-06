@@ -47,7 +47,7 @@ import dev.nextftc.ftc.components.BulkReadComponent;
 
 @Configurable
 @TeleOp(name = "Pickles 2025 Teleop", group = "Comp")
-public class Pickles2025Teleop extends NextFTCOpMode {
+public class    Pickles2025Teleop extends NextFTCOpMode {
     public Pickles2025Teleop() {
         addComponents(
                 new PedroComponent(Constants::createFollower),
@@ -112,10 +112,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_TUNING_TARGET_X_IN = 144.0;
     public static double SHOT_TUNING_TARGET_Y_IN = 137.0;
 
-    public static double RED_AIM_X_OFFSET_IN = 0.;
-    public static double RED_AIM_Y_OFFSET_IN = 2.0;
+    public static double RED_AIM_X_OFFSET_IN = 4.;  //was 5
+    public static double RED_AIM_Y_OFFSET_IN = 0.0;
 
-    public static double BLUE_AIM_Y_OFFSET_IN = 2.0;
+    public static double BLUE_AIM_X_OFFSET_IN = 4.; //was 4
 
     public static double SOTM_DRIVER_STICK_DEADBAND = 0.08;
     public static double SOTM_STOP_LEAD_SPEED_IN_PER_SEC = 8.0;
@@ -158,7 +158,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double RED_LEVER_ANGLE_DEG = 180 - BLUE_LEVER_ANGLE_DEG;
     public double leverAngleDeg = BLUE_LEVER_ANGLE_DEG;
 
-    private long LIMELIGHT_MISSING_LED_STROBE_TELEOP_MS = 250L;
+    public static long LIMELIGHT_MISSING_LED_STROBE_MS = 250L;
 
     private boolean farModeEnabled = START_IN_FAR_MODE;
     private boolean defenseModeEnabled = false;
@@ -166,6 +166,13 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     private boolean prevGamepad2DpadRight = false;
     private boolean prevGamepad2A = false;
     private boolean prevGamepad2Y = false;
+
+    private Pose lastTurretAimPose = null;
+    private Pose lastRawPoseForSlipCheck = null;
+    private long lastOdoSlipMs = 0L;
+
+    public static double TURRET_ODOMETRY_SLIP_JUMP_IN = 5.0;
+    public static long TURRET_ODOMETRY_SLIP_HOLD_MS = 350L;
 
     private boolean shooterIdleMode = false;
     private long shotSequenceStartMs = 0L;
@@ -284,7 +291,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static double SHOT_ZONE_B_TARGET_X_OFFSET_IN = 0.0;
     public static double SHOT_ZONE_B_TARGET_Y_OFFSET_IN = 0.0;
 
-    private boolean rpmLimitEnabled = false;
+    private boolean rpmLimitEnabled = true;
     private boolean prevX = false;
     private boolean prevX2 = false;
     Pose MT1PedroPose = new Pose();
@@ -461,6 +468,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     private boolean shoot = false;
 
+    private double turretStartupServoCommandAngleDeg = Double.NaN;
+
     private boolean adjustLimelight = false;
     private boolean adjustOdo = true;
     // Edge-detect left trigger so we only start one single-ball feed per press
@@ -493,6 +502,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     // True only after Start is pressed; prevents flywheel spin-up during Init.
     private boolean matchHasStarted = false;
     private boolean turretStartupFromAuton = false;
+
     private double turretStartupExpectedAngleDeg = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
     // Teleop init time on the field is often under a second, so use a short
     // startup settle here and fall back to a short sampled absolute read at Start
@@ -500,10 +510,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     public static long TELEOP_TURRET_STARTUP_SETTLE_MS = 250L;
     public static int TELEOP_TURRET_START_SAMPLE_COUNT = 5;
     public static long TELEOP_TURRET_START_SAMPLE_INTERVAL_MS = 10L;
-    private double turretStartupServoCommandAngleDeg = Double.NaN;
-    private double turretStartupServoOffsetDeg = Double.NaN;
     public static double FAR_NO_BOOST_RPM_THRESHOLD = 4000.0;
-    public static long FAR_NO_BOOST_BETWEEN_SHOTS_MS = 100L;
+    public static long FAR_NO_BOOST_BETWEEN_SHOTS_MS = 150L;
 
     @Override
     public void onInit() {
@@ -535,7 +543,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         resetLimelightVisionBlendState();
         farModeEnabled = START_IN_FAR_MODE;
         defenseModeEnabled = false;
-        SHOOTER_IDLE_RPM = farModeEnabled ? FAR_IDLE_RPM : CLOSE_IDLE_RPM;
+        SHOOTER_IDLE_RPM = CLOSE_IDLE_RPM;
         targetRPM = SHOOTER_IDLE_RPM;
         shooterIdleMode = true;
         shooterFollowEnabled = false;
@@ -544,31 +552,60 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         limelight.pipelineSwitch(0);
         limelight.start();
 
-        turretStartupFromAuton = (GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun);
+        TurretSubsystem.INSTANCE.inTeleop = true;
+        TurretSubsystem.INSTANCE.turretCenterDelayComplete = false;
+//        TurretSubsystem.INSTANCE.resetEncoderCounts();
+//
+//        turretStartupFromAuton = (GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun);
+//        if (turretStartupFromAuton) {
+//            startingPose = GlobalRobotData.endAutonPose;
+//            GlobalRobotData.hasAutonRun = false;
+//            TurretSubsystem.INSTANCE.publicTurretEncoderOffset(GlobalRobotData.endAutonTurretAngleDegrees);
+//        } else {
+//            TurretSubsystem.INSTANCE.resetEncoderCounts();
+//            selectAllianceSide = true;
+//        }
+//
+//        turretStartupExpectedAngleDeg =
+//                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees))
+//                        ? GlobalRobotData.endAutonTurretAngleDegrees
+//                        : TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+//
+//        turretStartupServoCommandAngleDeg =
+//                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretServoCommandAngleDegrees))
+//                    ? GlobalRobotData.endAutonTurretServoCommandAngleDegrees : turretStartupExpectedAngleDeg;
+//        if (turretStartupFromAuton) {
+//            TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
+//        } else {
+//            TurretSubsystem.INSTANCE.beginStartupCentering();
+//        }
+        turretStartupFromAuton = (GlobalRobotData.endAutonPose != null) && GlobalRobotData.hasAutonRun;
+
         if (turretStartupFromAuton) {
-            startingPose = GlobalRobotData.endAutonPose;
+            startingPose = GlobalRobotData.endAutonPose.copy();
+
+            // Consume auton handoff so it cannot be reused by accident later.
             GlobalRobotData.hasAutonRun = false;
+            GlobalRobotData.endAutonPose = null;
+            GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
+            GlobalRobotData.endAutonTurretServoCommandAngleDegrees = Double.NaN;
         } else {
+            TurretSubsystem.INSTANCE.resetEncoderCounts();
             selectAllianceSide = true;
         }
 
-        turretStartupExpectedAngleDeg =
-                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees))
-                        ? GlobalRobotData.endAutonTurretAngleDegrees
-                        : TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
-        turretStartupServoCommandAngleDeg =
-                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretServoCommandAngleDegrees))
-                        ? GlobalRobotData.endAutonTurretServoCommandAngleDegrees
-                        : turretStartupExpectedAngleDeg;
-        turretStartupServoOffsetDeg =
-                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretServoOffsetDegrees))
-                        ? GlobalRobotData.endAutonTurretServoOffsetDegrees
-                        : Double.NaN;
+// TeleOp should NOT use the auton measured turret angle as an encoder offset.
+// Always let the turret absolute encoder/startup calibration define turret zero.
+        turretStartupExpectedAngleDeg = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+        turretStartupServoCommandAngleDeg = turretStartupExpectedAngleDeg;
+
+        //TurretSubsystem.INSTANCE.beginStartupCentering();
         if (turretStartupFromAuton) {
             TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
         } else {
             TurretSubsystem.INSTANCE.beginStartupCentering();
         }
+        TurretSubsystem.INSTANCE.beginStartupCentering();
 
         //PedroComponent.follower().setStartingPose(startingPose);
 
@@ -958,11 +995,10 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     /** This method is called continuously after Init while waiting for "play". **/
     @Override
     public void onWaitForStart() {
-        boolean turretStartupCalibrated = !turretStartupFromAuton &&
-                TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
-                        turretStartupExpectedAngleDeg,
-                        TELEOP_TURRET_STARTUP_SETTLE_MS
-                );
+//        boolean turretStartupCalibrated = !turretStartupFromAuton && TurretSubsystem.INSTANCE.updateStartupCalibrationFromExpected(
+//                turretStartupExpectedAngleDeg,
+//                TELEOP_TURRET_STARTUP_SETTLE_MS
+//        );
 
         if (gamepad1.dpad_left) {
             farModeEnabled = false;
@@ -998,7 +1034,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             } else {
                 telemetry.addLine("Favorite fruit: Raspberries!!! (Red)");
             }
-            telemetry.addData("turretStartupCal", turretStartupCalibrated);
+            //telemetry.addData("turretStartupCal", turretStartupCalibrated);
             telemetry.addData("turretStartupState", TurretSubsystem.INSTANCE.getStartupCalibrationStateName());
 
             telemetry.update();
@@ -1009,22 +1045,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
     @Override
     public void onStartButtonPressed() {
         matchHasStarted = true;
-        if (!TurretSubsystem.INSTANCE.isStartupCalibrationComplete()) {
-            if (turretStartupFromAuton && Double.isFinite(turretStartupServoOffsetDeg)) {
-                TurretSubsystem.INSTANCE.forceStartupCalibrationFromEstimatedAngleAndServoOffsetSampled(
-                        turretStartupExpectedAngleDeg,
-                        turretStartupServoOffsetDeg,
-                        TELEOP_TURRET_START_SAMPLE_COUNT,
-                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
-                );
-            } else if (turretStartupFromAuton && Double.isFinite(turretStartupServoCommandAngleDeg)) {
-                TurretSubsystem.INSTANCE.forceStartupCalibrationFromEstimatedAngleAndServoCommandSampled(
-                        turretStartupExpectedAngleDeg,
-                        turretStartupServoCommandAngleDeg,
-                        TELEOP_TURRET_START_SAMPLE_COUNT,
-                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
-                );
-            } else {
+        //TurretSubsystem.INSTANCE.beginStartupCentering();
+        TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
+        TurretSubsystem.INSTANCE.turretResetDelayTotalTime = 0.0;
+
+        if (TurretSubsystem.INSTANCE.turretCenterDelayComplete) {
+            if (!TurretSubsystem.INSTANCE.isStartupCalibrationComplete()) {
                 TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpectedSampled(
                         turretStartupExpectedAngleDeg,
                         TELEOP_TURRET_START_SAMPLE_COUNT,
@@ -1032,6 +1058,27 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                 );
             }
         }
+//        if (!turretStartupFromAuton) {
+//            TurretSubsystem.INSTANCE.publicTurretEncoderOffset(GlobalRobotData.endAutonTurretAngleDegrees);
+//        }
+
+//       if (!TurretSubsystem.INSTANCE.isStartupCalibrationComplete()) {
+//            if (turretStartupFromAuton) {
+//                TurretSubsystem.INSTANCE.forceStartupCalibrationFromEstimatedAngleAndServoCommandSampled(
+//                        turretStartupExpectedAngleDeg,
+//                        turretStartupServoCommandAngleDeg,
+//                        TELEOP_TURRET_START_SAMPLE_COUNT,
+//                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
+//                );
+//            }
+//            else {
+//                TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpectedSampled(
+//                        turretStartupExpectedAngleDeg,
+//                        TELEOP_TURRET_START_SAMPLE_COUNT,
+//                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
+//                );
+//            }
+//        }
         //The parameter controls whether the Follower should use break mode on the motors (using it is recommended).
         //In order to use float mode, add .useBrakeModeInTeleOp(true); to your Drivetrain Constants in Constant.java (for Mecanum)
         //If you don't pass anything in, it uses the default (false)
@@ -1082,7 +1129,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         prevCalPointInc = false;
         shotGateLedState = "NONE";
         shooterHoodPos = ShooterSubsystem.INSTANCE.getShooterHoodPosition();
-        SHOOTER_IDLE_RPM = farModeEnabled ? FAR_IDLE_RPM : CLOSE_IDLE_RPM;
+        SHOOTER_IDLE_RPM = CLOSE_IDLE_RPM;
         targetRPM = SHOOTER_IDLE_RPM;
         shooterIdleMode = true;
         shooterFollowEnabled = false;
@@ -1104,6 +1151,12 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
     @Override
     public void onUpdate() {
+        if (gamepad2.rightBumperWasPressed()) {
+            BLUE_AIM_X_OFFSET_IN -= 3;
+        }
+        else if(gamepad2.leftBumperWasPressed()) {
+            BLUE_AIM_X_OFFSET_IN += 3;
+        }
 //        if (gamepad1.yWasPressed()) {
 //            shooterIdleMode = !shooterIdleMode;
 //        }
@@ -1146,7 +1199,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             dumbShootSettleActive = false;
         }
 
-        Pose currentBotPose = PedroComponent.follower().getPose();
+        Pose rawBotPose = PedroComponent.follower().getPose();
+        Pose currentBotPose = getTurretSafePose(rawBotPose);
         double botHeadingRad = currentBotPose.getHeading();
         double botxvalue = currentBotPose.getX(); //gettingxvalue :D
         double botyvalue = currentBotPose.getY(); //gettingyvalue :D
@@ -1204,7 +1258,7 @@ public class Pickles2025Teleop extends NextFTCOpMode {
             LEDControlSubsystem.INSTANCE.startStrobe(
                     LEDControlSubsystem.LedColor.OFF,
                     LEDControlSubsystem.LedColor.WHITE,
-                    Math.max(50L, LIMELIGHT_MISSING_LED_STROBE_TELEOP_MS)
+                    Math.max(50L, LIMELIGHT_MISSING_LED_STROBE_MS)
             );
         }
         boolean mt1Valid = false;
@@ -1427,7 +1481,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
 
                 // Refresh local copies so downstream code in this loop sees
                 // the corrected pose.
-                currentBotPose = PedroComponent.follower().getPose();
+                rawBotPose = PedroComponent.follower().getPose();
+                currentBotPose = getTurretSafePose(rawBotPose);
                 botxvalue = currentBotPose.getX();
                 botyvalue = currentBotPose.getY();
                 botHeadingRad = currentBotPose.getHeading();
@@ -1522,7 +1577,8 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         if (!SHOT_TUNING_MODE && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
-            shootTargetY += BLUE_AIM_Y_OFFSET_IN;
+            shootTargetX -= BLUE_AIM_X_OFFSET_IN;
+            shootTargetY += RED_AIM_Y_OFFSET_IN;
         }
 
         // Vector from robot -> target
@@ -1969,8 +2025,11 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         // =============================================
         // DEBUG: Intake state flags for troubleshooting
         // =============================================
+
+
         telemetry.addData("INT_isIntaking", IntakeWithSensorsSubsystem.INSTANCE.isIntakingActive());
         telemetry.addData("INT_shooting", IntakeWithSensorsSubsystem.INSTANCE.isShooting());
+        telemetry.addData("theNoteRenyLeft", GlobalRobotData.endAutonTurretAngleDegrees);
         telemetry.addData("INT_singleBallFeedActive", IntakeWithSensorsSubsystem.INSTANCE.isSingleBallFeedActive());
         telemetry.addData("INT_multiSingleShotActive", IntakeWithSensorsSubsystem.INSTANCE.isMultiSingleShotActive());
         telemetry.addData("INT_shootSeqActive", IntakeWithSensorsSubsystem.INSTANCE.isShootSequenceActive());
@@ -2429,35 +2488,35 @@ public class Pickles2025Teleop extends NextFTCOpMode {
         }
 
         {
-            if (gamepad2.rightBumperWasPressed()) {
-                this.shoot = true;
-                // Starting a new spin-up cancels any previous dumbShoot timeout
-                dumbShootTimerActive = false;
-                dumbShootSettleActive = false;
-                // In shot-tuning mode skip the auto-RPM recompute so the operator's
-                // manual d-pad RPM value is preserved. testShooter also preserves
-                // whatever targetRPM was set manually. Normal mode re-pulls from
-                // the table at the current pose (shotSol was computed earlier
-                // this loop).
-                if (!SHOT_TUNING_MODE && !testShooter) {
-                    targetRPM = applySotmRpmCompensation(
-                            shotSol.rpm,
-                            sotmResult.radialVelocityInPerSec,
-                            rpmLimitEnabled
-                    );
-                    shooterFollowEnabled = true;
-                }
-                //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
-                telemetry.addData("Target Shooter Speed", targetRPM);
-                ShooterSubsystem.INSTANCE.spinUp(targetRPM);
-            } else if (gamepad2.leftBumperWasPressed()) {
-                ShooterSubsystem.INSTANCE.stop();
-                dumbShootTimerActive = false;
-                dumbShootSettleActive = false;
-                shooterFollowEnabled = false;
-                ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
-                //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
-            }
+//            if (gamepad2.rightBumperWasPressed()) {
+//                this.shoot = true;
+//                // Starting a new spin-up cancels any previous dumbShoot timeout
+//                dumbShootTimerActive = false;
+//                dumbShootSettleActive = false;
+//                // In shot-tuning mode skip the auto-RPM recompute so the operator's
+//                // manual d-pad RPM value is preserved. testShooter also preserves
+//                // whatever targetRPM was set manually. Normal mode re-pulls from
+//                // the table at the current pose (shotSol was computed earlier
+//                // this loop).
+//                if (!SHOT_TUNING_MODE && !testShooter) {
+//                    targetRPM = applySotmRpmCompensation(
+//                            shotSol.rpm,
+//                            sotmResult.radialVelocityInPerSec,
+//                            rpmLimitEnabled
+//                    );
+//                    shooterFollowEnabled = true;
+//                }
+//                //ShooterSubsystem.INSTANCE.increaseShooterRPMBy10();
+//                telemetry.addData("Target Shooter Speed", targetRPM);
+//                ShooterSubsystem.INSTANCE.spinUp(targetRPM);
+//            } else if (gamepad2.leftBumperWasPressed()) {
+//                ShooterSubsystem.INSTANCE.stop();
+//                dumbShootTimerActive = false;
+//                dumbShootSettleActive = false;
+//                shooterFollowEnabled = false;
+//                ShooterSubsystem.INSTANCE.resetHybridShotFeedBoostController();
+//                //ShooterSubsystem.INSTANCE.decreaseShooterRPMBy10();
+//            }
 
             if ((gamepad2.xWasPressed()) &&
                     shooterAtSpeed75 &&
@@ -3616,17 +3675,46 @@ public class Pickles2025Teleop extends NextFTCOpMode {
                     rpm *= 1.0 - ((1.0 - towardMult) * t);
                 } else {
                     // Driving meaningfully AWAY from goal: increase RPM, but not crazy.
-                    double awayMult = 2.0; // 1.5 was very aggressive
+                    double awayMult = 1.9; // 1.5 was very aggressive
                     rpm *= 1.0 + ((awayMult - 1.0) * t);
                 }
             }
         }
 
         if (SOTM_TOP_TRIANGLE_RPM_LIMIT_ENABLED && topTriangleLimitButtonHeld && !away) {
-            rpm = Math.min(rpm, 3400.0);
+            rpm = Math.min(rpm, SHOOTER_IDLE_RPM);
         }
 
         return Math.max(0.0, rpm);
+    }
+
+    private Pose getTurretSafePose(Pose rawPose) {
+        long nowMs = System.currentTimeMillis();
+
+        if (lastRawPoseForSlipCheck == null) {
+            lastRawPoseForSlipCheck = rawPose.copy();
+            lastTurretAimPose = rawPose.copy();
+            return rawPose;
+        }
+
+        double dx = rawPose.getX() - lastRawPoseForSlipCheck.getX();
+        double dy = rawPose.getY() - lastRawPoseForSlipCheck.getY();
+        double jump = Math.hypot(dx, dy);
+
+        boolean odometryJumped = jump > TURRET_ODOMETRY_SLIP_JUMP_IN;
+
+        if (odometryJumped) {
+            lastOdoSlipMs = nowMs;
+        }
+
+        lastRawPoseForSlipCheck = rawPose.copy();
+
+        if (nowMs - lastOdoSlipMs < TURRET_ODOMETRY_SLIP_HOLD_MS && lastTurretAimPose != null) {
+            return lastTurretAimPose;
+        }
+
+        lastTurretAimPose = rawPose.copy();
+        return rawPose;
     }
 }
 

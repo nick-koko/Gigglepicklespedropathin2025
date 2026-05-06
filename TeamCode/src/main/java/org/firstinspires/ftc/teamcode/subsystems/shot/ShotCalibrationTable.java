@@ -32,6 +32,7 @@ public final class ShotCalibrationTable {
     public static double CAL_IDW_POWER = 2.0;
     public static double CAL_EXACT_SNAP_IN = 0.5;
     public static double CAL_EXTRAPOLATED_WARN_IN = 24.0;
+    public double offset = 30;
 
     private static final ShotCalibrationTable DEFAULT = new ShotCalibrationTable(new ShotSample[]{
             //           idx zone   x      y      rpm     hood   aimX   aimY
@@ -49,20 +50,20 @@ public final class ShotCalibrationTable {
 //            new ShotSample(11, 72.0, 12.0, 4200.0, 0.525, 1.5, 129.0, "B", "B center hood-max"),
 //            new ShotSample(12, 90.0, 14.0, 4450.0, 0.525, -1.5, 134.0, "B", "B right hood-max"),
 
-            new ShotSample(0, 72.0, 72.0, 3300.0, 0.45, 1., 136.0, "A", "A apex"),
-            new ShotSample(1, 36.0, 108.0, 2650.0, 0.22, -0.5, 133.0, "A", "A mid-left"),
-            new ShotSample(2, 108.0, 108.0, 35000.0, 0.45, -1., 128.0, "A", "A mid-right hood-max"),
-            new ShotSample(3, 72.0, 108.0, 3150.0, 0.44, 0.5, 132.0, "A", "A mid-center"),
-            new ShotSample(4, 40.0, 134.0, 2550.0, 0.00, 0.0, 134.0, "A", "A upper-left edge"),
-            new ShotSample(5, 50.0, 87.0, 3100.0, 0.45, 1., 136.0, "A", "A left interior hood-max"),
-            new ShotSample(6, 72.0, 130.0, 3000.0, 0.44, 0.5, 132.0, "A", "A upper-center"),
-            new ShotSample(7, 86.0, 89.0, 3250.0, 0.45, -0.5, 129.0, "A", "A right interior hood-max"),
-            new ShotSample(8, 110.0, 130.0, 3675.0, 0.45, -0.5, 135.0, "A", "A upper-right hood-max"),
-            new ShotSample(9, 72.0, 24.0, 4080.0, 0.525, 1., 129.0, "B", "B apex hood-max"),
-            new ShotSample(10, 54.0, 10.0, 4080.0, 0.525, 1.5, 129.0, "B", "B left hood-max"),
-            new ShotSample(11, 72.0, 12.0, 4080.0, 0.525, 1., 129.0, "B", "B center hood-max"),
-            new ShotSample(12, 90.0, 14.0, 4330.0, 0.525, -1., 134.0, "B", "B right hood-max"),
-            new ShotSample(13, 92.19, 86.89, 4370.0, 0.525, -0.4, 129.4, "B", "B right hood-max"),
+            new ShotSample(0, 72.0, 72.0, 3300.0 - 30, 0.45, 0, 144.0, "A", "A apex"),
+            new ShotSample(1, 36.0, 108.0, 2650., 0.22, 0, 144.0, "A", "A mid-left"),
+            new ShotSample(2, 108.0, 108.0, 35000.0- 30, 0.45, 0, 144.0, "A", "A mid-right hood-max"),
+            new ShotSample(3, 72.0, 108.0, 3150.0- 30, 0.44, 0, 144.0, "A", "A mid-center"),
+            new ShotSample(4, 40.0, 134.0, 2550.0, 0.00, 0, 144.0, "A", "A upper-left edge"),
+            new ShotSample(5, 50.0, 87.0, 3100.0- 30, 0.45, 0, 144.0, "A", "A left interior hood-max"),
+            new ShotSample(6, 72.0, 130.0, 3000.0, 0.44, 0, 144.0, "A", "A upper-center"),
+            new ShotSample(7, 86.0, 89.0, 3250.0- 30, 0.45, -0, 144.0, "A", "A right interior hood-max"),
+            new ShotSample(8, 110.0, 130.0, 3675.0- 30, 0.45, 0, 144.0, "A", "A upper-right hood-max"),
+            new ShotSample(9, 72.0, 24.0, 4130.0, 0.525, 1., 129.0, "B", "B apex hood-max"),
+            new ShotSample(10, 54.0, 10.0, 4130.0, 0.525, 1.5, 129.0, "B", "B left hood-max"),
+            new ShotSample(11, 72.0, 12.0, 4130.0, 0.525, 1., 129.0, "B", "B center hood-max"),
+            new ShotSample(12, 90.0, 14.0, 4420.0, 0.525, -1., 134.0, "B", "B right hood-max"),
+            new ShotSample(13, 92.19, 86.89, 4420.0, 0.525, -0.4, 129.4, "B", "B right hood-max"),
 
 //            new ShotSample(0, 72.0, 72.0, 3300.0, 0.35, 1.,  136.0, "A", "A apex"),
 //            new ShotSample(1, 36.0, 108.0, 2650.0, 0.22, -0.5, 133.0, "A", "A mid-left"),

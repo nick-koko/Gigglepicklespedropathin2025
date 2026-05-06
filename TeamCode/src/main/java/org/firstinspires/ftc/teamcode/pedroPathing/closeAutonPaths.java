@@ -18,7 +18,6 @@ import java.io.File;
 import dev.nextftc.core.commands.Command;
 import dev.nextftc.core.commands.delays.Delay;
 import dev.nextftc.core.commands.groups.ParallelGroup;
-import dev.nextftc.core.commands.groups.ParallelRaceGroup;
 import dev.nextftc.core.commands.groups.SequentialGroup;
 import dev.nextftc.core.commands.utility.InstantCommand;
 import dev.nextftc.core.commands.utility.LambdaCommand;
@@ -184,6 +183,9 @@ public class closeAutonPaths extends NextFTCOpMode{
 
     public Pose startPose;
     public Pose scorePoseClose;
+    public Pose currentGoodPose = new Pose(0,0,0);
+
+    public double turretOffset = 0.0;
 
     public Pose pickup1Pose;
     public Pose pickup1CP1;
@@ -285,6 +287,13 @@ public class closeAutonPaths extends NextFTCOpMode{
         long loopTimeMs = (lastAutonLoopMs == 0L) ? 0L : (nowMs - lastAutonLoopMs);
         lastAutonLoopMs = nowMs;
 
+        Pose pose = PedroComponent.follower().getPose();
+        if ((pose.getX() == 0) && (pose.getY() == 0) && (pose.getHeading() == 0)) {
+        } else {
+            currentGoodPose = pose;
+        }
+        turretOffset = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
+
         if (!ENABLE_AUTON_LOGGING || autonLogger == null) {
             return;
         }
@@ -293,7 +302,6 @@ public class closeAutonPaths extends NextFTCOpMode{
         }
         lastAutonLogMs = nowMs;
 
-        Pose pose = PedroComponent.follower().getPose();
         autonLogger.addRow(
                 nowMs,
                 (autonLogStartMs == 0L) ? 0L : (nowMs - autonLogStartMs),

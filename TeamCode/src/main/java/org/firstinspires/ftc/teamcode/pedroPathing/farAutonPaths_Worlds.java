@@ -31,15 +31,14 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     public static double autonShooterRPM = 4100;
     public static double autonShooterHoodServoPos = 0.525;
     public static double pickupBrakingStrength = 1.0;
-	public static double pickupCornerBrakingStrength = 0.1;
+    public static double pickupCornerBrakingStrength = 0.1;
     public static boolean ENABLE_AUTON_LOGGING = true;
     public static long AUTON_LOG_PERIOD_MS = 25L;
     public static double AUTON_SHOOTER_AT_SPEED_TOLERANCE_RPM = 75.0;
     public static double redTargetPoseXOffset = -5.0;
     public static double redTargetPoseYOffset = 0.0;
     public static long AUTON_FAR_NO_BOOST_DUMBSHOOT_DELAY_MS = 100L;
-    public static double AUTON_FAR_NO_BOOST_SHOOT_DURATION_SEC = 0.2;
-    public long LIMELIGHT_MISSING_LED_STROBE_MS = 250L;
+    public static double AUTON_FAR_NO_BOOST_SHOOT_DURATION_SEC = 0.5;
 
     private CsvLogger autonLogger;
     private long autonLogStartMs = 0L;
@@ -80,11 +79,11 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose pickup3EndPoseBlue = new Pose(20, 35.5, Math.toRadians(180)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickup3CPPathBlue = new Pose(40, 45, Math.toRadians(180));
 
-    private final Pose pickupBZonePoseBlue = new Pose(29.5, 11, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
+    private final Pose pickupBZonePoseBlue = new Pose(29.5, 13, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickupBZoneCP1Blue = new Pose(53,16, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
     private final Pose pickupBZoneCP2Blue = new Pose( 46, 12, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark.
 
-    private final Pose pickupBZoneEndPoseBlue = new Pose(12, 10, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
+    private final Pose pickupBZoneEndPoseBlue = new Pose(15, 12, Math.toRadians(190)); // Highest (First Set) of Artifacts from the Spike Mark. //move +3 Y to the right
     private final Pose getPickupBZoneCPPathBlue = new Pose(44, 59, Math.toRadians(235));
 
     private final Pose pickupTZonePoseBlue = new Pose(9, 46, Math.toRadians(235)); // Highest (First Set) of Artifacts from the Spike Mark.
@@ -141,6 +140,8 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     private final Pose offLineCloseRed = offLineCloseBlue.mirror(144);
 
     public Pose currentGoodPose = new Pose(0,0,0);
+
+    public double turretOffset = 0.0;
 
     public Pose startPose;
     public Pose scorePoseClose;
@@ -238,6 +239,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
         } else {
             currentGoodPose = pose;
         }
+        turretOffset = TurretSubsystem.INSTANCE.getMeasuredAngleDegrees();
 
         if (!ENABLE_AUTON_LOGGING || autonLogger == null) {
             return;
@@ -291,248 +293,248 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
         );
     }
 
-        public void buildPaths() {
+    public void buildPaths() {
 
-            if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
-                startPose = startPoseBlue;
-                scorePoseClose = scorePoseCloseBlue;
-                targetPoseClose = targetPoseCloseBlue;
-                pickup1Pose = pickup1PoseBlue;
-                pickup1CP1 = pickup1CP1Blue;
-                pickup1CP2 = pickup1CP2Blue;
-                getPickup1CPPath = getPickup1CPPathBlue;
-                pickup1EndPose = pickup1EndPoseBlue;
-                pickup2Pose = pickup2PoseBlue;
-                pickup2CP1 = pickup2CP1Blue;
-                pickup2CP2 = pickup2CP2Blue;
-                pickup2EndPose = pickup2EndPoseBlue;
-                pickup2GateLeverEndPose = pickup2GateLeverEndPoseBlue;
-                pickup2GateLeverPushPose = pickup2GateLeverPushPoseBlue;
-                pickup2GateLeverPushHoldPose = pickup2GateLeverPushHoldPoseBlue;
-                pickup2GateLeverPushCP1 = pickup2GateLeverPushCP1Blue;
-                pickup2GateLeverPushCP2 = pickup2GateLeverPushCP2Blue;
-                getPickup2CPPath = getPickup2CPPathBlue;
-                pickup3Pose = pickup3PoseBlue;
-                pickup3CP1 = pickup3CP1Blue;
-                pickup3CP2 = pickup3CP2Blue;
-                pickup3EndPose = pickup3EndPoseBlue;
-                getPickup3CPPath = getPickup3CPPathBlue;
-                pickupBZonePose = pickupBZonePoseBlue;
-                pickupBZoneCP1 = pickupBZoneCP1Blue;
-                pickupBZoneCP2 = pickupBZoneCP2Blue;
-                pickupBZoneEndPose = pickupBZoneEndPoseBlue;
-                getPickupBZoneCPPath = getPickupBZoneCPPathBlue;
-                pickupTZonePose = pickupTZonePoseBlue;
-                pickupTZoneCP1 = pickupTZoneCP1Blue;
-                pickupTZoneCP2 = pickupTZoneCP2Blue;
-                pickupTZonePreEndPose = pickupTZonePreEndPoseBlue;
-                pickupTZoneEndPose = pickupTZoneEndPoseBlue;
-                getPickupTZoneCPPath = getPickupTZoneCPPathBlue;
-                offLineLever = offLineLeverBlue;
-                offLineClose = offLineCloseBlue;
-            } else {
-                startPose = startPoseRed;
-                scorePoseClose = scorePoseCloseRed;
-                targetPoseClose = withRedTargetPoseOffset(targetPoseCloseRed);
-                pickup1Pose = pickup1PoseRed;
-                pickup1CP1 = pickup1CP1Red;
-                pickup1CP2 = pickup1CP2Red;
-                pickup1EndPose = pickup1EndPoseRed;
-                getPickup1CPPath = getPickup1CPPathRed;
-                pickup2Pose = pickup2PoseRed;
-                pickup2CP1 = pickup2CP1Red;
-                pickup2CP2 = pickup2CP2Red;
-                pickup2EndPose = pickup2EndPoseRed;
-                pickup2GateLeverEndPose = pickup2GateLeverEndPoseRed;
-                pickup2GateLeverPushPose = pickup2GateLeverPushPoseRed;
-                pickup2GateLeverPushHoldPose = pickup2GateLeverPushHoldPoseRed;
-                pickup2GateLeverPushCP1 = pickup2GateLeverPushCP1Red;
-                pickup2GateLeverPushCP2 = pickup2GateLeverPushCP2Red;
-                getPickup2CPPath = getPickup2CPPathRed;
-                pickup3Pose = pickup3PoseRed;
-                pickup3CP1 = pickup3CP1Red;
-                pickup3CP2 = pickup3CP2Red;
-                pickup3EndPose = pickup3EndPoseRed;
-                getPickup3CPPath = getPickup3CPPathRed;
-                pickupBZonePose = pickupBZonePoseRed;
-                pickupBZoneCP1 = pickupBZoneCP1Red;
-                pickupBZoneCP2 = pickupBZoneCP2Red;
-                getPickupBZoneCPPath = getPickupBZoneCPPathRed;
-                pickupTZonePreEndPose = pickupTZonePreEndPoseRed;
-                pickupBZoneEndPose = pickupBZoneEndPoseRed;
-                pickupTZonePose = pickupTZonePoseRed;
-                pickupTZoneCP1 = pickupTZoneCP1Red;
-                pickupTZoneCP2 = pickupTZoneCP2Red;
-                pickupTZoneEndPose = pickupTZoneEndPoseRed;
-                getPickupTZoneCPPath = getPickupTZoneCPPathRed;
-                offLineLever = offLineLeverRed;
-                offLineClose = offLineCloseRed;
-
-            }
-
-            // if we want to change braking for a pathchain, then use .setNoDeceleration() or .setBrakingStrength(double set) after a path is added
-            firstshootpath=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(startPose,scorePoseClose)
-
-                    )
-                    .setLinearHeadingInterpolation(startPose.getHeading(), scorePoseClose.getHeading())
-                    .build();
-
-            firstPickup= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseClose,
-                                    pickup1CP1,
-                                    pickup1CP2,
-                                    pickup1Pose
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup1Pose.getHeading(),.25)
-                    .setNoDeceleration()
-                    .build();
-
-            firstPickupEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup1Pose, pickup1EndPose))
-                    .setLinearHeadingInterpolation(pickup1Pose.getHeading(), pickup1EndPose.getHeading())
-
-                    .addPath(new BezierLine(pickup1EndPose, scorePoseClose))
-                    .setLinearHeadingInterpolation(pickup1EndPose.getHeading(), scorePoseClose.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
-
-            secondPickup= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseClose,
-                                    pickup2CP1,
-                                    pickup2CP2,
-                                    pickup2Pose
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup2Pose.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
-
-            secondPickupEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2Pose, pickup2EndPose))
-                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2EndPose.getHeading())
-
-                    .addPath(new BezierLine(pickup2EndPose, scorePoseClose))
-                    .setLinearHeadingInterpolation(pickup2EndPose.getHeading(), scorePoseClose.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
-
-            secondPickupGateLeverEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2Pose, pickup2GateLeverEndPose))
-                    .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2GateLeverEndPose.getHeading())
-
-                    .addPath(new BezierCurve(
-                            pickup2GateLeverEndPose,
-                            pickup2GateLeverPushCP1,
-                            pickup2GateLeverPushCP2,
-                            pickup2GateLeverPushPose))
-                    .setLinearHeadingInterpolation(pickup2GateLeverEndPose.getHeading(), pickup2GateLeverPushPose.getHeading())
-
-                    .addPath(new BezierLine(pickup2GateLeverPushPose, pickup2GateLeverPushHoldPose))
-                    .setLinearHeadingInterpolation(pickup2GateLeverPushPose.getHeading(), pickup2GateLeverPushHoldPose.getHeading())
-
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
-
-            secondPickupGateLeverShootEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup2GateLeverPushPose, scorePoseClose))
-                    .setLinearHeadingInterpolation(pickup2GateLeverPushPose.getHeading(), scorePoseClose.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
-
-            thirdPickup= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseClose,
-                                    pickup3CP1,
-                                    pickup3CP2,
-                                    pickup3Pose
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup3Pose.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
-
-            thirdPickupEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickup3Pose, pickup3EndPose))
-                    .setLinearHeadingInterpolation(pickup3Pose.getHeading(), pickup3EndPose.getHeading())
-
-                    .addPath(new BezierLine(pickup3EndPose, scorePoseClose))
-                    .setLinearHeadingInterpolation(pickup3EndPose.getHeading(), scorePoseClose.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
-
-            BZonePickup= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseClose,
-                                    pickupBZoneCP1,
-                                    pickupBZoneCP2,
-                                    pickupBZonePose
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickupBZonePose.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
-
-            BZonePickupEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickupBZonePose, pickupBZoneEndPose))
-                    .setLinearHeadingInterpolation(pickupBZonePose.getHeading(), pickupBZoneEndPose.getHeading())
-
-                    .addPath(new BezierLine(pickupBZoneEndPose, scorePoseClose))
-                    .setLinearHeadingInterpolation(pickupBZoneEndPose.getHeading(), scorePoseClose.getHeading())
-                    .setBrakingStrength(pickupCornerBrakingStrength)
-                    .build();
-
-            TZonePickup= PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierCurve(
-                                    scorePoseClose,
-                                    pickupTZoneCP1,
-                                    pickupTZoneCP2,
-                                    pickupTZonePose
-                            )
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickupBZonePose.getHeading(),.75)
-                    .setNoDeceleration()
-                    .build();
-
-            TZonePickupEnd = PedroComponent.follower().pathBuilder()
-                    .addPath(new BezierLine(pickupTZonePose, pickupTZonePreEndPose))
-                    .setLinearHeadingInterpolation(pickupTZonePose.getHeading(), pickupTZonePreEndPose.getHeading())
-
-                    .addPath(new BezierLine(pickupTZonePreEndPose, pickupTZoneEndPose))
-                    .setLinearHeadingInterpolation(pickupTZonePreEndPose.getHeading(), pickupTZoneEndPose.getHeading())
-
-                    .addPath(new BezierLine(pickupTZoneEndPose, scorePoseClose))
-                    .setLinearHeadingInterpolation(pickupTZoneEndPose.getHeading(), scorePoseClose.getHeading())
-                    .setBrakingStrength(pickupBrakingStrength)
-                    .build();
-
-            moveOffLineLever=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(scorePoseClose,offLineLever)
-
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), offLineLever.getHeading())
-                    .build();
-
-            moveOffLineClose=PedroComponent.follower().pathBuilder()
-                    .addPath(
-                            new BezierLine(scorePoseClose,offLineClose)
-
-                    )
-                    .setLinearHeadingInterpolation(scorePoseClose.getHeading(), offLineClose.getHeading())
-                    .build();
-
+        if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+            startPose = startPoseBlue;
+            scorePoseClose = scorePoseCloseBlue;
+            targetPoseClose = targetPoseCloseBlue;
+            pickup1Pose = pickup1PoseBlue;
+            pickup1CP1 = pickup1CP1Blue;
+            pickup1CP2 = pickup1CP2Blue;
+            getPickup1CPPath = getPickup1CPPathBlue;
+            pickup1EndPose = pickup1EndPoseBlue;
+            pickup2Pose = pickup2PoseBlue;
+            pickup2CP1 = pickup2CP1Blue;
+            pickup2CP2 = pickup2CP2Blue;
+            pickup2EndPose = pickup2EndPoseBlue;
+            pickup2GateLeverEndPose = pickup2GateLeverEndPoseBlue;
+            pickup2GateLeverPushPose = pickup2GateLeverPushPoseBlue;
+            pickup2GateLeverPushHoldPose = pickup2GateLeverPushHoldPoseBlue;
+            pickup2GateLeverPushCP1 = pickup2GateLeverPushCP1Blue;
+            pickup2GateLeverPushCP2 = pickup2GateLeverPushCP2Blue;
+            getPickup2CPPath = getPickup2CPPathBlue;
+            pickup3Pose = pickup3PoseBlue;
+            pickup3CP1 = pickup3CP1Blue;
+            pickup3CP2 = pickup3CP2Blue;
+            pickup3EndPose = pickup3EndPoseBlue;
+            getPickup3CPPath = getPickup3CPPathBlue;
+            pickupBZonePose = pickupBZonePoseBlue;
+            pickupBZoneCP1 = pickupBZoneCP1Blue;
+            pickupBZoneCP2 = pickupBZoneCP2Blue;
+            pickupBZoneEndPose = pickupBZoneEndPoseBlue;
+            getPickupBZoneCPPath = getPickupBZoneCPPathBlue;
+            pickupTZonePose = pickupTZonePoseBlue;
+            pickupTZoneCP1 = pickupTZoneCP1Blue;
+            pickupTZoneCP2 = pickupTZoneCP2Blue;
+            pickupTZonePreEndPose = pickupTZonePreEndPoseBlue;
+            pickupTZoneEndPose = pickupTZoneEndPoseBlue;
+            getPickupTZoneCPPath = getPickupTZoneCPPathBlue;
+            offLineLever = offLineLeverBlue;
+            offLineClose = offLineCloseBlue;
+        } else {
+            startPose = startPoseRed;
+            scorePoseClose = scorePoseCloseRed;
+            targetPoseClose = withRedTargetPoseOffset(targetPoseCloseRed);
+            pickup1Pose = pickup1PoseRed;
+            pickup1CP1 = pickup1CP1Red;
+            pickup1CP2 = pickup1CP2Red;
+            pickup1EndPose = pickup1EndPoseRed;
+            getPickup1CPPath = getPickup1CPPathRed;
+            pickup2Pose = pickup2PoseRed;
+            pickup2CP1 = pickup2CP1Red;
+            pickup2CP2 = pickup2CP2Red;
+            pickup2EndPose = pickup2EndPoseRed;
+            pickup2GateLeverEndPose = pickup2GateLeverEndPoseRed;
+            pickup2GateLeverPushPose = pickup2GateLeverPushPoseRed;
+            pickup2GateLeverPushHoldPose = pickup2GateLeverPushHoldPoseRed;
+            pickup2GateLeverPushCP1 = pickup2GateLeverPushCP1Red;
+            pickup2GateLeverPushCP2 = pickup2GateLeverPushCP2Red;
+            getPickup2CPPath = getPickup2CPPathRed;
+            pickup3Pose = pickup3PoseRed;
+            pickup3CP1 = pickup3CP1Red;
+            pickup3CP2 = pickup3CP2Red;
+            pickup3EndPose = pickup3EndPoseRed;
+            getPickup3CPPath = getPickup3CPPathRed;
+            pickupBZonePose = pickupBZonePoseRed;
+            pickupBZoneCP1 = pickupBZoneCP1Red;
+            pickupBZoneCP2 = pickupBZoneCP2Red;
+            getPickupBZoneCPPath = getPickupBZoneCPPathRed;
+            pickupTZonePreEndPose = pickupTZonePreEndPoseRed;
+            pickupBZoneEndPose = pickupBZoneEndPoseRed;
+            pickupTZonePose = pickupTZonePoseRed;
+            pickupTZoneCP1 = pickupTZoneCP1Red;
+            pickupTZoneCP2 = pickupTZoneCP2Red;
+            pickupTZoneEndPose = pickupTZoneEndPoseRed;
+            getPickupTZoneCPPath = getPickupTZoneCPPathRed;
+            offLineLever = offLineLeverRed;
+            offLineClose = offLineCloseRed;
 
         }
+
+        // if we want to change braking for a pathchain, then use .setNoDeceleration() or .setBrakingStrength(double set) after a path is added
+        firstshootpath=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(startPose,scorePoseClose)
+
+                )
+                .setLinearHeadingInterpolation(startPose.getHeading(), scorePoseClose.getHeading())
+                .build();
+
+        firstPickup= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseClose,
+                                pickup1CP1,
+                                pickup1CP2,
+                                pickup1Pose
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup1Pose.getHeading(),.25)
+                .setNoDeceleration()
+                .build();
+
+        firstPickupEnd = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup1Pose, pickup1EndPose))
+                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), pickup1EndPose.getHeading())
+
+                .addPath(new BezierLine(pickup1EndPose, scorePoseClose))
+                .setLinearHeadingInterpolation(pickup1EndPose.getHeading(), scorePoseClose.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
+
+        secondPickup= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseClose,
+                                pickup2CP1,
+                                pickup2CP2,
+                                pickup2Pose
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup2Pose.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
+
+        secondPickupEnd = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup2Pose, pickup2EndPose))
+                .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2EndPose.getHeading())
+
+                .addPath(new BezierLine(pickup2EndPose, scorePoseClose))
+                .setLinearHeadingInterpolation(pickup2EndPose.getHeading(), scorePoseClose.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
+
+        secondPickupGateLeverEnd = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup2Pose, pickup2GateLeverEndPose))
+                .setLinearHeadingInterpolation(pickup2Pose.getHeading(), pickup2GateLeverEndPose.getHeading())
+
+                .addPath(new BezierCurve(
+                        pickup2GateLeverEndPose,
+                        pickup2GateLeverPushCP1,
+                        pickup2GateLeverPushCP2,
+                        pickup2GateLeverPushPose))
+                .setLinearHeadingInterpolation(pickup2GateLeverEndPose.getHeading(), pickup2GateLeverPushPose.getHeading())
+
+                .addPath(new BezierLine(pickup2GateLeverPushPose, pickup2GateLeverPushHoldPose))
+                .setLinearHeadingInterpolation(pickup2GateLeverPushPose.getHeading(), pickup2GateLeverPushHoldPose.getHeading())
+
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
+
+        secondPickupGateLeverShootEnd = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup2GateLeverPushPose, scorePoseClose))
+                .setLinearHeadingInterpolation(pickup2GateLeverPushPose.getHeading(), scorePoseClose.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
+
+        thirdPickup= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseClose,
+                                pickup3CP1,
+                                pickup3CP2,
+                                pickup3Pose
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickup3Pose.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
+
+        thirdPickupEnd = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickup3Pose, pickup3EndPose))
+                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), pickup3EndPose.getHeading())
+
+                .addPath(new BezierLine(pickup3EndPose, scorePoseClose))
+                .setLinearHeadingInterpolation(pickup3EndPose.getHeading(), scorePoseClose.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
+
+        BZonePickup= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseClose,
+                                pickupBZoneCP1,
+                                pickupBZoneCP2,
+                                pickupBZonePose
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickupBZonePose.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
+
+        BZonePickupEnd = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickupBZonePose, pickupBZoneEndPose))
+                .setLinearHeadingInterpolation(pickupBZonePose.getHeading(), pickupBZoneEndPose.getHeading())
+
+                .addPath(new BezierLine(pickupBZoneEndPose, scorePoseClose))
+                .setLinearHeadingInterpolation(pickupBZoneEndPose.getHeading(), scorePoseClose.getHeading())
+                .setBrakingStrength(pickupCornerBrakingStrength)
+                .build();
+
+        TZonePickup= PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                scorePoseClose,
+                                pickupTZoneCP1,
+                                pickupTZoneCP2,
+                                pickupTZonePose
+                        )
+                )
+                .setLinearHeadingInterpolation(scorePoseClose.getHeading(), pickupBZonePose.getHeading(),.75)
+                .setNoDeceleration()
+                .build();
+
+        TZonePickupEnd = PedroComponent.follower().pathBuilder()
+                .addPath(new BezierLine(pickupTZonePose, pickupTZonePreEndPose))
+                .setLinearHeadingInterpolation(pickupTZonePose.getHeading(), pickupTZonePreEndPose.getHeading())
+
+                .addPath(new BezierLine(pickupTZonePreEndPose, pickupTZoneEndPose))
+                .setLinearHeadingInterpolation(pickupTZonePreEndPose.getHeading(), pickupTZoneEndPose.getHeading())
+
+                .addPath(new BezierLine(pickupTZoneEndPose, scorePoseClose))
+                .setLinearHeadingInterpolation(pickupTZoneEndPose.getHeading(), scorePoseClose.getHeading())
+                .setBrakingStrength(pickupBrakingStrength)
+                .build();
+
+        moveOffLineLever=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(scorePoseClose,offLineLever)
+
+                )
+                .setLinearHeadingInterpolation(scorePoseClose.getHeading(), offLineLever.getHeading())
+                .build();
+
+        moveOffLineClose=PedroComponent.follower().pathBuilder()
+                .addPath(
+                        new BezierLine(scorePoseClose,offLineClose)
+
+                )
+                .setLinearHeadingInterpolation(scorePoseClose.getHeading(), offLineClose.getHeading())
+                .build();
+
+
+    }
     // if you want to reduce power for a path, use FollowPath(pathchain, holdend, maxpower)
 
     /**
@@ -580,7 +582,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                 new Delay(1.20),  //Could replace this with shooting a ball
                 //new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
                 ShootAllBalls(),
-                //new Delay(0.50),
+                //new Delay(0.20),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
         );
@@ -614,7 +616,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                 new Delay(0.0),
                 ShootAllBalls(),
                 //new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.dumbShoot()),
-                //new Delay(0.50),
+                //new Delay(0.20),
                 new InstantCommand(() -> ShooterSubsystem.INSTANCE.stop()),
                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.stop())
         );
@@ -630,7 +632,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
                                 new InstantCommand(() -> IntakeWithSensorsSubsystem.INSTANCE.intakeForward())
                         )
                 )
-            );
+        );
     }
 
     public Command ClosePickupAndGateLever2ndRow() {
@@ -663,7 +665,7 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
 
     public Command ClosePickupGateLeverShoot2ndRow() {
         return new SequentialGroup(
-                    new ParallelGroup(
+                new ParallelGroup(
                         new FollowPath(secondPickupEnd),
                         new SequentialGroup(
                                 new Delay(0.5),
@@ -792,7 +794,10 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
 
     public Command CloseMoveOffLine() {
         return new SequentialGroup(
-                new FollowPath(moveOffLineClose)
+                new ParallelGroup(
+                    new FollowPath(moveOffLineClose)
+                    //new InstantCommand(() -> TurretSubsystem.INSTANCE.setTargetAngleFromRobotFrontRelativeDegrees(180))
+                )
         );
     }
 
@@ -803,4 +808,3 @@ public class farAutonPaths_Worlds extends NextFTCOpMode{
     }
 
 }
-
