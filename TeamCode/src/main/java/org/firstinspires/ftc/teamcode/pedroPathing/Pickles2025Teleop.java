@@ -62,8 +62,15 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
         );
     }
 
-    public static Pose startingPoseBlue = new Pose(31.5, 134.0, Math.toRadians(270)); //See ExampleAuto to understand how to use this
-    public static Pose startingPoseRed = startingPoseBlue.mirror(144);
+    // =========================
+    // TeleOp starting pose
+    // =========================
+    // CHANGE THIS FOR YOUR OFFSEASON EVENT IF YOU START TELEOP WITHOUT RUNNING AUTON.
+    // Units are inches. Heading is radians.
+    //
+    // If auton ran, TeleOp ignores these and uses GlobalRobotData.endAutonPose instead.
+    public static Pose startingPoseBlue = new Pose(0, 0, Math.toRadians(0));
+    public static Pose startingPoseRed = new Pose(0, 0, Math.toRadians(0));
     public static Pose startingPose = startingPoseBlue;
 
     // logging variables
@@ -271,15 +278,37 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
     private long prevTurretLogMs = 0L;
     private long turretStictionCandidateStartMs = 0L;
 
-    //public static Pose redShootingTarget = new Pose(127.63, 130.35, Math.toRadians(36));
-    public static Pose redShootingTarget = new Pose(144, 136, Math.toRadians(36));
-    public static Pose blueShootingTarget = redShootingTarget.mirror();
-    // Field width fed to Pose.mirror(width) when flipping blue-authored
-    // calibration lookups onto the red side. Matches the mirror width used
-    // everywhere else in the project (startingPoseRed, autopath mirroring,
-    // etc.); exposed as public static so it can be adjusted per-event if a
-    // field is built slightly over- or under-sized.
+    // =========================
+    // Offseason field / goal targeting
+    // =========================
+    // Offseason field is 10 squares long x 6 squares wide.
+    // Each square is 24 inches, so the field is 240 in long x 144 in wide.
+    public static boolean USE_OFFSEASON_DYNAMIC_GOALS = true;
     public static double FIELD_WIDTH_IN = 144.0;
+    public static double FIELD_LENGTH_IN = 240.0;
+    public static double FIELD_MIDDLE_Y_IN = FIELD_LENGTH_IN / 2.0;
+
+    // Pedro heading 0 on this offseason setup means the ROBOT FRONT points down-field (+Y).
+    // Normal atan2 field angles use 0 deg as +X, so subtracting raw botHeadingRad is off by 90 deg.
+    // We add this offset before computing robot-front-relative turret angles.
+    public static double ROBOT_FORWARD_FIELD_HEADING_OFFSET_DEG = 90.0;
+
+    // Local offseason coordinates when the robot always starts at (0, 0, 0) facing +Y/down-field.
+    // Before crossing the middle line (y < 120):
+    //   red goal  = left  = (0, 0)
+    //   blue goal = right = (144, 0)
+    // After crossing the middle line (y >= 120), the same-color goals are diagonal on the far end:
+    //   red goal  = (144, 240)
+    //   blue goal = (0, 240)
+    public static Pose RED_START_RED_GOAL = new Pose(0.0, 0.0, 0.0);
+    public static Pose RED_START_BLUE_GOAL = new Pose(0.0, 144.0, 0.0);
+    public static Pose BLUE_START_BLUE_GOAL = new Pose(240.0, 0.0, 0.0);
+    public static Pose BLUE_START_RED_GOAL = new Pose(240.0, 144.0, 0.0);
+
+    // Legacy names kept so older telemetry / tuning code still compiles.
+    // The actual active target is selected every loop by getDynamicShootingTarget(...).
+    public static Pose redShootingTarget = RED_START_RED_GOAL;
+    public static Pose blueShootingTarget = BLUE_START_BLUE_GOAL;
     // Per-zone global trim on top of the calibration table. This lets the team
     // nudge all A-zone ("far") or B-zone ("near") shots together at an event
     // without editing every row in ShotCalibrationTable. RPM is additive and
@@ -554,60 +583,55 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
 
         TurretSubsystem.INSTANCE.inTeleop = true;
         TurretSubsystem.INSTANCE.turretCenterDelayComplete = false;
-//        TurretSubsystem.INSTANCE.resetEncoderCounts();
-//
-//        turretStartupFromAuton = (GlobalRobotData.endAutonPose != null) && (GlobalRobotData.hasAutonRun);
-//        if (turretStartupFromAuton) {
-//            startingPose = GlobalRobotData.endAutonPose;
-//            GlobalRobotData.hasAutonRun = false;
-//            TurretSubsystem.INSTANCE.publicTurretEncoderOffset(GlobalRobotData.endAutonTurretAngleDegrees);
-//        } else {
-//            TurretSubsystem.INSTANCE.resetEncoderCounts();
-//            selectAllianceSide = true;
-//        }
-//
-//        turretStartupExpectedAngleDeg =
-//                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees))
-//                        ? GlobalRobotData.endAutonTurretAngleDegrees
-//                        : TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
-//
-//        turretStartupServoCommandAngleDeg =
-//                (turretStartupFromAuton && Double.isFinite(GlobalRobotData.endAutonTurretServoCommandAngleDegrees))
-//                    ? GlobalRobotData.endAutonTurretServoCommandAngleDegrees : turretStartupExpectedAngleDeg;
-//        if (turretStartupFromAuton) {
-//            TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
-//        } else {
-//            TurretSubsystem.INSTANCE.beginStartupCentering();
-//        }
-        turretStartupFromAuton = (GlobalRobotData.endAutonPose != null) && GlobalRobotData.hasAutonRun;
+
+        turretStartupFromAuton =
+                (GlobalRobotData.endAutonPose != null)
+                        && GlobalRobotData.hasAutonRun;
 
         if (turretStartupFromAuton) {
+            // Auton ran, so use the final auton pose.
+            // Do NOT reset Pinpoint/Pedro here. We only seed the follower pose from the
+            // handoff value that auton stored.
             startingPose = GlobalRobotData.endAutonPose.copy();
 
-            // Consume auton handoff so it cannot be reused by accident later.
+            // Use the turret angle auton ended with as the expected absolute-encoder angle.
+            // TurretSubsystem will read the analog encoder and compute the quadrature offset
+            // from the current quadrature encoder position.
+            if (Double.isFinite(GlobalRobotData.endAutonTurretAngleDegrees)) {
+                turretStartupExpectedAngleDeg = GlobalRobotData.endAutonTurretAngleDegrees;
+            } else {
+                turretStartupExpectedAngleDeg = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+            }
+
+            if (Double.isFinite(GlobalRobotData.endAutonTurretServoCommandAngleDegrees)) {
+                turretStartupServoCommandAngleDeg = GlobalRobotData.endAutonTurretServoCommandAngleDegrees;
+            } else {
+                turretStartupServoCommandAngleDeg = turretStartupExpectedAngleDeg;
+            }
+
+            // IMPORTANT: Do NOT reset the turret quadrature encoder and do NOT center the turret.
+            // Just calibrate the absolute/analog encoder against the expected auton angle.
+            TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
+
+            // Consume auton handoff AFTER copying every value we need.
             GlobalRobotData.hasAutonRun = false;
             GlobalRobotData.endAutonPose = null;
             GlobalRobotData.endAutonTurretAngleDegrees = Double.NaN;
             GlobalRobotData.endAutonTurretServoCommandAngleDegrees = Double.NaN;
         } else {
-            TurretSubsystem.INSTANCE.resetEncoderCounts();
+            // No auton handoff. This offseason field uses LOCAL coordinates: every manual TeleOp
+            // start is (0, 0, 0), with the robot front facing down-field (+Y).
+            // X/B in init selects which color/side we are using, not a mirrored pose.
+            startingPose = new Pose(0, 0, Math.toRadians(0));
+
             selectAllianceSide = true;
-        }
 
-// TeleOp should NOT use the auton measured turret angle as an encoder offset.
-// Always let the turret absolute encoder/startup calibration define turret zero.
-        turretStartupExpectedAngleDeg = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
-        turretStartupServoCommandAngleDeg = turretStartupExpectedAngleDeg;
-
-        //TurretSubsystem.INSTANCE.beginStartupCentering();
-        if (turretStartupFromAuton) {
+            // IMPORTANT: Do NOT reset the turret quadrature encoder here either.
+            // Let the analog absolute encoder establish the offset.
+            turretStartupExpectedAngleDeg = TurretSubsystem.STARTUP_EXPECTED_TURRET_ANGLE_DEGREES;
+            turretStartupServoCommandAngleDeg = turretStartupExpectedAngleDeg;
             TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
-        } else {
-            TurretSubsystem.INSTANCE.beginStartupCentering();
         }
-        TurretSubsystem.INSTANCE.beginStartupCentering();
-
-        //PedroComponent.follower().setStartingPose(startingPose);
 
         telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
         windowShooter1 = new double[Math.max(1, SMOOTH_WINDOW)];
@@ -1015,25 +1039,43 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
         telemetry.addData("Shot Strategy", farModeEnabled ? "FAR / 3800 idle" : "CLOSE / 3200 idle");
 
         if (selectAllianceSide) {
+            // Alliance color:
+            //   X = BLUE alliance
+            //   B = RED alliance
             if (gamepad1.xWasPressed()) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.BLUE;
-                startingPose = startingPoseBlue;
+                GlobalRobotData.startingSide = GlobalRobotData.COLOR.BLUE;
+                startingPose = new Pose(0, 0, Math.toRadians(0));
                 leverAngleDeg = BLUE_LEVER_ANGLE_DEG;
             } else if (gamepad1.bWasPressed()) {
                 GlobalRobotData.allianceSide = GlobalRobotData.COLOR.RED;
-                startingPose = startingPoseRed;
+                GlobalRobotData.startingSide = GlobalRobotData.COLOR.RED;
+                startingPose = new Pose(0, 0, Math.toRadians(0));
                 leverAngleDeg = RED_LEVER_ANGLE_DEG;
-
             }
+
+            // Offseason starting side:
+            //   D-pad up   = starting on BLUE side / y = 240 end
+            //   D-pad down = starting on RED side / y = 0 end
+//            if (gamepad1.dpad_up) {
+//                GlobalRobotData.startingSide = GlobalRobotData.COLOR.BLUE;
+//            } else if (gamepad1.dpad_down) {
+//                GlobalRobotData.startingSide = GlobalRobotData.COLOR.RED;
+//            }
+
+            // Always use local origin for this offseason field. Do not mirror red/blue starts.
+            startingPose = new Pose(0, 0, Math.toRadians(0));
 
             telemetry.addLine("Hello Pickle of the robot");
             telemetry.addLine("This is an Mr. Todone Speaking,");
             telemetry.addLine("----------------------------------------------");
             if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
-                telemetry.addLine("Favorite fruit: Blueberries!!! (Blue)");
+                telemetry.addLine("Favorite fruit: Blueberries!!! (Blue alliance)");
             } else {
-                telemetry.addLine("Favorite fruit: Raspberries!!! (Red)");
+                telemetry.addLine("Favorite fruit: Raspberries!!! (Red alliance)");
             }
+            telemetry.addData("Offseason start side", GlobalRobotData.startingSide);
+            telemetry.addLine("X/B = alliance, D-pad up/down = blue/red starting side");
             //telemetry.addData("turretStartupCal", turretStartupCalibrated);
             telemetry.addData("turretStartupState", TurretSubsystem.INSTANCE.getStartupCalibrationStateName());
 
@@ -1045,19 +1087,19 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
     @Override
     public void onStartButtonPressed() {
         matchHasStarted = true;
-        //TurretSubsystem.INSTANCE.beginStartupCentering();
-        TurretSubsystem.INSTANCE.beginStartupCalibrationWithoutCentering();
         TurretSubsystem.INSTANCE.turretResetDelayTotalTime = 0.0;
 
-        if (TurretSubsystem.INSTANCE.turretCenterDelayComplete) {
-            if (!TurretSubsystem.INSTANCE.isStartupCalibrationComplete()) {
-                TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpectedSampled(
-                        turretStartupExpectedAngleDeg,
-                        TELEOP_TURRET_START_SAMPLE_COUNT,
-                        TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
-                );
-            }
+        // Finalize turret startup once when Play is pressed.
+        // Do NOT center here and do NOT reset the quadrature encoder.
+        if (!TurretSubsystem.INSTANCE.isStartupCalibrationComplete()) {
+            TurretSubsystem.INSTANCE.forceStartupCalibrationFromExpectedSampled(
+                    turretStartupExpectedAngleDeg,
+                    TELEOP_TURRET_START_SAMPLE_COUNT,
+                    TELEOP_TURRET_START_SAMPLE_INTERVAL_MS
+            );
         }
+
+        TurretSubsystem.INSTANCE.setTargetAngleDegrees(turretStartupServoCommandAngleDeg);
 //        if (!turretStartupFromAuton) {
 //            TurretSubsystem.INSTANCE.publicTurretEncoderOffset(GlobalRobotData.endAutonTurretAngleDegrees);
 //        }
@@ -1086,11 +1128,10 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
 
         PedroComponent.follower().startTeleopDrive();
 
-        if (GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
-            shootingTargetLocation = redShootingTarget;
-        } else {
-            shootingTargetLocation = blueShootingTarget;
-        }
+        // Pick the correct offseason goal from alliance + starting side + current half.
+        // This is refreshed every loop too, but setting it here gives shot tuning a sane default.
+        shootingTargetLocation = getDynamicShootingTarget(PedroComponent.follower().getPose());
+        telemetry.addData("Shooting Location", shootingTargetLocation);
         SHOT_TUNING_TARGET_X_IN = shootingTargetLocation.getX();
         SHOT_TUNING_TARGET_Y_IN = shootingTargetLocation.getY();
         sotmOmegaFilterInitialized = false;
@@ -1505,7 +1546,13 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
             limelightVisionBiasYIn = pt.getYOffset();
             limelightVisionBiasHeadingDeg = Math.toDegrees(pt.getHeadingOffset());
         }
-        ODODistance = PedroComponent.follower().getPose().distanceFrom(shootingTargetLocation);
+        // Dynamic goal is selected from:
+        //   - alliance color (red shoots red goal, blue shoots blue goal)
+        //   - starting side (RED end or BLUE end)
+        //   - whether the robot has crossed the 120 inch middle line
+        shootingTargetLocation = getDynamicShootingTarget(currentBotPose);
+        telemetry.addData("Shooting Location", shootingTargetLocation);
+        ODODistance = currentBotPose.distanceFrom(shootingTargetLocation);
 
         double driving = (-gamepad1.left_stick_y) * drivePower;
         double strafe = (-gamepad1.left_stick_x) * drivePower;
@@ -1566,32 +1613,66 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
         if (SHOT_TUNING_MODE) {
             shootTargetX = SHOT_TUNING_TARGET_X_IN;
             shootTargetY = SHOT_TUNING_TARGET_Y_IN;
+        } else if (USE_OFFSEASON_DYNAMIC_GOALS) {
+            // Offseason event: ignore the table's fixed aim point and aim at the correct
+            // live goal for this alliance/starting-side/current-half combination.
+            shootTargetX = shootingTargetLocation.getX();
+            shootTargetY = shootingTargetLocation.getY();
         } else {
             shootTargetX = shotSol.aimX;
             shootTargetY = shotSol.aimY;
         }
 
-        if (!SHOT_TUNING_MODE && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
+        if (!SHOT_TUNING_MODE && !USE_OFFSEASON_DYNAMIC_GOALS
+                && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED) {
             shootTargetX += RED_AIM_X_OFFSET_IN;
             shootTargetY += RED_AIM_Y_OFFSET_IN;
         }
 
-        if (!SHOT_TUNING_MODE && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
+        if (!SHOT_TUNING_MODE && !USE_OFFSEASON_DYNAMIC_GOALS
+                && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.BLUE) {
             shootTargetX -= BLUE_AIM_X_OFFSET_IN;
             shootTargetY += RED_AIM_Y_OFFSET_IN;
         }
+
+        // Keep distance-based shooter/intake timing matched to the exact point the turret is using.
+        shootingTargetLocation = new Pose(shootTargetX, shootTargetY, 0.0);
+        ODODistance = currentBotPose.distanceFrom(shootingTargetLocation);
 
         // Vector from robot -> target
         double dx = shootTargetX - botxvalue;
         double dy = shootTargetY - botyvalue;
 
-        // 1) Field-relative angle to the target (0 rad along +X, CCW positive)
-        double fieldAngleRad = Math.atan2(dy, dx);
+        // 1) Field-relative angle to the target (0 rad along +X, CCW positive).
+        //
+        // IMPORTANT RED-START EDGE CASE:
+        // On this offseason field, red starts at (0, 0) and the near red goal is also
+        // (0, 0). Math.atan2(0, 0) returns 0 degrees, but that is NOT a real direction.
+        // It makes the turret aim sideways until the robot moves far enough away from
+        // the origin. If we are sitting on top of the near red target before crossing
+        // the middle line, force the field angle toward the near wall/backward (-Y).
+        double targetDistanceForAngle = Math.hypot(dx, dy);
+        double fieldAngleRad;
+        if (targetDistanceForAngle < 1.0
+                && USE_OFFSEASON_DYNAMIC_GOALS
+                && GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED
+                && botyvalue < FIELD_MIDDLE_Y_IN) {
+            fieldAngleRad = Math.toRadians(-90.0);
+        } else {
+            fieldAngleRad = Math.atan2(dy, dx);
+        }
+
         // - fieldAngleDeg  -> "absolute field heading I want the robot to face"
         double fieldAngleDeg = Math.toDegrees(fieldAngleRad);
 
-        // 2) Robot-relative angle error (how much you need to turn or point the turret)
-        double angleErrorRad = normalizeRadians(fieldAngleRad - botHeadingRad);
+        // 2) Robot-relative angle error (how much you need to turn or point the turret).
+        // On this field, Pedro heading 0 means the robot front points +Y/down-field,
+        // while atan2() angle 0 means +X/right. Add +90 deg so turret math is relative
+        // to the actual robot front, not the mathematical +X axis.
+        double robotFrontFieldHeadingRad = normalizeRadians(
+                botHeadingRad + Math.toRadians(ROBOT_FORWARD_FIELD_HEADING_OFFSET_DEG)
+        );
+        double angleErrorRad = normalizeRadians(fieldAngleRad - robotFrontFieldHeadingRad);
         // - angleErrorDeg  -> "how many degrees left/right from current heading"
         double angleErrorDeg = Math.toDegrees(angleErrorRad);
 
@@ -1617,7 +1698,7 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
         SOTMResult sotmResult = calculateSotmResult(
                 botxvalue,
                 botyvalue,
-                botHeadingRad,
+                robotFrontFieldHeadingRad,
                 shootTargetX,
                 shootTargetY,
                 sotmVx,
@@ -3474,6 +3555,36 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
         while (angleDegrees >= 180.0) angleDegrees -= 360.0;
         while (angleDegrees < -180.0) angleDegrees += 360.0;
         return angleDegrees;
+    }
+
+    /**
+     * Selects the correct goal for the offseason 10x6-square field when TeleOp starts
+     * at local pose (0, 0, 0) and the robot front faces down-field (+Y).
+     *
+     * Local field geometry:
+     *   Before middle line, y < 120:
+     *       red goal  = (0, 0)
+     *       blue goal = (144, 0)
+     *   After middle line, y >= 120:
+     *       red goal  = (144, 240)
+     *       blue goal = (0, 240)
+     *
+     * This intentionally does NOT mirror the robot pose. The driver X/B selection
+     * chooses the goal color, and crossing y=120 flips to the opposite-end goal.
+     */
+    private static Pose getDynamicShootingTarget(Pose robotPose) {
+        return getDynamicShootingTarget(robotPose.getX(), robotPose.getY());
+    }
+
+    private static Pose getDynamicShootingTarget(double botX, double botY) {
+        boolean passedMiddleLine = botY >= FIELD_MIDDLE_Y_IN;
+        boolean shootingRedGoal = GlobalRobotData.allianceSide == GlobalRobotData.COLOR.RED;
+
+        if (shootingRedGoal) {
+            return passedMiddleLine ? BLUE_START_RED_GOAL : RED_START_RED_GOAL;
+        }
+
+        return passedMiddleLine ? BLUE_START_BLUE_GOAL : RED_START_BLUE_GOAL;
     }
 
     /**
