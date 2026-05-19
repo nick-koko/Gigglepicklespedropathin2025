@@ -1153,9 +1153,12 @@ public class    Pickles2025Teleop extends NextFTCOpMode {
     public void onUpdate() {
         if (gamepad2.rightBumperWasPressed()) {
             BLUE_AIM_X_OFFSET_IN -= 3;
+            RED_AIM_X_OFFSET_IN -= 3;
+
         }
         else if(gamepad2.leftBumperWasPressed()) {
             BLUE_AIM_X_OFFSET_IN += 3;
+            RED_AIM_X_OFFSET_IN += 3;
         }
 //        if (gamepad1.yWasPressed()) {
 //            shooterIdleMode = !shooterIdleMode;
